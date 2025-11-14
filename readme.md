@@ -18,6 +18,10 @@ Install (manual)
 Create folder: <your-vault>/.obsidian/plugins/zoom-map
 Copy these files from the build into that folder: manifest.json, main.js, styles.css
 Reload Obsidian → Settings → Community plugins → enable “Zoom Map”
+
+[Watch the demo video](https://youtu.be/MkuvFwk1obs)
+
+
 2. Add a code block to a note
 
 ~~~zoommap
@@ -31,7 +35,7 @@ width: 100%
 resizable: true
 align: right       # left | center | right
 wrap: true        # only left/right useful -> Text flows
-resizeHandle: both  # left | right | both | native (right)
+resizeHandle: native  # left | right | both | native (right)
 render: canvas   # or: dom
 ~~~
 
