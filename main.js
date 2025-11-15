@@ -294,7 +294,7 @@ var MapInstance = class extends import_obsidian4.Component {
     this.baseCanvas = null;
     this.ctx = null;
     this.baseBitmap = null;
-    // PATCH: On-demand Overlay-Quellen (Bitmap ODER HTMLImageElement) + Ladevorgänge
+    // On-demand Overlay-Quellen (Canvas)
     this.overlaySources = /* @__PURE__ */ new Map();
     this.overlayLoading = /* @__PURE__ */ new Map();
     this.imgW = 0;
@@ -324,7 +324,7 @@ var MapInstance = class extends import_obsidian4.Component {
     this.calibrating = false;
     this.calibPts = [];
     this.calibPreview = null;
-    // rAF-throttled panning (Android WebView flicker fix)
+    // rAF-throttled panning
     this.panRAF = null;
     this.panAccDx = 0;
     this.panAccDy = 0;
@@ -334,7 +334,7 @@ var MapInstance = class extends import_obsidian4.Component {
     this.pinchStartScale = 1;
     this.pinchStartDist = 0;
     this.pinchPrevCenter = null;
-    // NEW: aktuell tatsächlich geladenes Basisbild (gegen Early-Return-Bug)
+    // aktuell geladenes Basisbild
     this.currentBasePath = null;
     this.saveDataSoon = /* @__PURE__ */ (() => {
       let t = null;
@@ -562,7 +562,6 @@ var MapInstance = class extends import_obsidian4.Component {
     this.imgH = bmp.height;
     this.currentBasePath = path;
   }
-  // ====== NEW: Overlay-Loading on demand (Canvas mode) ======
   async loadCanvasSourceFromPath(path) {
     const f = this.resolveTFile(path, this.cfg.sourcePath);
     if (!f) return null;
@@ -619,7 +618,6 @@ var MapInstance = class extends import_obsidian4.Component {
       }
     }
   }
-  // ==========================================================
   renderCanvas() {
     var _a, _b;
     if (!this.isCanvas()) return;
@@ -655,13 +653,11 @@ var MapInstance = class extends import_obsidian4.Component {
   /* ---------- Measure overlay ---------- */
   setupMeasureOverlay() {
     this.measureEl = this.worldEl.createDiv({ cls: "zm-measure" });
-    this.measureInv = this.measureEl.createDiv({ cls: "zm-measure-inv" });
-    this.measureInv.style.transform = `scale(${1 / this.scale})`;
     this.measureSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     this.measureSvg.classList.add("zm-measure__svg");
     this.measureSvg.setAttribute("width", String(this.imgW));
     this.measureSvg.setAttribute("height", String(this.imgH));
-    this.measureInv.appendChild(this.measureSvg);
+    this.measureEl.appendChild(this.measureSvg);
     this.measurePath = document.createElementNS("http://www.w3.org/2000/svg", "path");
     this.measurePath.classList.add("zm-measure__path");
     this.measureSvg.appendChild(this.measurePath);
@@ -678,9 +674,9 @@ var MapInstance = class extends import_obsidian4.Component {
     if (!this.measureSvg) return;
     this.measureSvg.setAttribute("width", String(this.imgW));
     this.measureSvg.setAttribute("height", String(this.imgH));
-    this.measureInv.style.transform = `scale(${1 / this.scale})`;
     const pts = [...this.measurePts];
-    if (this.measuring && this.measurePreview) pts.push(this.measurePreview);
+    const showPreview = this.plugin.settings.showMeasurePreview !== false;
+    if (this.measuring && this.measurePreview && showPreview) pts.push(this.measurePreview);
     const toAbs = (p) => ({ x: p.x * this.imgW, y: p.y * this.imgH });
     let d = "";
     pts.forEach((p, i) => {
@@ -751,9 +747,10 @@ var MapInstance = class extends import_obsidian4.Component {
   }
   computeDistanceMeters() {
     if (!this.data) return null;
-    if (this.measurePts.length < 2 && !(this.measuring && this.measurePts.length >= 1 && this.measurePreview)) return null;
+    const showPreview = this.plugin.settings.showMeasurePreview !== false;
+    if (this.measurePts.length < 2 && !(this.measuring && this.measurePts.length >= 1 && this.measurePreview && showPreview)) return null;
     const pts = [...this.measurePts];
-    if (this.measuring && this.measurePreview) pts.push(this.measurePreview);
+    if (this.measuring && this.measurePreview && showPreview) pts.push(this.measurePreview);
     let px = 0;
     for (let i = 1; i < pts.length; i++) {
       const a = pts[i - 1], b = pts[i];
@@ -2185,13 +2182,11 @@ var ZoomMapSettingTab = class extends import_obsidian6.PluginSettingTab {
       }
     };
     renderIcons();
-    renderIcons();
     new import_obsidian6.Setting(containerEl).setName("Add new icon").setDesc("Creates an empty icon entry; pick a file or paste a data URL.").addButton((b) => b.setButtonText("Add").onClick(async () => {
       const idx = this.plugin.settings.icons.length + 1;
       this.plugin.settings.icons.push({
         key: `pin-${idx}`,
         pathOrDataUrl: "",
-        // empty on purpose; choose via folder button
         size: 24,
         anchorX: 12,
         anchorY: 12

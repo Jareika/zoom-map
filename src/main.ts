@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS: ZoomMapSettings = {
   defaultHeight: "480px",
   defaultResizable: false,
   defaultResizeHandle: "right",
-  forcePopoverWithoutModKey: true
+  forcePopoverWithoutModKey: true,
 };
 
 function toCssSize(v: unknown, fallback: string): string {
@@ -303,8 +303,6 @@ class ZoomMapSettingTab extends PluginSettingTab {
     };
     renderIcons();
 
-    renderIcons();
-
     // NEW: add button to create additional icon entries
     new Setting(containerEl)
       .setName("Add new icon")
@@ -315,13 +313,12 @@ class ZoomMapSettingTab extends PluginSettingTab {
           const idx = this.plugin.settings.icons.length + 1;
           this.plugin.settings.icons.push({
             key: `pin-${idx}`,
-            pathOrDataUrl: "",   // empty on purpose; choose via folder button
+            pathOrDataUrl: "",
             size: 24,
             anchorX: 12,
             anchorY: 12
           });
           await this.plugin.saveSettings();
-          // Re-render entire tab so presets' icon dropdowns refresh too
           this.display();
         }));
 

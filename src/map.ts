@@ -66,6 +66,7 @@ export interface ZoomMapSettings {
   defaultResizable: boolean;
   defaultResizeHandle: "left" | "right" | "both" | "native";
   forcePopoverWithoutModKey: boolean;
+  showMeasurePreview: boolean; // NEU: Vorschau-Linie ein-/ausblenden
 }
 
 type Point = { x: number; y: number };
@@ -89,7 +90,6 @@ export class MapInstance extends Component {
 
   // Measure-Overlay (DOM/SVG)
   private measureEl!: HTMLDivElement;
-  private measureInv!: HTMLDivElement;
   private measureSvg!: SVGSVGElement;
   private measurePath!: SVGPathElement;
   private measureDots!: SVGGElement;
@@ -105,7 +105,7 @@ export class MapInstance extends Component {
   private ctx: CanvasRenderingContext2D | null = null;
   private baseBitmap: ImageBitmap | null = null;
 
-  // PATCH: On-demand Overlay-Quellen (Bitmap ODER HTMLImageElement) + Ladevorgänge
+  // On-demand Overlay-Quellen (Canvas)
   private overlaySources: Map<string, CanvasImageSource> = new Map();
   private overlayLoading: Map<string, Promise<CanvasImageSource | null>> = new Map();
 
@@ -151,7 +151,7 @@ export class MapInstance extends Component {
   private calibPts: Point[] = [];
   private calibPreview: Point | null = null;
 
-  // rAF-throttled panning (Android WebView flicker fix)
+  // rAF-throttled panning
   private panRAF: number | null = null;
   private panAccDx = 0;
   private panAccDy = 0;
@@ -163,7 +163,7 @@ export class MapInstance extends Component {
   private pinchStartDist = 0;
   private pinchPrevCenter: { x: number; y: number } | null = null;
 
-  // NEW: aktuell tatsächlich geladenes Basisbild (gegen Early-Return-Bug)
+  // aktuell geladenes Basisbild
   private currentBasePath: string | null = null;
 
   constructor(app: App, plugin: ZoomMapPlugin, el: HTMLElement, cfg: ZoomMapConfig) {
@@ -347,10 +347,9 @@ export class MapInstance extends Component {
     this.baseBitmap = bmp;
     this.imgW = bmp.width;
     this.imgH = bmp.height;
-    this.currentBasePath = path; // wichtig: tatsächlich geladenes Bild merken
+    this.currentBasePath = path;
   }
 
-  // ====== NEW: Overlay-Loading on demand (Canvas mode) ======
   private async loadCanvasSourceFromPath(path: string): Promise<CanvasImageSource | null> {
     const f = this.resolveTFile(path, this.cfg.sourcePath);
     if (!f) return null;
@@ -360,10 +359,8 @@ export class MapInstance extends Component {
     img.src = url;
     try { await img.decode(); } catch (e) { console.warn("Overlay decode warning:", path, e); }
     try {
-      // Fast path; may fail on iOS / memory pressure
       return await createImageBitmap(img);
     } catch {
-      // Fallback to drawing the <img> directly
       return img;
     }
   }
@@ -392,27 +389,23 @@ export class MapInstance extends Component {
   private async ensureVisibleOverlaysLoaded(): Promise<void> {
     if (!this.data) return;
     const wantVisible = new Set((this.data.overlays ?? []).filter(o => o.visible).map(o => o.path));
-    // Release not-visible overlays
     for (const [path, src] of this.overlaySources) {
       if (!wantVisible.has(path)) {
         this.overlaySources.delete(path);
         this.closeCanvasSource(src);
       }
     }
-    // Load missing visible overlays
     for (const path of wantVisible) {
       if (!this.overlaySources.has(path)) {
         await this.ensureOverlayLoaded(path);
       }
     }
   }
-  // ==========================================================
 
   private renderCanvas() {
     if (!this.isCanvas()) return;
     if (!this.baseCanvas || !this.ctx || !this.baseBitmap) return;
 
-    // Viewport-Größe updaten
     const r = this.viewportEl.getBoundingClientRect();
     this.vw = r.width; this.vh = r.height;
 
@@ -441,7 +434,7 @@ export class MapInstance extends Component {
     // Basis
     ctx.drawImage(this.baseBitmap, 0, 0);
 
-    // Overlays (nur sichtbare und nur wenn geladen)
+    // Overlays
     if (this.data?.overlays?.length) {
       for (const o of this.data.overlays) {
         if (!o.visible) continue;
@@ -454,14 +447,12 @@ export class MapInstance extends Component {
   /* ---------- Measure overlay ---------- */
   private setupMeasureOverlay() {
     this.measureEl = this.worldEl.createDiv({ cls: "zm-measure" });
-    this.measureInv = this.measureEl.createDiv({ cls: "zm-measure-inv" });
-    this.measureInv.style.transform = `scale(${1 / this.scale})`;
 
     this.measureSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     this.measureSvg.classList.add("zm-measure__svg");
     this.measureSvg.setAttribute("width", String(this.imgW));
     this.measureSvg.setAttribute("height", String(this.imgH));
-    this.measureInv.appendChild(this.measureSvg);
+    this.measureEl.appendChild(this.measureSvg);
 
     this.measurePath = document.createElementNS("http://www.w3.org/2000/svg", "path");
     this.measurePath.classList.add("zm-measure__path");
@@ -484,10 +475,10 @@ export class MapInstance extends Component {
     if (!this.measureSvg) return;
     this.measureSvg.setAttribute("width", String(this.imgW));
     this.measureSvg.setAttribute("height", String(this.imgH));
-    this.measureInv.style.transform = `scale(${1 / this.scale})`;
 
     const pts: Point[] = [...this.measurePts];
-    if (this.measuring && this.measurePreview) pts.push(this.measurePreview);
+    const showPreview = this.plugin.settings.showMeasurePreview !== false;
+    if (this.measuring && this.measurePreview && showPreview) pts.push(this.measurePreview);
 
     const toAbs = (p: Point) => ({ x: p.x * this.imgW, y: p.y * this.imgH });
     let d = "";
@@ -568,10 +559,12 @@ export class MapInstance extends Component {
 
   private computeDistanceMeters(): number | null {
     if (!this.data) return null;
-    if (this.measurePts.length < 2 && !(this.measuring && this.measurePts.length >= 1 && this.measurePreview)) return null;
+
+    const showPreview = this.plugin.settings.showMeasurePreview !== false;
+    if (this.measurePts.length < 2 && !(this.measuring && this.measurePts.length >= 1 && this.measurePreview && showPreview)) return null;
 
     const pts: Point[] = [...this.measurePts];
-    if (this.measuring && this.measurePreview) pts.push(this.measurePreview);
+    if (this.measuring && this.measurePreview && showPreview) pts.push(this.measurePreview);
 
     let px = 0;
     for (let i = 1; i < pts.length; i++) {
@@ -618,7 +611,7 @@ export class MapInstance extends Component {
       this.imgEl.onerror = () => reject(new Error("Failed to load image."));
       this.imgEl.src = url;
     });
-    this.currentBasePath = path; // wichtig: tatsächlich geladenes Bild merken
+    this.currentBasePath = path;
   }
 
   private resolveTFile(pathOrWiki: string, from: string): TFile | null {
@@ -630,7 +623,6 @@ export class MapInstance extends Component {
 
   private onResize() {
     if (!this.ready || !this.data) {
-      // Trotzdem Canvas aktualisieren, falls vor ready geresized wurde
       if (this.isCanvas()) this.renderCanvas();
       return;
     }
@@ -669,7 +661,6 @@ export class MapInstance extends Component {
       return;
     }
 
-    // no pinch running -> normal pan
     if (this.pinchActive) return;
     if (!this.panButtonMatches(e)) return;
 
@@ -680,18 +671,15 @@ export class MapInstance extends Component {
   private onPointerMove(e: PointerEvent) {
     if (!this.ready) return;
 
-    // update tracked pointer
     if (this.activePointers.has(e.pointerId)) {
       this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     }
 
-    // pinch flow
     if (this.pinchActive) {
       this.updatePinch();
       return;
     }
 
-    // Dragging marker?
     if (this.draggingMarkerId && this.data) {
       const m = this.data.markers.find(mm => mm.id === this.draggingMarkerId);
       if (!m) return;
@@ -713,7 +701,6 @@ export class MapInstance extends Component {
       return;
     }
 
-    // Measuring preview
     if (this.measuring) {
       const vpRect = this.viewportEl.getBoundingClientRect();
       const vx = e.clientX - vpRect.left;
@@ -724,7 +711,6 @@ export class MapInstance extends Component {
       this.renderMeasure();
     }
 
-    // Calibration preview
     if (this.calibrating && this.calibPts.length === 1) {
       const vpRect = this.viewportEl.getBoundingClientRect();
       const vx = e.clientX - vpRect.left;
@@ -735,7 +721,6 @@ export class MapInstance extends Component {
       this.renderCalibrate();
     }
 
-    // View panning
     if (!this.draggingView) return;
     const dx = e.clientX - this.lastPos.x;
     const dy = e.clientY - this.lastPos.y;
@@ -764,7 +749,6 @@ export class MapInstance extends Component {
     this.pinchPrevCenter = this.mid(pts[0], pts[1]);
     this.pinchStartDist = this.dist(pts[0], pts[1]);
 
-    // cancel other modes
     this.draggingView = false;
     this.draggingMarkerId = null;
     this.measuring = false;
@@ -818,7 +802,6 @@ export class MapInstance extends Component {
   private onClickViewport(e: MouseEvent) {
     if (!this.ready) return;
 
-    // Calibration
     if (this.calibrating) {
       const vpRect = this.viewportEl.getBoundingClientRect();
       const vx = e.clientX - vpRect.left;
@@ -846,7 +829,6 @@ export class MapInstance extends Component {
       return;
     }
 
-    // Measuring
     if (this.measuring) {
       const vpRect = this.viewportEl.getBoundingClientRect();
       const vx = e.clientX - vpRect.left;
@@ -859,7 +841,6 @@ export class MapInstance extends Component {
       return;
     }
 
-    // Add marker with Shift
     if (e.shiftKey) {
       const vpRect = this.viewportEl.getBoundingClientRect();
       const vx = e.clientX - vpRect.left;
@@ -915,7 +896,6 @@ export class MapInstance extends Component {
       { label: "Add marker here", action: () => this.addMarkerInteractive(nx, ny) }
     ];
 
-    // NEW: Favorites (Presets) wieder im Kontextmenü, mit Icon
     if (this.plugin.settings.presets && this.plugin.settings.presets.length > 0) {
       const favs: ZMMenuItem[] = this.plugin.settings.presets.map(p => {
         const ico = this.getIconInfo(p.iconKey);
@@ -1003,7 +983,6 @@ export class MapInstance extends Component {
 
     this.scale = s; this.tx = txr; this.ty = tyr;
 
-    // Markerebene weiter mit CSS-Transform bewegen
     this.worldEl.style.transform = `translate3d(${this.tx}px, ${this.ty}px, 0) scale3d(${this.scale}, ${this.scale}, 1)`;
 
     if (render) {
@@ -1085,7 +1064,6 @@ export class MapInstance extends Component {
     this.worldEl.style.width = `${this.imgW}px`;
     this.worldEl.style.height = `${this.imgH}px`;
 
-    // DOM-Overlay-Container weiter mitsetzen (no-op im Canvas-Mode)
     this.overlaysEl.style.width = `${this.imgW}px`;
     this.overlaysEl.style.height = `${this.imgH}px`;
 
@@ -1289,7 +1267,6 @@ export class MapInstance extends Component {
   private async setActiveBase(path: string) {
     if (!this.data) return;
 
-    // FIX: Vergleiche mit tatsächlich geladenem Bild, nicht mit getActiveBasePath()
     if (this.currentBasePath === path && (this.imgW > 0 && this.imgH > 0)) return;
 
     this.data.activeBase = path;
@@ -1306,7 +1283,7 @@ export class MapInstance extends Component {
         this.imgEl.onerror = () => reject(new Error("Failed to load image."));
         this.imgEl.src = url;
       });
-      this.currentBasePath = path; // konsistent setzen
+      this.currentBasePath = path;
     }
 
     this.renderAll();
@@ -1373,7 +1350,6 @@ export class MapInstance extends Component {
       this.renderCanvas();
       return;
     }
-    // DOM-Modus
     for (const o of (this.data.overlays ?? [])) {
       const el = this.overlayMap.get(o.path);
       if (el) el.style.display = o.visible ? "block" : "none";
