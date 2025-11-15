@@ -9,7 +9,7 @@ import {
   TFile,
   setIcon
 } from "obsidian";
-import { MapInstance, ZoomMapConfig, ZoomMapSettings, IconProfile, MarkerPreset } from "./map";
+import { MapInstance, ZoomMapConfig, ZoomMapSettings, IconProfile, MarkerPreset, StickerPreset } from "./map";
 import { ImageFileSuggestModal } from "./iconFileSuggest";
 
 function svgPinDataUrl(color = "#d23c3c"): string {
@@ -31,11 +31,14 @@ const DEFAULT_SETTINGS: ZoomMapSettings = {
   hoverMaxWidth: 360,
   hoverMaxHeight: 260,
   presets: [],
+  stickerPresets: [],               // v0.4.4
   defaultWidth: "100%",
   defaultHeight: "480px",
   defaultResizable: false,
   defaultResizeHandle: "right",
   forcePopoverWithoutModKey: true,
+  measureLineColor: "var(--text-accent)",
+  measureLineWidth: 2
 };
 
 function toCssSize(v: unknown, fallback: string): string {
@@ -79,6 +82,20 @@ function parseScaleYaml(v: any): number | undefined {
   return mpp ?? ppm;
 }
 
+async function readSavedFrame(app: App, markersPath: string): Promise<{ w: number; h: number } | null> {
+  try {
+    const file = app.vault.getAbstractFileByPath(normalizePath(markersPath));
+    if (!(file instanceof TFile)) return null;
+    const raw = await app.vault.read(file);
+    const json = JSON.parse(raw);
+    const fw = Number(json?.frame?.w), fh = Number(json?.frame?.h);
+    if (Number.isFinite(fw) && Number.isFinite(fh) && fw > 0 && fh > 0) {
+      return { w: Math.round(fw), h: Math.round(fh) };
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
 export default class ZoomMapPlugin extends Plugin {
   settings: ZoomMapSettings = DEFAULT_SETTINGS;
 
@@ -93,15 +110,11 @@ export default class ZoomMapPlugin extends Plugin {
       const yamlOverlays = parseOverlaysYaml(opts.imageOverlays);
       const yamlMetersPerPixel = parseScaleYaml(opts.scale);
 
-      // Renderpfad
       const renderRaw = String(opts.render ?? "").toLowerCase();
       const renderMode: "dom" | "canvas" = (renderRaw === "canvas") ? "canvas" : "dom";
 
-      // Effektives Basisbild: 'image' oder erstes aus imageBases
       let image = String(opts.image ?? "").trim();
-      if (!image) {
-        if (yamlBases.length > 0) image = yamlBases[0].path;
-      }
+      if (!image && yamlBases.length > 0) image = yamlBases[0].path;
       if (!image) { el.createEl("div", { text: "zoommap: 'image:' is missing (or imageBases is empty)." }); return; }
 
       const markersPathRaw: string | undefined = opts.markers ? String(opts.markers) : undefined;
@@ -121,7 +134,22 @@ export default class ZoomMapPlugin extends Plugin {
       const resizeHandle: "left" | "right" | "both" | "native" =
         (["left","right","both","native"].includes(resizeHandleRaw) ? resizeHandleRaw as any : "right");
 
-      const sec = ctx.getSectionInfo(el);
+      const widthFromYaml  = Object.prototype.hasOwnProperty.call(opts, "width");
+      const heightFromYaml = Object.prototype.hasOwnProperty.call(opts, "height");
+      const widthDefault = wrap ? ((this.settings as any).defaultWidthWrapped ?? "50%") : this.settings.defaultWidth;
+
+      let widthCss  = toCssSize(opts.width,  widthDefault);
+      let heightCss = toCssSize(opts.height, this.settings.defaultHeight);
+
+      if (!(widthFromYaml || heightFromYaml)) {
+        const saved = await readSavedFrame(this.app, markersPath);
+        if (saved) {
+          widthCss  = `${Math.max(220, saved.w)}px`;
+          heightCss = `${Math.max(220, saved.h)}px`;
+          el.style.width  = widthCss;
+          el.style.height = heightCss;
+        }
+      }
 
       const cfg: ZoomMapConfig = {
         imagePath: image,
@@ -129,8 +157,8 @@ export default class ZoomMapPlugin extends Plugin {
         minZoom,
         maxZoom,
         sourcePath: ctx.sourcePath,
-        width: toCssSize(opts.width, this.settings.defaultWidth),
-        height: toCssSize(opts.height, this.settings.defaultHeight),
+        width: widthCss,
+        height: heightCss,
         resizable,
         resizeHandle,
         align,
@@ -140,8 +168,10 @@ export default class ZoomMapPlugin extends Plugin {
         yamlBases,
         yamlOverlays,
         yamlMetersPerPixel,
-        sectionStart: sec?.lineStart,
-        sectionEnd: sec?.lineEnd
+        sectionStart: ctx.getSectionInfo(el)?.lineStart,
+        sectionEnd: ctx.getSectionInfo(el)?.lineEnd,
+        widthFromYaml,
+        heightFromYaml
       };
 
       const inst = new MapInstance(this.app, this, el, cfg);
@@ -164,6 +194,7 @@ export default class ZoomMapPlugin extends Plugin {
   async loadSettings() {
     const saved = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, saved ?? {});
+    if (!Array.isArray((this.settings as any).stickerPresets)) (this.settings as any).stickerPresets = [];
   }
 
   async saveSettings() {
@@ -180,6 +211,19 @@ class ZoomMapSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.addClass("zoommap-settings");
     containerEl.createEl("h2", { text: "Zoom Map – Settings" });
+
+    // Layout
+    containerEl.createEl("h3", { text: "Layout" });
+    new Setting(containerEl)
+      .setName("Default width when wrapped")
+      .setDesc("Initial width if wrap: true and no width is set in the code block.")
+      .addText(t => t
+        .setPlaceholder("50%")
+        .setValue((this.plugin.settings as any).defaultWidthWrapped ?? "50%")
+        .onChange(async v => {
+          (this.plugin.settings as any).defaultWidthWrapped = (v || "50%").trim();
+          await this.plugin.saveSettings();
+        }));
 
     // Interaction
     containerEl.createEl("h3", { text: "Interaction" });
@@ -229,6 +273,55 @@ class ZoomMapSettingTab extends PluginSettingTab {
         .onChange(async v => {
           this.plugin.settings.forcePopoverWithoutModKey = v;
           await this.plugin.saveSettings();
+        }));
+
+    // Ruler
+    containerEl.createEl("h3", { text: "Ruler" });
+
+    const applyStyleToAll = () => {
+      const color = (this.plugin.settings.measureLineColor ?? "var(--text-accent)").trim();
+      const widthPx = Math.max(1, this.plugin.settings.measureLineWidth ?? 2);
+      document.querySelectorAll<HTMLElement>(".zm-root").forEach(el => {
+        el.style.setProperty("--zm-measure-color", color);
+        el.style.setProperty("--zm-measure-width", `${widthPx}px`);
+      });
+    };
+
+    const colorRow = new Setting(containerEl)
+      .setName("Line color")
+      .setDesc("CSS color (e.g. #ff0055, red, var(--text-accent)).");
+    colorRow.addText(t => t
+      .setPlaceholder("var(--text-accent)")
+      .setValue(this.plugin.settings.measureLineColor ?? "var(--text-accent)")
+      .onChange(async v => {
+        this.plugin.settings.measureLineColor = v?.trim() || "var(--text-accent)";
+        await this.plugin.saveSettings();
+        applyStyleToAll();
+      }));
+    const picker = colorRow.controlEl.createEl("input", { attr: { type: "color", style: "margin-left:8px; vertical-align: middle;" } });
+    const setPickerFromValue = (val: string) => {
+      if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(val)) { picker.value = val; } else { picker.value = "#ff0000"; }
+    };
+    setPickerFromValue(this.plugin.settings.measureLineColor ?? "");
+    picker.oninput = async () => {
+      this.plugin.settings.measureLineColor = picker.value;
+      await this.plugin.saveSettings();
+      applyStyleToAll();
+    };
+
+    new Setting(containerEl)
+      .setName("Line width")
+      .setDesc("Stroke width in pixels.")
+      .addText(t => t
+        .setPlaceholder("2")
+        .setValue(String(this.plugin.settings.measureLineWidth ?? 2))
+        .onChange(async v => {
+          const n = Number(v);
+          if (isFinite(n) && n > 0 && n <= 20) {
+            this.plugin.settings.measureLineWidth = n;
+            await this.plugin.saveSettings();
+            applyStyleToAll();
+          }
         }));
 
     // Marker icons
@@ -295,7 +388,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
         del.classList.add("zm-icon-btn");
         setIcon(del, "trash");
         del.onclick = async () => {
-          this.plugin.settings.icons = this.plugin.settings.icons.filter(i => i !== icon);
+          this.plugin.settings.icons = this.plugin.settings.icons = this.plugin.settings.icons.filter(i => i !== icon);
           await this.plugin.saveSettings();
           renderIcons();
         };
@@ -303,7 +396,6 @@ class ZoomMapSettingTab extends PluginSettingTab {
     };
     renderIcons();
 
-    // NEW: add button to create additional icon entries
     new Setting(containerEl)
       .setName("Add new icon")
       .setDesc("Creates an empty icon entry; pick a file or paste a data URL.")
@@ -322,7 +414,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
           this.display();
         }));
 
-    // Presets
+    // Presets (Pins)
     containerEl.createEl("h3", { text: "Favorites (presets)" });
     const presetsHead = containerEl.createDiv({ cls: "zm-presets-grid-head zm-grid" });
     ["Name", "Icon", "Layer", "Editor", "Link", ""].forEach(h => presetsHead.createSpan({ text: h }));
@@ -382,6 +474,74 @@ class ZoomMapSettingTab extends PluginSettingTab {
         this.plugin.settings.presets.push(p);
         await this.plugin.saveSettings();
         renderPresets();
+      }));
+
+    // Stickers
+    containerEl.createEl("h3", { text: "Stickers" });
+    const stickersHead = containerEl.createDiv({ cls: "zm-stickers-grid-head zm-grid" });
+    ["Name", "Image", "Size", "Layer", ""].forEach(h => stickersHead.createSpan({ text: h }));
+
+    const stickersGrid = containerEl.createDiv({ cls: "zm-stickers-grid zm-grid" });
+
+    const renderStickers = () => {
+      stickersGrid.empty();
+      for (const s of this.plugin.settings.stickerPresets) {
+        const row = stickersGrid.createDiv({ cls: "zm-row" });
+
+        // 1) Name
+        const name = row.createEl("input", { type: "text" });
+        name.classList.add("zm-name");
+        name.value = s.name;
+        name.oninput = async () => { s.name = name.value.trim(); await this.plugin.saveSettings(); };
+
+        // 2) Image (flexible column with picker)
+        const pathWrap = row.createDiv({ cls: "zm-path-wrap" });
+        const path = pathWrap.createEl("input", { type: "text" });
+        path.value = s.imagePath ?? "";
+        path.oninput = async () => { s.imagePath = path.value.trim(); await this.plugin.saveSettings(); };
+        const pick = pathWrap.createEl("button", { attr: { title: "Choose file…" } });
+        pick.classList.add("zm-icon-btn");
+        setIcon(pick, "folder-open");
+        pick.onclick = () => new ImageFileSuggestModal(this.app, async (file: TFile) => {
+          s.imagePath = file.path;
+          await this.plugin.saveSettings();
+          renderStickers();
+        }).open();
+
+        // 3) Size
+        const size = row.createEl("input", { type: "number" });
+        size.classList.add("zm-num");
+        size.value = String(s.size ?? 64);
+        size.oninput = async () => {
+          const n = Number(size.value);
+          if (!isNaN(n) && n > 0) { s.size = Math.round(n); await this.plugin.saveSettings(); }
+        };
+
+        // 4) Layer
+        const layer = row.createEl("input", { type: "text" });
+        layer.value = s.layerName ?? "";
+        layer.oninput = async () => { s.layerName = layer.value.trim() || undefined; await this.plugin.saveSettings(); };
+
+        // 5) Delete
+        const del = row.createEl("button", { attr: { title: "Delete" } });
+        del.classList.add("zm-icon-btn");
+        setIcon(del, "trash");
+        del.onclick = async () => {
+          this.plugin.settings.stickerPresets = this.plugin.settings.stickerPresets.filter(x => x !== s);
+          await this.plugin.saveSettings();
+          renderStickers();
+        };
+      }
+    };
+    renderStickers();
+
+    new Setting(containerEl)
+      .setName("Add new sticker")
+      .addButton(b => b.setButtonText("Add").onClick(async () => {
+        const s: StickerPreset = { name: "Sticker " + (this.plugin.settings.stickerPresets.length + 1), imagePath: "", size: 64, openEditor: false };
+        this.plugin.settings.stickerPresets.push(s);
+        await this.plugin.saveSettings();
+        renderStickers();
       }));
   }
 }

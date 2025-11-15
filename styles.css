@@ -3,18 +3,18 @@
 .zm-root, .zm-viewport, .zm-world { -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 .zm-viewport { position: absolute; inset: 0; overflow: hidden; touch-action: none; background: var(--background-primary); }
 
-/* Canvas (neu) */
+/* Canvas layer (optional render mode) */
 .zm-canvas {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none; /* Events gehen an die Karte/Marker-Ebene */
+  pointer-events: none; /* Events gehen an die Marker-Ebene */
   image-rendering: auto;
   z-index: 0;
 }
 
-/* Native resize (bottom-right, browser-controlled) */
+/* Native resize (browser) */
 .zm-root.resizable-native { resize: both; min-width: 220px; min-height: 220px; }
 
 /* Custom resize handles */
@@ -70,9 +70,23 @@
 /* Measure overlay (ruler) */
 .zm-measure { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
 .zm-measure__svg { width: 100%; height: 100%; overflow: visible; }
-.zm-measure__path { stroke: var(--text-accent); stroke-width: 2px; fill: none; vector-effect: non-scaling-stroke; }
+
+/* nutzt Plugin-Variablen mit Fallbacks */
+.zm-measure__path {
+  stroke: var(--zm-measure-color, var(--text-accent));
+  stroke-width: var(--zm-measure-width, 2px);
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
 .zm-measure__dash { stroke-dasharray: 6 6; opacity: 0.9; }
-.zm-measure__dot { fill: var(--text-accent); stroke: var(--background-primary); stroke-width: 2px; vector-effect: non-scaling-stroke; }
+
+/* Punkte übernehmen die Linienfarbe; Kontur = Theme-Hintergrund */
+.zm-measure__dot {
+  fill: var(--zm-measure-color, var(--text-accent));
+  stroke: var(--background-primary);
+  stroke-width: var(--zm-measure-width, 2px);
+  vector-effect: non-scaling-stroke;
+}
 
 /* Measure HUD */
 .zm-measure-hud {
@@ -119,6 +133,12 @@
 .zoommap-settings .zm-presets-grid     { display: grid; grid-template-columns: 12ch 16ch 14ch 8ch minmax(16ch, 1fr) 36px; gap: 8px; align-items: center; width: 100%; }
 .zoommap-settings input.zm-link { width: 24ch; }
 .zoommap-settings .zm-row { display: contents; }
+
+/* Stickers grid (settings) */
+.zoommap-settings .zm-stickers-grid-head { display: grid; gap: 8px; align-items: end; grid-template-columns: 12ch minmax(240px, 1fr) 8ch 14ch 36px; width: 100%; }
+.zoommap-settings .zm-stickers-grid     { display: grid; grid-template-columns: 12ch minmax(240px, 1fr) 8ch 14ch 36px; gap: 8px; align-items: center; width: 100%; }
+.zoommap-settings .zm-stickers-grid-head span:last-child { display: flex; align-items: center; justify-content: center; }
+
 .zoommap-settings .zm-icon-btn { width: 36px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; flex: 0 0 36px; }
 .zoommap-settings .zm-icon-btn svg { width: 18px !important; height: 18px !important; display: block; }
 body.is-mobile .zoommap-settings .zm-icon-btn,

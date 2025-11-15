@@ -4,7 +4,11 @@ export interface MarkerLayer {
   id: string;
   name: string;
   visible: boolean;
+  // Neu: Layer-Lock (Marker dieses Layers nicht verschiebbar)
+  locked?: boolean;
 }
+
+export type MarkerKind = "pin" | "sticker";
 
 export interface Marker {
   id: string;
@@ -12,8 +16,13 @@ export interface Marker {
   y: number; // 0..1 relative to image height
   layer: string; // layer.id
   link?: string; // e.g. [[Note]]
-  iconKey?: string;
+  iconKey?: string; // for pin markers
   tooltip?: string;
+
+  // v0.4.4: optional type + sticker fields
+  type?: MarkerKind;
+  stickerPath?: string;   // vault path or data URL
+  stickerSize?: number;   // px (rendered in image space; scales with zoom)
 }
 
 export interface BaseImage {
@@ -38,7 +47,7 @@ export interface MeasurementConfig {
 
 export interface MarkerFileData {
   image: string; // active base image (back-compat)
-  size?: { w: number; h: number };
+  size?: { w: number; h: number };    // Bildgröße (Pixel)
   layers: MarkerLayer[];
   markers: Marker[];
 
@@ -49,6 +58,9 @@ export interface MarkerFileData {
 
   // Ruler / scale
   measurement?: MeasurementConfig;
+
+  // gespeicherte Frame-Größe (Viewport) in Pixeln
+  frame?: { w: number; h: number };
 }
 
 export function generateId(prefix = "m"): string {
@@ -75,7 +87,7 @@ export class MarkerStore {
     const data: MarkerFileData = {
       image: initialImagePath ?? "",
       size,
-      layers: [{ id: "default", name: "Default", visible: true }],
+      layers: [{ id: "default", name: "Default", visible: true, locked: false }],
       markers: [],
       bases: initialImagePath ? [initialImagePath] : [],
       overlays: [],
@@ -92,7 +104,16 @@ export class MarkerStore {
     const raw = await this.app.vault.read(f);
     const parsed = JSON.parse(raw) as MarkerFileData;
 
-    if (!parsed.layers || parsed.layers.length === 0) parsed.layers = [{ id: "default", name: "Default", visible: true }];
+    // Defaults / Back-Compat
+    if (!parsed.layers || parsed.layers.length === 0) parsed.layers = [{ id: "default", name: "Default", visible: true, locked: false }];
+    // Layer-Felder normalisieren
+    parsed.layers = parsed.layers.map(l => ({
+      id: l.id,
+      name: l.name ?? "Layer",
+      visible: typeof l.visible === "boolean" ? l.visible : true,
+      locked: !!l.locked
+    }));
+
     if (!parsed.markers) parsed.markers = [];
 
     if (!parsed.bases) parsed.bases = parsed.image ? [parsed.image] : [];
@@ -129,7 +150,7 @@ export class MarkerStore {
   }
 
   async updateLayers(data: MarkerFileData, layers: MarkerLayer[]): Promise<MarkerFileData> {
-    data.layers = layers;
+    data.layers = layers.map(l => ({ ...l, locked: !!l.locked }));
     await this.save(data);
     return data;
   }

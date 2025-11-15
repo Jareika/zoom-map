@@ -1,9 +1,9 @@
 {
   "id": "zoom-map",
   "name": "Zoom Map",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "minAppVersion": "1.9.0",
-  "description": "Zoomable image map with markers, layers and ruler. Flicker-minimized with GPU transforms; supports pinch-zoom and image overlays.",
+  "description": "Zoomable image map with markers, layers, ruler and stickers.",
   "author": "Jareika",
   "authorUrl": "",
   "isDesktopOnly": false
