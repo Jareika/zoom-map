@@ -31,14 +31,15 @@ const DEFAULT_SETTINGS: ZoomMapSettings = {
   hoverMaxWidth: 360,
   hoverMaxHeight: 260,
   presets: [],
-  stickerPresets: [],               // v0.4.4
+  stickerPresets: [],
   defaultWidth: "100%",
   defaultHeight: "480px",
   defaultResizable: false,
   defaultResizeHandle: "right",
   forcePopoverWithoutModKey: true,
   measureLineColor: "var(--text-accent)",
-  measureLineWidth: 2
+  measureLineWidth: 2,
+  storageDefault: "json"
 };
 
 function toCssSize(v: unknown, fallback: string): string {
@@ -85,19 +86,18 @@ function parseScaleYaml(v: any): number | undefined {
 async function readSavedFrame(app: App, markersPath: string): Promise<{ w: number; h: number } | null> {
   try {
     const file = app.vault.getAbstractFileByPath(normalizePath(markersPath));
-	if (!(file instanceof TFile)) return null;
-	const raw = await app.vault.read(file);
-	const json = JSON.parse(raw);
-	const fw = Number(json?.frame?.w), fh = Number(json?.frame?.h);
-	if (Number.isFinite(fw) && Number.isFinite(fh)) {
-	  // Unrealistische/defekte Werte ignorieren (z. B. 1×1)
-	  if (fw >= 48 && fh >= 48) {
-	    return { w: Math.round(fw), h: Math.round(fh) };
-	}
-  }
-	} catch { /* ignore */ }
-	return null;
-	}
+    if (!(file instanceof TFile)) return null;
+    const raw = await app.vault.read(file);
+    const json = JSON.parse(raw);
+    const fw = Number(json?.frame?.w), fh = Number(json?.frame?.h);
+    if (Number.isFinite(fw) && Number.isFinite(fh)) {
+      if (fw >= 48 && fh >= 48) {
+        return { w: Math.round(fw), h: Math.round(fh) };
+      }
+    }
+  } catch { /* ignore */ }
+  return null;
+}
 
 export default class ZoomMapPlugin extends Plugin {
   settings: ZoomMapSettings = DEFAULT_SETTINGS;
@@ -119,6 +119,16 @@ export default class ZoomMapPlugin extends Plugin {
       let image = String(opts.image ?? "").trim();
       if (!image && yamlBases.length > 0) image = yamlBases[0].path;
       if (!image) { el.createEl("div", { text: "zoommap: 'image:' is missing (or imageBases is empty)." }); return; }
+
+      const storageRaw = typeof opts.storage === "string" ? String(opts.storage).toLowerCase() : "";
+      const storageMode: "json" | "note" =
+        storageRaw === "note" || storageRaw === "inline" || storageRaw === "in-note"
+          ? "note"
+          : storageRaw === "json"
+            ? "json"
+            : (this.settings.storageDefault ?? "json");
+
+      const mapId = String(opts.id ?? `map-${ctx.getSectionInfo(el)?.lineStart ?? Date.now()}`);
 
       const markersPathRaw: string | undefined = opts.markers ? String(opts.markers) : undefined;
       const minZoom = typeof opts.minZoom === "number" ? opts.minZoom : 0.25;
@@ -144,7 +154,8 @@ export default class ZoomMapPlugin extends Plugin {
       let widthCss  = toCssSize(opts.width,  widthDefault);
       let heightCss = toCssSize(opts.height, this.settings.defaultHeight);
 
-      if (!(widthFromYaml || heightFromYaml)) {
+      // Vorab gespeicherte Fenstergröße nur im JSON-Modus vor dem Mount lesen
+      if (storageMode === "json" && !(widthFromYaml || heightFromYaml)) {
         const saved = await readSavedFrame(this.app, markersPath);
         if (saved) {
           widthCss  = `${Math.max(220, saved.w)}px`;
@@ -174,7 +185,9 @@ export default class ZoomMapPlugin extends Plugin {
         sectionStart: ctx.getSectionInfo(el)?.lineStart,
         sectionEnd: ctx.getSectionInfo(el)?.lineEnd,
         widthFromYaml,
-        heightFromYaml
+        heightFromYaml,
+        storageMode,
+        mapId
       };
 
       const inst = new MapInstance(this.app, this, el, cfg);
@@ -198,6 +211,7 @@ export default class ZoomMapPlugin extends Plugin {
     const saved = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, saved ?? {});
     if (!Array.isArray((this.settings as any).stickerPresets)) (this.settings as any).stickerPresets = [];
+    if (!this.settings.storageDefault) (this.settings as any).storageDefault = "json";
   }
 
   async saveSettings() {
@@ -214,6 +228,21 @@ class ZoomMapSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.addClass("zoommap-settings");
     containerEl.createEl("h2", { text: "Zoom Map – Settings" });
+
+    // Storage
+    containerEl.createEl("h3", { text: "Storage" });
+    new Setting(containerEl)
+      .setName("Storage location (default)")
+      .setDesc("Where to save map data if not overridden in the code block (storage: json|note).")
+      .addDropdown(d => {
+        d.addOption("json", "JSON file (beside image)");
+        d.addOption("note", "Inside the note (hidden comment)");
+        d.setValue(this.plugin.settings.storageDefault ?? "json");
+        d.onChange(async v => {
+          this.plugin.settings.storageDefault = (v === "note" ? "note" : "json");
+          await this.plugin.saveSettings();
+        });
+      });
 
     // Layout
     containerEl.createEl("h3", { text: "Layout" });
@@ -491,13 +520,11 @@ class ZoomMapSettingTab extends PluginSettingTab {
       for (const s of this.plugin.settings.stickerPresets) {
         const row = stickersGrid.createDiv({ cls: "zm-row" });
 
-        // 1) Name
         const name = row.createEl("input", { type: "text" });
         name.classList.add("zm-name");
         name.value = s.name;
         name.oninput = async () => { s.name = name.value.trim(); await this.plugin.saveSettings(); };
 
-        // 2) Image (flexible column with picker)
         const pathWrap = row.createDiv({ cls: "zm-path-wrap" });
         const path = pathWrap.createEl("input", { type: "text" });
         path.value = s.imagePath ?? "";
@@ -511,7 +538,6 @@ class ZoomMapSettingTab extends PluginSettingTab {
           renderStickers();
         }).open();
 
-        // 3) Size
         const size = row.createEl("input", { type: "number" });
         size.classList.add("zm-num");
         size.value = String(s.size ?? 64);
@@ -520,12 +546,10 @@ class ZoomMapSettingTab extends PluginSettingTab {
           if (!isNaN(n) && n > 0) { s.size = Math.round(n); await this.plugin.saveSettings(); }
         };
 
-        // 4) Layer
         const layer = row.createEl("input", { type: "text" });
         layer.value = s.layerName ?? "";
         layer.oninput = async () => { s.layerName = layer.value.trim() || undefined; await this.plugin.saveSettings(); };
 
-        // 5) Delete
         const del = row.createEl("button", { attr: { title: "Delete" } });
         del.classList.add("zm-icon-btn");
         setIcon(del, "trash");

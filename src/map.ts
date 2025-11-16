@@ -2,13 +2,13 @@ import {
   App,
   Component,
   Notice,
-  TFile,
-  parseYaml
+  TFile
 } from "obsidian";
 import { Marker, MarkerFileData, MarkerStore, generateId, ImageOverlay, BaseImage, MarkerLayer } from "./markerStore";
 import type ZoomMapPlugin from "./main";
 import { MarkerEditorModal } from "./markerEditor";
 import { ScaleCalibrateModal } from "./scaleCalibrateModal";
+import { NoteMarkerStore } from "./inlineStore";
 
 export interface ZoomMapConfig {
   imagePath: string;
@@ -35,6 +35,9 @@ export interface ZoomMapConfig {
 
   widthFromYaml?: boolean;
   heightFromYaml?: boolean;
+
+  storageMode?: "json" | "note";
+  mapId?: string;
 }
 
 export interface IconProfile {
@@ -70,7 +73,7 @@ export interface ZoomMapSettings {
   hoverMaxWidth: number;
   hoverMaxHeight: number;
   presets: MarkerPreset[];
-  stickerPresets: StickerPreset[]; // v0.4.4
+  stickerPresets: StickerPreset[];
   defaultWidth: string;
   defaultHeight: string;
   defaultResizable: boolean;
@@ -79,6 +82,8 @@ export interface ZoomMapSettings {
 
   measureLineColor: string;
   measureLineWidth: number;
+
+  storageDefault: "json" | "note";
 }
 
 type Point = { x: number; y: number };
@@ -106,14 +111,13 @@ export class MapInstance extends Component {
   private calibPath!: SVGPathElement;
   private calibDots!: SVGGElement;
   private measureHud!: HTMLDivElement;
-  
+
   private initialLayoutDone = false;
   private isFrameVisibleEnough(minPx = 48): boolean {
-	if (!this.el || !this.el.isConnected) return false;
-	// Wenn ein Vorfahr display:none ist → offsetParent null
-	if ((this.el as HTMLElement).offsetParent === null) return false;
-	const rect = this.el.getBoundingClientRect();
-	return rect.width >= minPx && rect.height >= minPx;
+    if (!this.el || !this.el.isConnected) return false;
+    if ((this.el as HTMLElement).offsetParent === null) return false;
+    const rect = this.el.getBoundingClientRect();
+    return rect.width >= minPx && rect.height >= minPx;
   }
 
   private overlayMap: Map<string, HTMLImageElement> = new Map();
@@ -126,7 +130,13 @@ export class MapInstance extends Component {
   private overlayLoading: Map<string, Promise<CanvasImageSource | null>> = new Map();
 
   private cfg: ZoomMapConfig;
-  private store: MarkerStore;
+  private store: {
+    getPath(): string;
+    ensureExists(a?: string, b?: { w: number; h: number }): Promise<void>;
+    load(): Promise<MarkerFileData>;
+    save(d: MarkerFileData): Promise<void>;
+    wouldChange(d: MarkerFileData): Promise<boolean>;
+  };
   private data!: MarkerFileData | undefined;
 
   private imgW = 0;
@@ -181,13 +191,23 @@ export class MapInstance extends Component {
   private frameSaveTimer: number | null = null;
   private userResizing = false;
 
+  // Apply YAML bases/overlays only once
+  private yamlAppliedOnce = false;
+
   constructor(app: App, plugin: ZoomMapPlugin, el: HTMLElement, cfg: ZoomMapConfig) {
     super();
     this.app = app;
     this.plugin = plugin;
     this.el = el;
     this.cfg = cfg;
-    this.store = new MarkerStore(app, cfg.sourcePath, cfg.markersPath);
+
+    // Select storage backend
+    if (this.cfg.storageMode === "note") {
+      const id = this.cfg.mapId || `map-${this.cfg.sectionStart ?? 0}`;
+      this.store = new NoteMarkerStore(app, cfg.sourcePath, id, this.cfg.sectionEnd);
+    } else {
+      this.store = new MarkerStore(app, cfg.sourcePath, cfg.markersPath);
+    }
   }
 
   private isCanvas(): boolean { return this.cfg.renderMode === "canvas"; }
@@ -295,6 +315,9 @@ export class MapInstance extends Component {
     await this.store.ensureExists(this.cfg.imagePath, { w: this.imgW, h: this.imgH });
     this.data = await this.store.load();
 
+    // Apply YAML bases/overlays once (esp. for inline storage)
+    await this.applyYamlOnFirstLoad();
+
     if (this.cfg.yamlMetersPerPixel && this.getMetersPerPixel() === undefined) {
       this.ensureMeasurement();
       const base = this.getActiveBasePath();
@@ -355,6 +378,18 @@ export class MapInstance extends Component {
     this.baseBitmap = bmp;
     this.imgW = bmp.width;
     this.imgH = bmp.height;
+    this.currentBasePath = path;
+  }
+
+  private async loadBaseImageByPath(path: string) {
+    const imgFile = this.resolveTFile(path, this.cfg.sourcePath);
+    if (!imgFile) throw new Error(`Image not found: ${path}`);
+    const url = this.app.vault.getResourcePath(imgFile);
+    await new Promise<void>((resolve, reject) => {
+      this.imgEl.onload = () => { this.imgW = this.imgEl.naturalWidth; this.imgH = this.imgEl.naturalHeight; resolve(); };
+      this.imgEl.onerror = () => reject(new Error("Failed to load image."));
+      this.imgEl.src = url;
+    });
     this.currentBasePath = path;
   }
 
@@ -599,18 +634,6 @@ export class MapInstance extends Component {
     else await this.loadBaseImageByPath(path);
   }
 
-  private async loadBaseImageByPath(path: string) {
-    const imgFile = this.resolveTFile(path, this.cfg.sourcePath);
-    if (!imgFile) throw new Error(`Image not found: ${path}`);
-    const url = this.app.vault.getResourcePath(imgFile);
-    await new Promise<void>((resolve, reject) => {
-      this.imgEl.onload = () => { this.imgW = this.imgEl.naturalWidth; this.imgH = this.imgEl.naturalHeight; resolve(); };
-      this.imgEl.onerror = () => reject(new Error("Failed to load image."));
-      this.imgEl.src = url;
-    });
-    this.currentBasePath = path;
-  }
-
   private resolveTFile(pathOrWiki: string, from: string): TFile | null {
     const byPath = this.app.vault.getAbstractFileByPath(pathOrWiki);
     if (byPath instanceof TFile) return byPath;
@@ -627,28 +650,24 @@ export class MapInstance extends Component {
   }
 
   private onResize() {
-	if (!this.ready || !this.data) {
-	if (this.isCanvas()) this.renderCanvas();
-	return;
-	}
+    if (!this.ready || !this.data) {
+      if (this.isCanvas()) this.renderCanvas();
+      return;
+    }
 
-	const r = this.viewportEl.getBoundingClientRect();
-	this.vw = r.width;
-	this.vh = r.height;
+    const r = this.viewportEl.getBoundingClientRect();
+    this.vw = r.width;
+    this.vh = r.height;
 
-	this.applyTransform(this.scale, this.tx, this.ty, true);
+    this.applyTransform(this.scale, this.tx, this.ty, true);
 
-	// Nur bei nativen Handles automatisch persistieren
-	if (this.shouldUseSavedFrame() && this.cfg.resizable && this.cfg.resizeHandle === "native" && !this.userResizing) {
-	// Erste Resize-Notification nach Mount ignorieren
-	if (!this.initialLayoutDone) {
-	this.initialLayoutDone = true;
-	} else if (this.isFrameVisibleEnough()) {
-	this.requestPersistFrame();
-	} else {
-	// Map ist unsichtbar/zusammengeklappt (z. B. beim Wechsel in Edit-Mode) → nicht speichern
-	}
-   }
+    if (this.shouldUseSavedFrame() && this.cfg.resizable && this.cfg.resizeHandle === "native" && !this.userResizing) {
+      if (!this.initialLayoutDone) {
+        this.initialLayoutDone = true;
+      } else if (this.isFrameVisibleEnough()) {
+        this.requestPersistFrame();
+      }
+    }
   }
 
   private onWheel(e: WheelEvent) {
@@ -764,7 +783,7 @@ export class MapInstance extends Component {
     if (!pts) return;
     this.pinchActive = true;
     this.pinchStartScale = this.scale;
-       this.pinchPrevCenter = this.mid(pts[0], pts[1]);
+    this.pinchPrevCenter = this.mid(pts[0], pts[1]);
     this.pinchStartDist = this.dist(pts[0], pts[1]);
 
     this.draggingView = false;
@@ -796,7 +815,7 @@ export class MapInstance extends Component {
   }
   private endPinch() {
     this.pinchActive = false;
-       this.pinchPrevCenter = null;
+    this.pinchPrevCenter = null;
     this.pinchStartDist = 0;
   }
 
@@ -871,7 +890,6 @@ export class MapInstance extends Component {
     }
   }
 
-  // Tri-State: visible -> locked -> hidden -> visible
   private getLayerById(id: string): MarkerLayer | undefined {
     return this.data?.layers.find(l => l.id === id);
   }
@@ -905,13 +923,11 @@ export class MapInstance extends Component {
     const ny = clamp(wy / this.imgH, 0, 1);
 
     const bases = this.getBasesNormalized();
-    // FIX: Update checkmark live when switching base images
     const baseItems = bases.map((b) => ({
       label: b.name ?? basename(b.path),
       checked: (this.getActiveBasePath() === b.path),
       action: async (rowEl: HTMLDivElement) => {
         await this.setActiveBase(b.path);
-        // Uncheck all siblings in the same submenu and check the clicked one
         const submenu = rowEl.parentElement as HTMLElement | null;
         if (submenu) {
           const rows = submenu.querySelectorAll<HTMLDivElement>(".zm-menu__item");
@@ -976,7 +992,6 @@ export class MapInstance extends Component {
       items.push({ label: "Stickers", children: favStickers });
     }
 
-    // Tri-State für Marker-Layer
     const layerChildren: ZMMenuItem[] = this.data.layers.map(layer => {
       const state = this.getLayerState(layer);
       const { mark, color } = this.triStateIndicator(state);
@@ -988,7 +1003,6 @@ export class MapInstance extends Component {
           const next = this.advanceLayerState(layer);
           await this.saveDataSoon();
           this.renderMarkersOnly();
-          // Indikator im Menü aktualisieren ohne das Menü zu schließen
           const chk = rowEl.querySelector(".zm-menu__check") as HTMLElement | null;
           if (chk) {
             const m = this.triStateIndicator(next);
@@ -1005,9 +1019,7 @@ export class MapInstance extends Component {
       { label: "Image layers",
         children: [
           { label: "Base", children: baseItems },
-          { label: "Overlays", children: overlayItems },
-          { type: "separator" },
-          { label: "Reload from YAML", action: () => this.reloadYamlFromSource() }
+          { label: "Overlays", children: overlayItems }
         ]
       },
       { label: "Measure", children: [
@@ -1036,13 +1048,11 @@ export class MapInstance extends Component {
     this.openMenu = new ZMMenu();
     this.openMenu.open(e.clientX, e.clientY, items);
 
-    // Menü offen lassen; nur Outside-Click / Esc / neuer Kontextklick schließt
     const outside = (ev: Event) => { if (!this.openMenu) return; const t = ev.target as HTMLElement | null; if (t && this.openMenu.contains(t)) return; this.closeMenu(); };
     const keyClose   = (ev: KeyboardEvent) => { if (ev.key === "Escape") this.closeMenu(); };
     const rightClickClose = () => this.closeMenu();
 
     document.addEventListener("pointerdown", outside, { capture: true });
-    // kein Wheel-Close mehr
     document.addEventListener("contextmenu", rightClickClose, { capture: true });
     document.addEventListener("keydown", keyClose, { capture: true });
     this.register(() => {
@@ -1160,7 +1170,6 @@ export class MapInstance extends Component {
     } else { this.data.markers.push(draft); await this.saveDataSoon(); this.renderMarkersOnly(); new Notice("Marker added (favorite).", 900); }
   }
 
-  // v0.4.4: place Sticker from preset
   private async placeStickerPresetAt(p: StickerPreset, nx: number, ny: number) {
     if (!this.data) return;
     let layerId = this.data.layers[0].id;
@@ -1210,7 +1219,7 @@ export class MapInstance extends Component {
     this.markersEl.empty();
     this.renderMarkersOnly();
     this.renderMeasure();
-    this.renderCalibrate();
+       this.renderCalibrate();
 
     if (this.isCanvas()) this.renderCanvas();
   }
@@ -1221,7 +1230,7 @@ export class MapInstance extends Component {
     this.markersEl.empty();
     const visibleLayers = new Set(this.data.layers.filter(l => l.visible).map(l => l.id));
 
-    const rank = (m: Marker) => (m.type === "sticker" ? 0 : 1); // stickers first (below), pins later (above)
+    const rank = (m: Marker) => (m.type === "sticker" ? 0 : 1);
     const toRender = this.data.markers.filter(m => visibleLayers.has(m.layer)).sort((a, b) => rank(a) - rank(b));
 
     for (const m of toRender) {
@@ -1262,7 +1271,6 @@ export class MapInstance extends Component {
         anch.appendChild(icon);
       }
 
-      // Hover (Pins)
       if (m.type !== "sticker") {
         host.addEventListener("mouseenter", (ev) => this.onMarkerEnter(ev as MouseEvent, m, host));
         host.addEventListener("mouseleave", () => this.hideTooltipSoon());
@@ -1278,7 +1286,7 @@ export class MapInstance extends Component {
       host.addEventListener("pointerdown", (e: PointerEvent) => {
         e.stopPropagation();
         if (e.button !== 0) return;
-        if (this.isLayerLocked(m.layer)) return; // Bewegung gesperrt
+        if (this.isLayerLocked(m.layer)) return;
         this.hideTooltipSoon(0);
 
         this.draggingMarkerId = m.id;
@@ -1346,7 +1354,7 @@ export class MapInstance extends Component {
   }
 
   private onMarkerEnter(ev: MouseEvent, m: Marker, hostEl: HTMLElement) {
-    if (m.type === "sticker") return; // stickers: no tooltip/popover
+    if (m.type === "sticker") return;
     if (m.link) {
       const ws: any = this.app.workspace;
       const eventForPopover = this.plugin.settings.forcePopoverWithoutModKey
@@ -1523,104 +1531,6 @@ export class MapInstance extends Component {
     }
   }
 
-  private async reloadYamlFromSource() {
-    const yaml = await this.readYamlForThisBlock();
-    if (!yaml) return;
-
-    const bases = this.parseBasesYaml(yaml.imageBases);
-    const overlays = this.parseOverlaysYaml(yaml.imageOverlays);
-    const yamlImage: string | undefined = typeof yaml.image === "string" ? yaml.image.trim() : undefined;
-
-    const changed = await this.syncYamlLayers(bases, overlays, yamlImage);
-    if (changed && this.data) {
-      if (await this.store.wouldChange(this.data)) { this.ignoreNextModify = true; await this.store.save(this.data); }
-      await this.applyActiveBaseAndOverlays();
-      this.renderAll();
-      new Notice("Image layers reloaded from YAML.", 1500);
-    }
-  }
-
-  private async readYamlForThisBlock(): Promise<any | null> {
-    try {
-      const f = this.app.vault.getAbstractFileByPath(this.cfg.sourcePath);
-      if (!(f instanceof TFile)) return null;
-      const txt = await this.app.vault.read(f);
-      const lines = txt.split("\n");
-
-      let start = -1, end = -1;
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].trim().startsWith("```zoommap")) { start = i; break; }
-      }
-      if (start < 0) return null;
-      for (let j = start + 1; j < lines.length; j++) {
-        if (lines[j].trim().startsWith("```")) { end = j; break; }
-      }
-      if (end < 0) return null;
-
-      const body = lines.slice(start + 1, end).join("\n");
-      let y: any = {};
-      try { y = parseYaml(body) ?? {}; } catch {}
-      return y;
-    } catch { return null; }
-  }
-
-  private parseBasesYaml(v: any): { path: string; name?: string }[] {
-    if (!v) return [];
-    if (Array.isArray(v)) {
-      return v.map((it: any) => {
-        if (typeof it === "string") return { path: it };
-        if (it && typeof it === "object" && typeof it.path === "string") return { path: String(it.path), name: it.name ? String(it.name) : undefined };
-        return null;
-      }).filter(Boolean) as { path: string; name?: string }[];
-    }
-    return [];
-  }
-  private parseOverlaysYaml(v: any): { path: string; name?: string; visible?: boolean }[] {
-    if (!v) return [];
-    if (Array.isArray(v)) {
-      return v.map((it: any) => {
-        if (typeof it === "string") return { path: it };
-        if (it && typeof it === "object" && typeof it.path === "string") {
-          return { path: String(it.path), name: it.name ? String(it.name) : undefined, visible: typeof it.visible === "boolean" ? it.visible : undefined };
-        }
-        return null;
-      }).filter(Boolean) as { path: string; name?: string; visible?: boolean }[];
-    }
-    return [];
-  }
-
-  private async syncYamlLayers(yamlBases: { path: string; name?: string }[], yamlOverlays: { path: string; name?: string; visible?: boolean }[], yamlImage?: string): Promise<boolean> {
-    if (!this.data) return false;
-    let changed = false;
-
-    if (yamlBases && yamlBases.length > 0) {
-      const prevActive = this.getActiveBasePath();
-      const newBases: BaseImage[] = yamlBases.map(b => ({ path: b.path, name: b.name }));
-      const newPaths = new Set(newBases.map(b => b.path));
-      let newActive = prevActive;
-      if (yamlImage && newPaths.has(yamlImage)) newActive = yamlImage;
-      if (!newPaths.has(newActive)) newActive = newBases[0].path;
-
-      (this.data as any).bases = newBases;
-      this.data.activeBase = newActive;
-      this.data.image = newActive;
-      changed = true;
-    }
-
-    if (yamlOverlays && yamlOverlays.length > 0) {
-      const prev = new Map((this.data.overlays ?? []).map(o => [o.path, o]));
-      const next: ImageOverlay[] = yamlOverlays.map(o => ({
-        path: o.path,
-        name: o.name,
-        visible: typeof o.visible === "boolean" ? o.visible : (prev.get(o.path)?.visible ?? false)
-      }));
-      this.data.overlays = next;
-      changed = true;
-    }
-
-    return changed;
-  }
-
   private async reloadMarkers() {
     try {
       this.data = await this.store.load();
@@ -1703,34 +1613,28 @@ export class MapInstance extends Component {
     }, delay);
   }
   private async persistFrameNow() {
-	if (!this.data || !this.shouldUseSavedFrame()) return;
+    if (!this.data || !this.shouldUseSavedFrame()) return;
+    if (!this.isFrameVisibleEnough(48)) return;
 
-	// Nicht speichern, wenn die Karte gerade nicht sichtbar/zu klein ist
-	if (!this.isFrameVisibleEnough(48)) return;
+    const wNow = this.el.offsetWidth;
+    const hNow = this.el.offsetHeight;
 
-	// Ganzzahlige border-box-Maße
-	const wNow = this.el.offsetWidth;
-	const hNow = this.el.offsetHeight;
+    if (wNow < 48 || hNow < 48) return;
 
-	// Extra-Schutz: nichts <48px persistieren
-	if (wNow < 48 || hNow < 48) return;
+    const prev = this.data.frame;
+    const tol = 1;
 
-	const prev = this.data.frame;
-	const tol = 1; // 1px Toleranz gegen Render-Drift
+    if (prev && Math.abs(wNow - prev.w) <= tol && Math.abs(hNow - prev.h) <= tol) {
+      return;
+    }
 
-	// Wenn beide Seiten sich nur um <=1px unterscheiden → nicht speichern
-	if (prev && Math.abs(wNow - prev.w) <= tol && Math.abs(hNow - prev.h) <= tol) {
-	return;
-	}
+    const w = prev && Math.abs(wNow - prev.w) <= tol ? prev.w : wNow;
+    const h = prev && Math.abs(hNow - prev.h) <= tol ? prev.h : hNow;
 
-	// Diff ≤1px? Alte Seite übernehmen, sonst neue
-	const w = prev && Math.abs(wNow - prev.w) <= tol ? prev.w : wNow;
-	const h = prev && Math.abs(hNow - prev.h) <= tol ? prev.h : hNow;
-
-	if (!prev || w !== prev.w || h !== prev.h) {
-	this.data.frame = { w, h };
-	await this.saveDataSoon();
-	}
+    if (!prev || w !== prev.w || h !== prev.h) {
+      this.data.frame = { w, h };
+      await this.saveDataSoon();
+    }
   }
 
   private applyMeasureStyle() {
@@ -1750,6 +1654,55 @@ export class MapInstance extends Component {
       }
     });
   }
+
+  // Apply YAML bases/overlays on first load (once)
+  private async applyYamlOnFirstLoad(): Promise<void> {
+    if (this.yamlAppliedOnce) return;
+    this.yamlAppliedOnce = true;
+    const yb = this.cfg.yamlBases ?? [];
+    const yo = this.cfg.yamlOverlays ?? [];
+    if (yb.length === 0 && yo.length === 0) return;
+
+    const changed = await this.syncYamlLayers(yb, yo, undefined);
+    if (changed && this.data) {
+      if (await this.store.wouldChange(this.data)) {
+        this.ignoreNextModify = true;
+        await this.store.save(this.data);
+      }
+    }
+  }
+
+  private async syncYamlLayers(yamlBases: { path: string; name?: string }[], yamlOverlays: { path: string; name?: string; visible?: boolean }[], yamlImage?: string): Promise<boolean> {
+    if (!this.data) return false;
+    let changed = false;
+
+    if (yamlBases && yamlBases.length > 0) {
+      const prevActive = this.getActiveBasePath();
+      const newBases: BaseImage[] = yamlBases.map(b => ({ path: b.path, name: b.name }));
+      const newPaths = new Set(newBases.map(b => b.path));
+      let newActive = prevActive;
+      if (yamlImage && newPaths.has(yamlImage)) newActive = yamlImage;
+      if (!newPaths.has(newActive)) newActive = newBases[0].path;
+
+      (this.data as any).bases = newBases;
+      this.data.activeBase = newActive;
+      this.data.image = newActive;
+      changed = true;
+    }
+
+    if (yamlOverlays && yamlOverlays.length > 0) {
+      const prev = new Map((this.data.overlays ?? []).map(o => [o.path, o]));
+      const next: ImageOverlay[] = yamlOverlays.map(o => ({
+        path: o.path,
+        name: o.name,
+        visible: typeof o.visible === "boolean" ? o.visible : (prev.get(o.path)?.visible ?? false)
+      }));
+      this.data.overlays = next;
+      changed = true;
+    }
+
+    return changed;
+  }
 }
 
 /* ------------ Menu ------------- */
@@ -1758,8 +1711,7 @@ type ZMMenuItem = {
   label?: string;
   action?: (rowEl: HTMLDivElement, menu: ZMMenu) => void | Promise<void>;
   iconUrl?: string;
-  checked?: boolean; // legacy boolean check
-  // Neu: Tri-State Markierung (ersetzt checked)
+  checked?: boolean;
   mark?: "check" | "x" | "minus";
   markColor?: string;
   children?: ZMMenuItem[];
@@ -1810,7 +1762,6 @@ class ZMMenu {
         row.addEventListener("mouseenter", openSub);
         row.addEventListener("mouseleave", (e) => { const to = (e.relatedTarget as HTMLElement) || null; if (submenuEl && !submenuEl.contains(to)) closeSub(); });
       } else {
-        // Anzeige rechts: Tri-State mark > checked > icon
         const chk = right.createDiv({ cls: "zm-menu__check" });
         if (it.mark) {
           chk.setText(this.symbolForMark(it.mark));
@@ -1824,7 +1775,6 @@ class ZMMenu {
           img.src = it.iconUrl;
         }
 
-        // Klick: Menü NICHT automatisch schließen
         row.addEventListener("click", async () => { await it.action?.(row, this); });
       }
     }
