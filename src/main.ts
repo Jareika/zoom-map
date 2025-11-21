@@ -171,22 +171,24 @@ export default class ZoomMapPlugin extends Plugin {
         const yamlOverlays = parseOverlaysYaml(opts["imageOverlays"]);
         const yamlMetersPerPixel = parseScaleYaml(opts["scale"]);
 
-        const renderRaw = String(opts["render"] ?? "").toLowerCase();
+        const renderRaw =
+          typeof opts["render"] === "string" ? opts["render"].toLowerCase() : "";
         const renderMode: "dom" | "canvas" =
           renderRaw === "canvas" ? "canvas" : "dom";
 
-        let image = String(opts["image"] ?? "").trim();
+        let image =
+          typeof opts["image"] === "string" ? opts["image"].trim() : "";
         if (!image && yamlBases.length > 0) image = yamlBases[0].path;
         if (!image) {
           el.createEl("div", {
-            text: "zoommap: 'image:' is missing (or imageBases is empty).",
+            text: "Image is missing.",
           });
           return;
         }
 
         const storageRaw =
           typeof opts["storage"] === "string"
-            ? String(opts["storage"]).toLowerCase()
+            ? opts["storage"].toLowerCase()
             : "";
         const storageMode: "json" | "note" =
           storageRaw === "note" ||
@@ -198,13 +200,15 @@ export default class ZoomMapPlugin extends Plugin {
             : this.settings.storageDefault ?? "json";
 
         const sectionInfo = ctx.getSectionInfo(el);
-        const mapId = String(
-          opts["id"] ?? `map-${sectionInfo?.lineStart ?? Date.now()}`,
-        );
+        const defaultId = `map-${sectionInfo?.lineStart ?? Date.now()}`;
+        const mapId =
+          typeof opts["id"] === "string" && opts["id"].trim()
+            ? (opts["id"] as string).trim()
+            : defaultId;
 
         const markersPathRaw =
           typeof opts["markers"] === "string"
-            ? String(opts["markers"])
+            ? (opts["markers"] as string)
             : undefined;
         const minZoom =
           typeof opts["minZoom"] === "number" ? opts["minZoom"] : 0.25;
@@ -214,7 +218,8 @@ export default class ZoomMapPlugin extends Plugin {
           markersPathRaw ?? `${image}.markers.json`,
         );
 
-        const alignRaw = String(opts["align"] ?? "").toLowerCase();
+        const alignRaw =
+          typeof opts["align"] === "string" ? opts["align"].toLowerCase() : "";
         const align: "left" | "center" | "right" | undefined =
           alignRaw === "left" || alignRaw === "center" || alignRaw === "right"
             ? alignRaw
@@ -237,12 +242,12 @@ export default class ZoomMapPlugin extends Plugin {
 
         const resizable =
           typeof opts["resizable"] === "boolean"
-            ? (opts["resizable"] as boolean)
+            ? opts["resizable"]
             : this.settings.defaultResizable;
 
         const resizeHandleRaw =
           typeof opts["resizeHandle"] === "string"
-            ? String(opts["resizeHandle"])
+            ? opts["resizeHandle"]
             : this.settings.defaultResizeHandle;
         const resizeHandle: "left" | "right" | "both" | "native" =
           resizeHandleRaw === "left" ||
@@ -370,15 +375,13 @@ class ZoomMapSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.addClass("zoommap-settings");
 
-    new Setting(containerEl).setName("Zoom map settings").setHeading();
-
     // Storage
     new Setting(containerEl).setName("Storage").setHeading();
 
     new Setting(containerEl)
       .setName("Storage location (default)")
       .setDesc(
-        "Where to save map data if not overridden in the code block (storage: json|note).",
+        "Store your data in json or inline.",
       )
       .addDropdown((d) => {
         d.addOption("json", "JSON file (beside image)");
@@ -470,8 +473,8 @@ class ZoomMapSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Force popovers without Ctrl/Cmd")
-      .setDesc("Opens preview popovers on simple hover (recommended for tablets).")
+      .setName("Force popovers without ctrl")
+      .setDesc("Opens preview popovers on simple hover.")
       .addToggle((t) =>
         t
           .setValue(!!this.plugin.settings.forcePopoverWithoutModKey)
@@ -497,7 +500,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
 
     const colorRow = new Setting(containerEl)
       .setName("Line color")
-      .setDesc("CSS color (e.g. #ff0055, red, var(--text-accent)).");
+      .setDesc("CSS color, e.g. #ff0055.");
 
     colorRow.addText((t) =>
       t
@@ -540,13 +543,13 @@ class ZoomMapSettingTab extends PluginSettingTab {
           .setPlaceholder("2")
           .setValue(String(this.plugin.settings.measureLineWidth ?? 2))
           .onChange((v) => {
-            const n = Number(v);
-            if (Number.isFinite(n) && n > 0 && n <= 20) {
-              this.plugin.settings.measureLineWidth = n;
-              void this.plugin.saveSettings();
-              applyStyleToAll();
-            }
-          }),
+          const n = Number(v);
+          if (Number.isFinite(n) && n > 0 && n <= 20) {
+            this.plugin.settings.measureLineWidth = n;
+            void this.plugin.saveSettings();
+            applyStyleToAll();
+          }
+        }),
       );
 
     // Marker icons

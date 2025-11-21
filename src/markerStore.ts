@@ -150,10 +150,8 @@ export class MarkerStore {
       const firstPath =
         typeof firstBase === "string"
           ? firstBase
-          : firstBase && typeof firstBase === "object"
-          ? typeof (firstBase as BaseImage).path === "string"
-            ? (firstBase as BaseImage).path
-            : ""
+          : isBaseImage(firstBase)
+          ? firstBase.path
           : "";
 
       parsed.activeBase = parsed.image || firstPath || "";
@@ -221,4 +219,8 @@ export class MarkerStore {
     }
     await this.app.vault.create(this.markersFilePath, content);
   }
+}
+
+function isBaseImage(x: unknown): x is BaseImage {
+  return !!x && typeof x === "object" && typeof (x as any).path === "string";
 }

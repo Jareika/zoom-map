@@ -90,7 +90,7 @@ var MarkerStore = class {
     }
     if (!parsed.activeBase) {
       const firstBase = parsed.bases[0];
-      const firstPath = typeof firstBase === "string" ? firstBase : firstBase && typeof firstBase === "object" ? typeof firstBase.path === "string" ? firstBase.path : "" : "";
+      const firstPath = typeof firstBase === "string" ? firstBase : isBaseImage(firstBase) ? firstBase.path : "";
       parsed.activeBase = parsed.image || firstPath || "";
     }
     if (!parsed.overlays) parsed.overlays = [];
@@ -145,6 +145,9 @@ var MarkerStore = class {
     await this.app.vault.create(this.markersFilePath, content);
   }
 };
+function isBaseImage(x) {
+  return !!x && typeof x === "object" && typeof x.path === "string";
+}
 
 // src/markerEditor.ts
 var import_obsidian2 = require("obsidian");
@@ -164,10 +167,10 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
       text: this.marker.type === "sticker" ? "Edit sticker" : "Edit marker"
     });
     if (this.marker.type !== "sticker") {
-      new import_obsidian2.Setting(contentEl).setName("Link").setDesc("Wiki link ([[Note]]) or path.").addText(
+      new import_obsidian2.Setting(contentEl).setName("Link").setDesc("Wiki link Note.").addText(
         (t) => {
           var _a;
-          return t.setPlaceholder("[[Note]] or path").setValue((_a = this.marker.link) != null ? _a : "").onChange((v) => {
+          return t.setPlaceholder("Note").setValue((_a = this.marker.link) != null ? _a : "").onChange((v) => {
             this.marker.link = v.trim();
           });
         }
@@ -212,7 +215,7 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
         });
       });
     } else {
-      new import_obsidian2.Setting(contentEl).setName("Icon").setDesc("Choose from Settings \u2192 Icons.").addDropdown((d) => {
+      new import_obsidian2.Setting(contentEl).setName("Icon").setDesc("To set up new go to settings.").addDropdown((d) => {
         var _a;
         for (const icon of this.plugin.settings.icons) {
           d.addOption(icon.key, icon.key);
@@ -322,7 +325,7 @@ var ScaleCalibrateModal = class extends import_obsidian3.Modal {
       text: `Measured pixel distance: ${this.pxDistance.toFixed(1)} px`
     });
     new import_obsidian3.Setting(contentEl).setName("Real world length").addText((t) => {
-      t.setPlaceholder("e.g. 2.5");
+      t.setPlaceholder("example 2");
       t.setValue(this.inputValue);
       t.onChange((v) => {
         this.inputValue = v.trim();
@@ -511,6 +514,9 @@ function setCssProps(el, props) {
       el.style.setProperty(key, value);
     }
   }
+}
+function isImageBitmapLike(x) {
+  return !!x && typeof x.close === "function";
 }
 var MapInstance = class extends import_obsidian5.Component {
   constructor(app, plugin, el, cfg) {
@@ -795,16 +801,19 @@ var MapInstance = class extends import_obsidian5.Component {
     this.ready = true;
   }
   disposeBitmaps() {
-    var _a, _b, _c;
     try {
-      (_b = (_a = this.baseBitmap) == null ? void 0 : _a.close) == null ? void 0 : _b.call(_a);
+      if (this.baseBitmap && isImageBitmapLike(this.baseBitmap)) {
+        this.baseBitmap.close();
+      }
     } catch (error) {
       console.error("Zoom Map: failed to dispose base bitmap", error);
     }
     this.baseBitmap = null;
     for (const src of this.overlaySources.values()) {
       try {
-        (_c = src == null ? void 0 : src.close) == null ? void 0 : _c.call(src);
+        if (isImageBitmapLike(src)) {
+          src.close();
+        }
       } catch (error) {
         console.error("Zoom Map: failed to dispose overlay bitmap", error);
       }
@@ -833,11 +842,12 @@ var MapInstance = class extends import_obsidian5.Component {
     }
   }
   async loadBaseBitmapByPath(path) {
-    var _a, _b;
     const bmp = await this.loadBitmapFromPath(path);
     if (!bmp) throw new Error(`Failed to load image: ${path}`);
     try {
-      (_b = (_a = this.baseBitmap) == null ? void 0 : _a.close) == null ? void 0 : _b.call(_a);
+      if (this.baseBitmap && isImageBitmapLike(this.baseBitmap)) {
+        this.baseBitmap.close();
+      }
     } catch (error) {
       console.error("Zoom Map: failed to dispose previous base bitmap", error);
     }
@@ -880,9 +890,8 @@ var MapInstance = class extends import_obsidian5.Component {
     }
   }
   closeCanvasSource(src) {
-    var _a;
     try {
-      (_a = src == null ? void 0 : src.close) == null ? void 0 : _a.call(src);
+      if (isImageBitmapLike(src)) src.close();
     } catch (error) {
       console.error("Zoom Map: failed to dispose canvas source", error);
     }
@@ -1491,6 +1500,9 @@ var MapInstance = class extends import_obsidian5.Component {
               const chk = rowEl.querySelector(".zm-menu__check");
               if (chk) chk.textContent = "\u2713";
             }
+          }).catch((err) => {
+            console.error("Set base failed:", err);
+            new import_obsidian5.Notice("Failed to set base image.", 2500);
           });
         }
       };
@@ -2450,7 +2462,7 @@ var MapInstance = class extends import_obsidian5.Component {
       void this.persistFrameNow();
     }, delay);
   }
-  async persistFrameNow() {
+  persistFrameNow() {
     if (!this.data || !this.shouldUseSavedFrame()) return;
     if (!this.isFrameVisibleEnough(48)) return;
     const wNow = this.el.offsetWidth;
@@ -2629,7 +2641,9 @@ var ZMMenu = class {
         }
         row.addEventListener("click", () => {
           if (it.action) {
-            void it.action(row, this);
+            void Promise.resolve(it.action(row, this)).catch(
+              (err) => console.error("Menu item action failed:", err)
+            );
           }
         });
       }
@@ -2808,7 +2822,7 @@ var ZoomMapPlugin = class extends import_obsidian7.Plugin {
     this.registerMarkdownCodeBlockProcessor(
       "zoommap",
       async (src, el, ctx) => {
-        var _a, _b, _c, _d, _e, _f, _g;
+        var _a, _b, _c;
         let opts = {};
         try {
           const parsed = (0, import_obsidian7.parseYaml)(src);
@@ -2821,35 +2835,34 @@ var ZoomMapPlugin = class extends import_obsidian7.Plugin {
         const yamlBases = parseBasesYaml(opts["imageBases"]);
         const yamlOverlays = parseOverlaysYaml(opts["imageOverlays"]);
         const yamlMetersPerPixel = parseScaleYaml(opts["scale"]);
-        const renderRaw = String((_a = opts["render"]) != null ? _a : "").toLowerCase();
+        const renderRaw = typeof opts["render"] === "string" ? opts["render"].toLowerCase() : "";
         const renderMode = renderRaw === "canvas" ? "canvas" : "dom";
-        let image = String((_b = opts["image"]) != null ? _b : "").trim();
+        let image = typeof opts["image"] === "string" ? opts["image"].trim() : "";
         if (!image && yamlBases.length > 0) image = yamlBases[0].path;
         if (!image) {
           el.createEl("div", {
-            text: "zoommap: 'image:' is missing (or imageBases is empty)."
+            text: "Image is missing."
           });
           return;
         }
-        const storageRaw = typeof opts["storage"] === "string" ? String(opts["storage"]).toLowerCase() : "";
-        const storageMode = storageRaw === "note" || storageRaw === "inline" || storageRaw === "in-note" ? "note" : storageRaw === "json" ? "json" : (_c = this.settings.storageDefault) != null ? _c : "json";
+        const storageRaw = typeof opts["storage"] === "string" ? opts["storage"].toLowerCase() : "";
+        const storageMode = storageRaw === "note" || storageRaw === "inline" || storageRaw === "in-note" ? "note" : storageRaw === "json" ? "json" : (_a = this.settings.storageDefault) != null ? _a : "json";
         const sectionInfo = ctx.getSectionInfo(el);
-        const mapId = String(
-          (_e = opts["id"]) != null ? _e : `map-${(_d = sectionInfo == null ? void 0 : sectionInfo.lineStart) != null ? _d : Date.now()}`
-        );
-        const markersPathRaw = typeof opts["markers"] === "string" ? String(opts["markers"]) : void 0;
+        const defaultId = `map-${(_b = sectionInfo == null ? void 0 : sectionInfo.lineStart) != null ? _b : Date.now()}`;
+        const mapId = typeof opts["id"] === "string" && opts["id"].trim() ? opts["id"].trim() : defaultId;
+        const markersPathRaw = typeof opts["markers"] === "string" ? opts["markers"] : void 0;
         const minZoom = typeof opts["minZoom"] === "number" ? opts["minZoom"] : 0.25;
         const maxZoom = typeof opts["maxZoom"] === "number" ? opts["maxZoom"] : 8;
         const markersPath = (0, import_obsidian7.normalizePath)(
           markersPathRaw != null ? markersPathRaw : `${image}.markers.json`
         );
-        const alignRaw = String((_f = opts["align"]) != null ? _f : "").toLowerCase();
+        const alignRaw = typeof opts["align"] === "string" ? opts["align"].toLowerCase() : "";
         const align = alignRaw === "left" || alignRaw === "center" || alignRaw === "right" ? alignRaw : void 0;
         const wrap = typeof opts["wrap"] === "boolean" ? opts["wrap"] : false;
         const classesValue = opts["classes"];
         const extraClasses = Array.isArray(classesValue) ? classesValue.map((c) => String(c)) : typeof classesValue === "string" ? classesValue.split(/\s+/).map((c) => c.trim()).filter(Boolean) : [];
         const resizable = typeof opts["resizable"] === "boolean" ? opts["resizable"] : this.settings.defaultResizable;
-        const resizeHandleRaw = typeof opts["resizeHandle"] === "string" ? String(opts["resizeHandle"]) : this.settings.defaultResizeHandle;
+        const resizeHandleRaw = typeof opts["resizeHandle"] === "string" ? opts["resizeHandle"] : this.settings.defaultResizeHandle;
         const resizeHandle = resizeHandleRaw === "left" || resizeHandleRaw === "right" || resizeHandleRaw === "both" || resizeHandleRaw === "native" ? resizeHandleRaw : "right";
         const widthFromYaml = Object.prototype.hasOwnProperty.call(
           opts,
@@ -2860,7 +2873,7 @@ var ZoomMapPlugin = class extends import_obsidian7.Plugin {
           "height"
         );
         const extSettings = this.settings;
-        const widthDefault = wrap ? (_g = extSettings.defaultWidthWrapped) != null ? _g : "50%" : this.settings.defaultWidth;
+        const widthDefault = wrap ? (_c = extSettings.defaultWidthWrapped) != null ? _c : "50%" : this.settings.defaultWidth;
         let widthCss = toCssSize(opts["width"], widthDefault);
         let heightCss = toCssSize(
           opts["height"],
@@ -2949,10 +2962,9 @@ var ZoomMapSettingTab = class extends import_obsidian7.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("zoommap-settings");
-    new import_obsidian7.Setting(containerEl).setName("Zoom map settings").setHeading();
     new import_obsidian7.Setting(containerEl).setName("Storage").setHeading();
     new import_obsidian7.Setting(containerEl).setName("Storage location (default)").setDesc(
-      "Where to save map data if not overridden in the code block (storage: json|note)."
+      "Store your data in json or inline."
     ).addDropdown((d) => {
       var _a2;
       d.addOption("json", "JSON file (beside image)");
@@ -3013,7 +3025,7 @@ var ZoomMapSettingTab = class extends import_obsidian7.PluginSettingTab {
         }
       })
     );
-    new import_obsidian7.Setting(containerEl).setName("Force popovers without Ctrl/Cmd").setDesc("Opens preview popovers on simple hover (recommended for tablets).").addToggle(
+    new import_obsidian7.Setting(containerEl).setName("Force popovers without ctrl").setDesc("Opens preview popovers on simple hover.").addToggle(
       (t) => t.setValue(!!this.plugin.settings.forcePopoverWithoutModKey).onChange((v) => {
         this.plugin.settings.forcePopoverWithoutModKey = v;
         void this.plugin.saveSettings();
@@ -3029,7 +3041,7 @@ var ZoomMapSettingTab = class extends import_obsidian7.PluginSettingTab {
         el.style.setProperty("--zm-measure-width", `${widthPx}px`);
       });
     };
-    const colorRow = new import_obsidian7.Setting(containerEl).setName("Line color").setDesc("CSS color (e.g. #ff0055, red, var(--text-accent)).");
+    const colorRow = new import_obsidian7.Setting(containerEl).setName("Line color").setDesc("CSS color, e.g. #ff0055.");
     colorRow.addText(
       (t) => {
         var _a2;

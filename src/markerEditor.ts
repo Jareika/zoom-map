@@ -39,10 +39,10 @@ export class MarkerEditorModal extends Modal {
     if (this.marker.type !== "sticker") {
       new Setting(contentEl)
         .setName("Link")
-        .setDesc("Wiki link ([[Note]]) or path.")
+        .setDesc("Wiki link Note.")
         .addText((t) =>
           t
-            .setPlaceholder("[[Note]] or path")
+            .setPlaceholder("Note")
             .setValue(this.marker.link ?? "")
             .onChange((v) => {
               this.marker.link = v.trim();
@@ -105,7 +105,7 @@ export class MarkerEditorModal extends Modal {
     } else {
       new Setting(contentEl)
         .setName("Icon")
-        .setDesc("Choose from Settings → Icons.")
+        .setDesc("To set up new go to settings.")
         .addDropdown((d) => {
           for (const icon of this.plugin.settings.icons) {
             d.addOption(icon.key, icon.key);

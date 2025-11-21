@@ -35,7 +35,7 @@ export class ScaleCalibrateModal extends Modal {
     new Setting(contentEl)
       .setName("Real world length")
       .addText((t) => {
-        t.setPlaceholder("e.g. 2.5");
+        t.setPlaceholder("example 2");
         t.setValue(this.inputValue);
         t.onChange((v) => {
           this.inputValue = v.trim();

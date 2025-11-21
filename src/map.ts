@@ -115,6 +115,11 @@ function setCssProps(
   }
 }
 
+// ImageBitmap guard (to avoid unnecessary type assertions)
+function isImageBitmapLike(x: unknown): x is ImageBitmap {
+  return !!x && typeof (x as any).close === "function";
+}
+
 export class MapInstance extends Component {
   private app: App;
   private plugin: ZoomMapPlugin;
@@ -476,7 +481,9 @@ export class MapInstance extends Component {
 
   private disposeBitmaps(): void {
     try {
-      this.baseBitmap?.close?.();
+      if (this.baseBitmap && isImageBitmapLike(this.baseBitmap)) {
+        this.baseBitmap.close();
+      }
     } catch (error) {
       console.error("Zoom Map: failed to dispose base bitmap", error);
     }
@@ -484,7 +491,9 @@ export class MapInstance extends Component {
 
     for (const src of this.overlaySources.values()) {
       try {
-        (src as ImageBitmap | undefined)?.close?.();
+        if (isImageBitmapLike(src)) {
+          src.close();
+        }
       } catch (error) {
         console.error("Zoom Map: failed to dispose overlay bitmap", error);
       }
@@ -518,7 +527,9 @@ export class MapInstance extends Component {
     const bmp = await this.loadBitmapFromPath(path);
     if (!bmp) throw new Error(`Failed to load image: ${path}`);
     try {
-      this.baseBitmap?.close?.();
+      if (this.baseBitmap && isImageBitmapLike(this.baseBitmap)) {
+        this.baseBitmap.close();
+      }
     } catch (error) {
       console.error("Zoom Map: failed to dispose previous base bitmap", error);
     }
@@ -567,7 +578,7 @@ export class MapInstance extends Component {
 
   private closeCanvasSource(src: CanvasImageSource | null): void {
     try {
-      (src as ImageBitmap | undefined)?.close?.();
+      if (isImageBitmapLike(src)) (src as ImageBitmap).close();
     } catch (error) {
       console.error("Zoom Map: failed to dispose canvas source", error);
     }
@@ -1272,19 +1283,24 @@ export class MapInstance extends Component {
       label: b.name ?? basename(b.path),
       checked: this.getActiveBasePath() === b.path,
       action: (rowEl) => {
-        void this.setActiveBase(b.path).then(() => {
-          const submenu = rowEl.parentElement;
-          if (submenu) {
-            const rows =
-              submenu.querySelectorAll<HTMLDivElement>(".zm-menu__item");
-            rows.forEach((r) => {
-              const c = r.querySelector<HTMLElement>(".zm-menu__check");
-              if (c) c.textContent = "";
-            });
-            const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
-            if (chk) chk.textContent = "✓";
-          }
-        });
+        void this.setActiveBase(b.path)
+          .then(() => {
+            const submenu = rowEl.parentElement;
+            if (submenu) {
+              const rows =
+                submenu.querySelectorAll<HTMLDivElement>(".zm-menu__item");
+              rows.forEach((r) => {
+                const c = r.querySelector<HTMLElement>(".zm-menu__check");
+                if (c) c.textContent = "";
+              });
+              const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
+              if (chk) chk.textContent = "✓";
+            }
+          })
+          .catch((err) => {
+            console.error("Set base failed:", err);
+            new Notice("Failed to set base image.", 2500);
+          });
       },
     }));
 
@@ -2389,7 +2405,7 @@ export class MapInstance extends Component {
     }, delay);
   }
 
-  private async persistFrameNow(): Promise<void> {
+  private persistFrameNow(): void {
     if (!this.data || !this.shouldUseSavedFrame()) return;
     if (!this.isFrameVisibleEnough(48)) return;
 
@@ -2628,7 +2644,9 @@ class ZMMenu {
 
         row.addEventListener("click", () => {
           if (it.action) {
-            void it.action(row, this);
+            void Promise.resolve(it.action(row, this)).catch((err) =>
+              console.error("Menu item action failed:", err),
+            );
           }
         });
       }
