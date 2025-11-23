@@ -12,6 +12,9 @@ import type ZoomMapPlugin from "./main";
 import { MarkerEditorModal } from "./markerEditor";
 import { ScaleCalibrateModal } from "./scaleCalibrateModal";
 import { NoteMarkerStore } from "./inlineStore";
+import { ImageFileSuggestModal } from "./iconFileSuggest";
+import { NamePromptModal } from "./namePrompt";
+import { RenameLayerModal, DeleteLayerModal } from "./layerManageModals";
 
 export interface ZoomMapConfig {
   imagePath: string;
@@ -492,7 +495,7 @@ export class MapInstance extends Component {
     for (const src of this.overlaySources.values()) {
       try {
         if (isImageBitmapLike(src)) {
-          src.close();
+          (src as ImageBitmap).close();
         }
       } catch (error) {
         console.error("Zoom Map: failed to dispose overlay bitmap", error);
@@ -1450,14 +1453,62 @@ export class MapInstance extends Component {
       };
     });
 
+    // Manage marker layers (rename/delete)
+    const renameItems: ZMMenuItem[] = this.data.layers.map((l) => ({
+      label: l.name,
+      action: () => {
+        new RenameLayerModal(this.app, l, async (newName) => {
+          await this.renameMarkerLayer(l, newName);
+        }).open();
+      },
+    }));
+
+    const deleteItems: ZMMenuItem[] = this.data.layers.map((l) => ({
+      label: l.name,
+      action: () => {
+        const others = this.data!.layers.filter((x) => x.id !== l.id);
+        if (others.length === 0) {
+          new Notice("Cannot delete the last layer.", 2000);
+          return;
+        }
+        const hasMarkers = this.data!.markers.some((m) => m.layer === l.id);
+        new DeleteLayerModal(
+          this.app,
+          l,
+          others,
+          hasMarkers,
+          async (decision) => {
+            await this.deleteMarkerLayer(l, decision);
+          },
+        ).open();
+      },
+    }));
+
+    // Build "Image layers" group with "Add layer" submenu
+    const imageLayersChildren: ZMMenuItem[] = [
+      { label: "Base", children: baseItems },
+      { label: "Overlays", children: overlayItems },
+      { type: "separator" },
+      {
+        label: "Add layer",
+        children: [
+          {
+            label: "Base…",
+            action: () => this.promptAddLayer("base"),
+          },
+          {
+            label: "Overlay…",
+            action: () => this.promptAddLayer("overlay"),
+          },
+        ],
+      },
+    ];
+
     items.push(
       { type: "separator" },
       {
         label: "Image layers",
-        children: [
-          { label: "Base", children: baseItems },
-          { label: "Overlays", children: overlayItems },
-        ],
+        children: imageLayersChildren,
       },
       {
         label: "Measure",
@@ -1514,7 +1565,12 @@ export class MapInstance extends Component {
       },
       {
         label: "Marker layers",
-        children: layerChildren,
+        children: [
+          ...layerChildren,
+          { type: "separator" },
+          { label: "Rename layer…", children: renameItems },
+          { label: "Delete layer…", children: deleteItems },
+        ],
       },
       { type: "separator" },
       {
@@ -2467,12 +2523,38 @@ export class MapInstance extends Component {
     this.yamlAppliedOnce = true;
     const yb = this.cfg.yamlBases ?? [];
     const yo = this.cfg.yamlOverlays ?? [];
-    if (yb.length === 0 && yo.length === 0) return;
 
-    const changed = this.syncYamlLayers(yb, yo, undefined);
+    // Detect explicit presence of imageOverlays: key (even if empty)
+    const overlaysProvided = await this.isYamlKeyPresent("imageOverlays");
+
+    if (yb.length === 0 && yo.length === 0 && !overlaysProvided) return;
+
+    const changed = this.syncYamlLayers(yb, yo, undefined, overlaysProvided);
     if (changed && this.data && (await this.store.wouldChange(this.data))) {
       this.ignoreNextModify = true;
       await this.store.save(this.data);
+    }
+  }
+
+  // Read current code block and check if a YAML key is present in it
+  private async isYamlKeyPresent(key: string): Promise<boolean> {
+    try {
+      if (
+        typeof this.cfg.sectionStart !== "number" ||
+        typeof this.cfg.sectionEnd !== "number"
+      )
+        return false;
+      const af = this.app.vault.getAbstractFileByPath(this.cfg.sourcePath);
+      if (!(af instanceof TFile)) return false;
+      const text = await this.app.vault.read(af);
+      const lines = text.split("\n");
+      const blk = this.findZoommapBlock(lines, this.cfg.sectionStart);
+      if (!blk) return false;
+      const content = lines.slice(blk.start + 1, blk.end).join("\n");
+      const re = new RegExp(`(^|\\n)\\s*${key}\\s*:`, "i");
+      return re.test(content);
+    } catch {
+      return false;
     }
   }
 
@@ -2484,6 +2566,7 @@ export class MapInstance extends Component {
       visible?: boolean;
     }[],
     yamlImage?: string,
+    overlaysProvided = false,
   ): boolean {
     if (!this.data) return false;
     let changed = false;
@@ -2505,11 +2588,12 @@ export class MapInstance extends Component {
       changed = true;
     }
 
-    if (yamlOverlays && yamlOverlays.length > 0) {
+    // Apply overlays from YAML if key was provided (even when empty)
+    if (overlaysProvided || (yamlOverlays && yamlOverlays.length > 0)) {
       const prev = new Map(
         (this.data.overlays ?? []).map((o) => [o.path, o]),
       );
-      const next: ImageOverlay[] = yamlOverlays.map((o) => ({
+      const next: ImageOverlay[] = (yamlOverlays ?? []).map((o) => ({
         path: o.path,
         name: o.name,
         visible:
@@ -2538,6 +2622,282 @@ export class MapInstance extends Component {
       this.ignoreNextModify = true;
       await this.store.save(this.data);
     }
+  }
+
+  // ===== Add Layer → choose file, then ask for name; write YAML without "visible"
+  private promptAddLayer(kind: "base" | "overlay"): void {
+    new ImageFileSuggestModal(this.app, (file: TFile) => {
+      const base = file.name.replace(/\.[^.]+$/, "");
+      const title = kind === "base" ? "Name for base layer" : "Name for overlay";
+      new NamePromptModal(this.app, title, base, (name) => {
+        if (kind === "base") {
+          void this.addBaseByPath(file.path, name);
+        } else {
+          void this.addOverlayByPath(file.path, name);
+        }
+      }).open();
+    }).open();
+  }
+
+  private async addBaseByPath(path: string, name?: string): Promise<void> {
+    if (!this.data) return;
+    const exists = this.getBasesNormalized().some((b) => b.path === path);
+    if (exists) {
+      new Notice("Base already exists.", 1500);
+      return;
+    }
+    this.data.bases = this.data.bases ?? [];
+    this.data.bases.push({ path, name: (name ?? "") || undefined });
+    await this.saveDataSoon();
+    void this.appendLayerToYaml("base", path, name ?? "");
+    new Notice("Base added.", 1200);
+  }
+
+  private async addOverlayByPath(path: string, name?: string): Promise<void> {
+    if (!this.data) return;
+    this.data.overlays = this.data.overlays ?? [];
+    if (this.data.overlays.some((o) => o.path === path)) {
+      new Notice("Overlay already exists.", 1500);
+      return;
+    }
+    // In JSON: visible true so it appears immediately
+    this.data.overlays.push({
+      path,
+      name: (name ?? "") || undefined,
+      visible: true,
+    });
+    await this.saveDataSoon();
+
+    if (this.isCanvas()) {
+      await this.ensureOverlayLoaded(path);
+      this.renderCanvas();
+    } else {
+      this.buildOverlayElements();
+      this.updateOverlaySizes();
+      await this.updateOverlayVisibility();
+    }
+
+    // In YAML: write path + name only (no "visible")
+    void this.appendLayerToYaml("overlay", path, name ?? "");
+    new Notice("Overlay added.", 1200);
+  }
+
+  private async appendLayerToYaml(
+    kind: "base" | "overlay",
+    path: string,
+    name: string,
+  ): Promise<void> {
+    try {
+      const key = kind === "base" ? "imageBases" : "imageOverlays";
+      const ok = await this.updateYamlList(key, path, { name });
+      if (!ok) {
+        new Notice("Added, but YAML could not be updated.", 2500);
+      }
+    } catch (err) {
+      console.error("Zoom Map: failed to update YAML", err);
+      new Notice("Added, but YAML update failed.", 2500);
+    }
+  }
+
+  private async updateYamlList(
+    key: "imageBases" | "imageOverlays",
+    newPath: string,
+    opts?: { name?: string },
+  ): Promise<boolean> {
+    if (
+      typeof this.cfg.sectionStart !== "number" ||
+      typeof this.cfg.sectionEnd !== "number"
+    ) {
+      return false;
+    }
+    const af = this.app.vault.getAbstractFileByPath(this.cfg.sourcePath);
+    if (!(af instanceof TFile)) return false;
+
+    const text = await this.app.vault.read(af);
+    const lines = text.split("\n");
+    const blk = this.findZoommapBlock(lines, this.cfg.sectionStart);
+    if (!blk) return false;
+
+    const content = lines.slice(blk.start + 1, blk.end);
+    const patched = this.patchYamlList(content, key, newPath, opts);
+    if (!patched.changed) return true;
+
+    const out = [
+      ...lines.slice(0, blk.start + 1),
+      ...patched.out,
+      ...lines.slice(blk.end),
+    ].join("\n");
+
+    // Avoid triggering our own reload in inline-storage mode
+    if (af.path === this.store.getPath()) this.ignoreNextModify = true;
+
+    await this.app.vault.modify(af, out);
+    return true;
+  }
+
+  private findZoommapBlock(
+    lines: string[],
+    approxLine?: number,
+  ): { start: number; end: number } | null {
+    let result: { start: number; end: number } | null = null;
+    for (let i = 0; i < lines.length; i++) {
+      if (/^\s*```zoommap\b/i.test(lines[i])) {
+        let j = i + 1;
+        while (j < lines.length && !/^\s*```/.test(lines[j])) j++;
+        if (j >= lines.length) break;
+        const block = { start: i, end: j };
+        if (
+          typeof approxLine === "number" &&
+          i <= approxLine &&
+          approxLine <= j
+        ) {
+          return block;
+        }
+        if (!result) result = block;
+        i = j;
+      }
+    }
+    return result;
+  }
+
+  private patchYamlList(
+    contentLines: string[],
+    key: "imageBases" | "imageOverlays",
+    path: string,
+    opts?: { name?: string },
+  ): { changed: boolean; out: string[] } {
+    const out = contentLines.slice();
+    const keyRe = new RegExp(`^(\\s*)${key}\\s*:(.*)$`);
+    let keyIdx = -1;
+    let keyIndent = "";
+    let after = "";
+
+    for (let i = 0; i < out.length; i++) {
+      const m = out[i].match(keyRe);
+      if (m) {
+        keyIdx = i;
+        keyIndent = m[1] ?? "";
+        after = (m[2] ?? "").trim();
+        break;
+      }
+    }
+
+    const jsonQuoted = JSON.stringify(path);
+    const nm = opts?.name ?? "";
+    const itemLines: string[] = [];
+    const itemIndent = keyIndent + "  ";
+    itemLines.push(`${itemIndent}- path: ${jsonQuoted}`);
+    itemLines.push(`${itemIndent}  name: ${JSON.stringify(nm)}`);
+
+    // If key exists → insert into existing list region
+    if (keyIdx >= 0) {
+      // Handle inline empty list: key: []
+      if (/^\[\s*\]$/.test(after)) {
+        out[keyIdx] = `${keyIndent}${key}:`;
+      }
+
+      // Determine region of the list
+      let insertAt = keyIdx + 1;
+      let scan = keyIdx + 1;
+
+      // If next line is not indented (no list yet), we'll insert at keyIdx+1
+      const isNextTopLevelKey = (ln: string) => {
+        const trimmed = ln.trim();
+        if (!trimmed) return false;
+        if (/^#/.test(trimmed)) return false;
+        // top-level-ish key (indent <= keyIndent)
+        const spaces = ln.match(/^\s*/)?.[0].length ?? 0;
+        return (
+          spaces <= keyIndent.length && /^[A-Za-z0-9_-]+\s*:/.test(trimmed)
+        );
+      };
+
+      // Find end of current list (until next top-level key)
+      while (scan < out.length && !isNextTopLevelKey(out[scan])) {
+        scan++;
+      }
+      insertAt = scan;
+
+      // Duplicate check inside the region [keyIdx+1, insertAt)
+      const region = out.slice(keyIdx + 1, insertAt).join("\n");
+      const esc = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const dupObj = new RegExp(`-\\s*path\\s*:\\s*["']?${esc}["']?`);
+      const dupStr = new RegExp(`-\\s*["']?${esc}["']?\\s*$`);
+      if (dupObj.test(region) || dupStr.test(region)) {
+        return { changed: false, out };
+      }
+
+      // Ensure there's at least an empty list start if nothing was there
+      if (insertAt === keyIdx + 1) {
+        // list was empty
+        out.splice(insertAt, 0, ...itemLines);
+      } else {
+        // append after existing list region
+        out.splice(insertAt, 0, ...itemLines);
+      }
+      return { changed: true, out };
+    }
+
+    // Key not found → append a fresh section at the end of block
+    const defaultIndent = this.detectYamlKeyIndent(out);
+    out.push(`${defaultIndent}${key}:`);
+    out.push(...itemLines.map((l) => (defaultIndent ? l : l)));
+    return { changed: true, out };
+  }
+
+  private detectYamlKeyIndent(lines: string[]): string {
+    for (const ln of lines) {
+      const m = ln.match(/^(\s*)[A-Za-z0-9_-]+\s*:/);
+      if (m) return (m[1] ?? "");
+    }
+    return ""; // no indent
+  }
+
+  private async renameMarkerLayer(
+    layer: MarkerLayer,
+    newName: string,
+  ): Promise<void> {
+    if (!this.data) return;
+    const exists = this.data.layers.some(
+      (l) => l !== layer && l.name === newName,
+    );
+    const finalName = exists
+      ? `${newName} (${Math.random().toString(36).slice(2, 4)})`
+      : newName;
+    layer.name = finalName;
+    await this.saveDataSoon();
+    this.renderMarkersOnly();
+    new Notice("Layer renamed.", 1000);
+  }
+
+  private async deleteMarkerLayer(
+    layer: MarkerLayer,
+    decision: { mode: "move"; targetId: string } | { mode: "delete-markers" },
+  ): Promise<void> {
+    if (!this.data) return;
+    const others = this.data.layers.filter((l) => l.id !== layer.id);
+    if (others.length === 0) {
+      new Notice("Cannot delete the last layer.", 2000);
+      return;
+    }
+
+    if (decision.mode === "move") {
+      const targetId = (decision as any).targetId;
+      if (!targetId || targetId === layer.id) {
+        new Notice("Invalid target layer.", 1500);
+        return;
+      }
+      for (const m of this.data.markers) {
+        if (m.layer === layer.id) m.layer = targetId;
+      }
+    } else {
+      this.data.markers = this.data.markers.filter((m) => m.layer !== layer.id);
+    }
+
+    this.data.layers = this.data.layers.filter((l) => l.id !== layer.id);
+    await this.saveDataSoon();
+    this.renderMarkersOnly();
+    new Notice("Layer deleted.", 1000);
   }
 }
 
@@ -2646,9 +3006,10 @@ class ZMMenu {
           if (!it.action) return;
           try {
             const maybe = it.action(row, this);
-            // If it returned a Promise, attach a rejection handler,
-            // but never return the Promise from this handler:
-            if (maybe && typeof (maybe as Promise<unknown>).catch === "function") {
+            if (
+              maybe &&
+              typeof (maybe as Promise<unknown>).catch === "function"
+            ) {
               (maybe as Promise<unknown>).catch((err) =>
                 console.error("Menu item action failed:", err),
               );
