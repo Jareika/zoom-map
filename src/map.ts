@@ -516,47 +516,47 @@ export class MapInstance extends Component {
   }
 
   private disposeBitmaps(): void {
-    try {
-      if (this.baseBitmap && isImageBitmapLike(this.baseBitmap)) {
-        this.baseBitmap.close();
-      }
-    } catch (error) {
-      console.error("Zoom Map: failed to dispose base bitmap", error);
-    }
-    this.baseBitmap = null;
+	try {
+	  if (this.baseBitmap && isImageBitmapLike(this.baseBitmap)) {
+		this.baseBitmap.close();
+	  }
+	} catch (error) {
+	  console.error("Zoom Map: failed to dispose base bitmap", error);
+	  }
+	this.baseBitmap = null;
 
-    for (const src of this.overlaySources.values()) {
-      try {
-        if (isImageBitmapLike(src)) {
-          (src as ImageBitmap).close();
-        }
-      } catch (error) {
-        console.error("Zoom Map: failed to dispose overlay bitmap", error);
-      }
-    }
-    this.overlaySources.clear();
-    this.overlayLoading.clear();
+	for (const src of this.overlaySources.values()) {
+	  try {
+		if (isImageBitmapLike(src)) {
+		  src.close();
+		}
+	  } catch (error) {
+		console.error("Zoom Map: failed to dispose overlay bitmap", error);
+		}
+	}
+	this.overlaySources.clear();
+	this.overlayLoading.clear();
   }
 
   private async loadBitmapFromPath(path: string): Promise<ImageBitmap | null> {
-    const f = this.resolveTFile(path, this.cfg.sourcePath);
-    if (!f) return null;
-    const url = this.app.vault.getResourcePath(f);
-    const img = new Image();
-    img.decoding = "async";
-    img.src = url;
-    try {
-      await img.decode();
-    } catch (error) {
-      console.warn("Zoom Map: failed to decode base image", error);
-      return null;
-    }
-    try {
-      return await createImageBitmap(img);
-    } catch (error) {
-      console.warn("Zoom Map: createImageBitmap failed", error);
-      return null;
-    }
+	const f = this.resolveTFile(path, this.cfg.sourcePath);
+	if (!f) return null;
+
+	const url = this.app.vault.getResourcePath(f);
+	const img = new Image();
+	img.decoding = "async";
+	img.src = url;
+
+	await img.decode().catch((error) => {
+	  console.warn("Zoom Map: decode warning (continuing)", error);
+	});
+
+	try {
+	  return await createImageBitmap(img);
+	} catch (error) {
+	console.warn("Zoom Map: createImageBitmap failed", error);
+	return null;
+	}
   }
 
   private async loadBaseBitmapByPath(path: string): Promise<void> {
@@ -607,17 +607,19 @@ export class MapInstance extends Component {
     }
     try {
       return await createImageBitmap(img);
-    } catch {
-      return img;
-    }
-  }
+    } catch (error) {
+		return img;
+	  }
+	}
 
   private closeCanvasSource(src: CanvasImageSource | null): void {
-    try {
-      if (isImageBitmapLike(src)) (src as ImageBitmap).close();
-    } catch (error) {
-      console.error("Zoom Map: failed to dispose canvas source", error);
-    }
+	try {
+	  if (isImageBitmapLike(src)) {
+		src.close();
+	  }
+	  } catch (error) {
+		console.error("Zoom Map: failed to dispose canvas source", error);
+	  }
   }
 
   private async ensureOverlayLoaded(
@@ -1208,7 +1210,7 @@ export class MapInstance extends Component {
       this.updateMeasureHud();
       return;
     }
-    if ((e.target as HTMLElement | null)?.closest(".zm-marker")) return;
+    if (e.target instanceof HTMLElement && e.target.closest(".zm-marker")) return;
     const vpRect = this.viewportEl.getBoundingClientRect();
     const cx = e.clientX - vpRect.left;
     const cy = e.clientY - vpRect.top;
@@ -1733,11 +1735,11 @@ export class MapInstance extends Component {
     this.openMenu.open(e.clientX, e.clientY, items);
 
     const outside = (ev: Event) => {
-      if (!this.openMenu) return;
-      const t = ev.target as HTMLElement | null;
-      if (t && this.openMenu.contains(t)) return;
-      this.closeMenu();
-    };
+	  if (!this.openMenu) return;
+	  const t = ev.target;
+	  if (t instanceof Node && this.openMenu.contains(t)) return;
+	  this.closeMenu();
+	};
     const keyClose = (ev: KeyboardEvent) => {
       if (ev.key === "Escape") this.closeMenu();
     };
@@ -2220,11 +2222,11 @@ export class MapInstance extends Component {
         this.openMenu.open(e.clientX, e.clientY, items);
 
         const outside = (ev: Event) => {
-          if (!this.openMenu) return;
-          const t = ev.target as HTMLElement | null;
-          if (t && this.openMenu.contains(t)) return;
-          this.closeMenu();
-        };
+		  if (!this.openMenu) return;
+		  const t = ev.target;
+		  if (t instanceof HTMLElement && this.openMenu.contains(t)) return;
+		  this.closeMenu();
+		};
         const keyClose = (ev: KeyboardEvent) => {
           if (ev.key === "Escape") this.closeMenu();
         };
@@ -2537,23 +2539,24 @@ export class MapInstance extends Component {
   }
 
   private saveDataSoon = (() => {
-    let t: number | null = null;
-    return async () => {
-      if (t) window.clearTimeout(t);
-      await new Promise<void>((resolve) => {
-        t = window.setTimeout(async () => {
-          t = null;
-          if (this.data) {
-            const would = await this.store.wouldChange(this.data);
-            if (would) {
-              this.ignoreNextModify = true;
-              await this.store.save(this.data);
-            }
-          }
-          resolve();
-        }, 200);
-      });
-    };
+	let t: number | null = null;
+	return () =>
+	new Promise<void>((resolve) => {
+	  if (t) window.clearTimeout(t);
+	  t = window.setTimeout(() => {
+		t = null;
+		void (async () => {
+		  if (this.data) {
+			const would = await this.store.wouldChange(this.data);
+			if (would) {
+			  this.ignoreNextModify = true;
+			  await this.store.save(this.data);
+			}
+		}
+		resolve();
+		})();
+	  }, 200);
+	});
   })();
 
   private installGrip(grip: HTMLDivElement, side: "left" | "right"): void {
@@ -3100,11 +3103,8 @@ class ZMMenu {
     this.root.remove();
   }
 
-  contains(el: HTMLElement): boolean {
-    return (
-      this.root.contains(el) ||
-      this.submenus.some((s) => s.contains(el))
-    );
+  contains(el: Node): boolean {
+	return this.root.contains(el) || this.submenus.some((s) => s.contains(el));
   }
 
   private buildList(container: HTMLDivElement, items: ZMMenuItem[]): void {
@@ -3131,36 +3131,37 @@ class ZMMenu {
       const right = row.createDiv({ cls: "zm-menu__right" });
 
       if (it.children && it.children.length) {
-        const arrow = right.createDiv({ cls: "zm-menu__arrow" });
-        arrow.setText("▶");
-        let submenuEl: HTMLDivElement | null = null;
+		const arrow = right.createDiv({ cls: "zm-menu__arrow" });
+		arrow.setText("▶");
+		let submenuEl: HTMLDivElement | null = null;
 
-        const openSub = () => {
-          if (submenuEl) return;
-          submenuEl = document.body.createDiv({ cls: "zm-submenu" });
-          this.submenus.push(submenuEl);
-          this.buildList(submenuEl, it.children!);
-          const rect = row.getBoundingClientRect();
-          const pref = rect.right + 260 < window.innerWidth ? "right" : "left";
-          const x = pref === "right" ? rect.right : rect.left;
-          const y = rect.top;
-          this.position(submenuEl, x, y, pref);
-        };
+		const openSub = () => {
+		  if (submenuEl) return;
+		  submenuEl = document.body.createDiv({ cls: "zm-submenu" });
+		  this.submenus.push(submenuEl);
+		  this.buildList(submenuEl, it.children!);
+		  const rect = row.getBoundingClientRect();
+		  const pref = rect.right + 260 < window.innerWidth ? "right" : "left";
+		  const x = pref === "right" ? rect.right : rect.left;
+		  const y = rect.top;
+		  this.position(submenuEl, x, y, pref);
+	  };
 
-        const closeSub = () => {
-          if (!submenuEl) return;
-          submenuEl.remove();
-          this.submenus = this.submenus.filter((s) => s !== submenuEl);
-          submenuEl = null;
-        };
+		const closeSub = () => {
+		  if (!submenuEl) return;
+		  submenuEl.remove();
+		  this.submenus = this.submenus.filter((s) => s !== submenuEl);
+		  submenuEl = null;
+		};
 
-        row.addEventListener("mouseenter", openSub);
-        row.addEventListener("mouseleave", (e) => {
-          const to = (e.relatedTarget as HTMLElement) || null;
-          if (submenuEl && !submenuEl.contains(to)) {
-            closeSub();
-          }
-        });
+		row.addEventListener("mouseenter", openSub);
+
+		row.addEventListener("mouseleave", (e) => {
+		  const to = e.relatedTarget;
+		  if (submenuEl && !(to instanceof Node && submenuEl.contains(to))) {
+			closeSub();
+		  }
+		});
       } else {
         const chk = right.createDiv({ cls: "zm-menu__check" });
         if (it.mark) {

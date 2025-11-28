@@ -733,11 +733,11 @@ var MapInstance = class extends import_obsidian8.Component {
     this.yamlAppliedOnce = false;
     this.saveDataSoon = /* @__PURE__ */ (() => {
       let t = null;
-      return async () => {
+      return () => new Promise((resolve) => {
         if (t) window.clearTimeout(t);
-        await new Promise((resolve) => {
-          t = window.setTimeout(async () => {
-            t = null;
+        t = window.setTimeout(() => {
+          t = null;
+          void (async () => {
             if (this.data) {
               const would = await this.store.wouldChange(this.data);
               if (would) {
@@ -746,9 +746,9 @@ var MapInstance = class extends import_obsidian8.Component {
               }
             }
             resolve();
-          }, 200);
-        });
-      };
+          })();
+        }, 200);
+      });
     })();
     this.app = app;
     this.plugin = plugin;
@@ -1010,12 +1010,9 @@ var MapInstance = class extends import_obsidian8.Component {
     const img = new Image();
     img.decoding = "async";
     img.src = url;
-    try {
-      await img.decode();
-    } catch (error) {
-      console.warn("Zoom Map: failed to decode base image", error);
-      return null;
-    }
+    await img.decode().catch((error) => {
+      console.warn("Zoom Map: decode warning (continuing)", error);
+    });
     try {
       return await createImageBitmap(img);
     } catch (error) {
@@ -1067,13 +1064,15 @@ var MapInstance = class extends import_obsidian8.Component {
     }
     try {
       return await createImageBitmap(img);
-    } catch (e) {
+    } catch (error) {
       return img;
     }
   }
   closeCanvasSource(src) {
     try {
-      if (isImageBitmapLike(src)) src.close();
+      if (isImageBitmapLike(src)) {
+        src.close();
+      }
     } catch (error) {
       console.error("Zoom Map: failed to dispose canvas source", error);
     }
@@ -1554,7 +1553,6 @@ var MapInstance = class extends import_obsidian8.Component {
     return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
   }
   onDblClickViewport(e) {
-    var _a;
     if (!this.ready) return;
     if (this.measuring) {
       this.measuring = false;
@@ -1562,7 +1560,7 @@ var MapInstance = class extends import_obsidian8.Component {
       this.updateMeasureHud();
       return;
     }
-    if ((_a = e.target) == null ? void 0 : _a.closest(".zm-marker")) return;
+    if (e.target instanceof HTMLElement && e.target.closest(".zm-marker")) return;
     const vpRect = this.viewportEl.getBoundingClientRect();
     const cx = e.clientX - vpRect.left;
     const cy = e.clientY - vpRect.top;
@@ -2054,7 +2052,7 @@ var MapInstance = class extends import_obsidian8.Component {
     const outside = (ev) => {
       if (!this.openMenu) return;
       const t = ev.target;
-      if (t && this.openMenu.contains(t)) return;
+      if (t instanceof Node && this.openMenu.contains(t)) return;
       this.closeMenu();
     };
     const keyClose = (ev) => {
@@ -2474,7 +2472,7 @@ var MapInstance = class extends import_obsidian8.Component {
         const outside = (ev) => {
           if (!this.openMenu) return;
           const t = ev.target;
-          if (t && this.openMenu.contains(t)) return;
+          if (t instanceof HTMLElement && this.openMenu.contains(t)) return;
           this.closeMenu();
         };
         const keyClose = (ev) => {
@@ -3183,8 +3181,8 @@ var ZMMenu = class {
         };
         row.addEventListener("mouseenter", openSub);
         row.addEventListener("mouseleave", (e) => {
-          const to = e.relatedTarget || null;
-          if (submenuEl && !submenuEl.contains(to)) {
+          const to = e.relatedTarget;
+          if (submenuEl && !(to instanceof Node && submenuEl.contains(to))) {
             closeSub();
           }
         });
