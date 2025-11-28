@@ -793,7 +793,7 @@ var MapInstance = class extends import_obsidian8.Component {
     this.disposeBitmaps();
   }
   async bootstrap() {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e;
     this.el.classList.add("zm-root");
     if (this.isCanvas()) {
       this.el.classList.add("zm-root--canvas-mode");
@@ -802,15 +802,12 @@ var MapInstance = class extends import_obsidian8.Component {
       this.el.classList.add("zm-root--responsive");
     }
     if (this.cfg.responsive) {
-      this.el.style.width = "100%";
-      this.el.style.height = "auto";
+      setCssProps(this.el, { width: "100%", height: "auto" });
     } else {
-      if (this.cfg.width) {
-        this.el.style.width = this.cfg.width;
-      }
-      if (this.cfg.height) {
-        this.el.style.height = this.cfg.height;
-      }
+      setCssProps(this.el, {
+        width: (_a = this.cfg.width) != null ? _a : null,
+        height: (_b = this.cfg.height) != null ? _b : null
+      });
     }
     if (!this.cfg.responsive && this.cfg.resizable) {
       if (this.cfg.resizeHandle === "native") {
@@ -834,7 +831,7 @@ var MapInstance = class extends import_obsidian8.Component {
     if (this.cfg.align === "right" && this.cfg.wrap) {
       this.el.classList.add("zm-float-right");
     }
-    ((_a = this.cfg.extraClasses) != null ? _a : []).forEach((c) => this.el.classList.add(c));
+    ((_c = this.cfg.extraClasses) != null ? _c : []).forEach((c) => this.el.classList.add(c));
     this.viewportEl = this.el.createDiv({ cls: "zm-viewport" });
     if (this.isCanvas()) {
       this.baseCanvas = this.viewportEl.createEl("canvas", { cls: "zm-canvas" });
@@ -846,8 +843,8 @@ var MapInstance = class extends import_obsidian8.Component {
     this.markersEl = this.worldEl.createDiv({ cls: "zm-markers" });
     this.measureHud = this.viewportEl.createDiv({ cls: "zm-measure-hud" });
     this.registerDomEvent(this.viewportEl, "wheel", (e) => {
-      var _a2;
-      if ((_a2 = e.target) == null ? void 0 : _a2.closest(".popover")) return;
+      const t = e.target;
+      if (t && t instanceof Element && t.closest(".popover")) return;
       if (this.cfg.responsive) return;
       e.preventDefault();
       e.stopPropagation();
@@ -950,7 +947,7 @@ var MapInstance = class extends import_obsidian8.Component {
       }
     }
     if (this.data) {
-      if (!((_b = this.data.size) == null ? void 0 : _b.w) || !((_c = this.data.size) == null ? void 0 : _c.h)) {
+      if (!((_d = this.data.size) == null ? void 0 : _d.w) || !((_e = this.data.size) == null ? void 0 : _e.h)) {
         this.data.size = { w: this.imgW, h: this.imgH };
         if (await this.store.wouldChange(this.data)) {
           this.ignoreNextModify = true;
@@ -958,8 +955,10 @@ var MapInstance = class extends import_obsidian8.Component {
         }
       }
       if (this.shouldUseSavedFrame() && this.data.frame && this.data.frame.w > 0 && this.data.frame.h > 0) {
-        this.el.style.width = `${this.data.frame.w}px`;
-        this.el.style.height = `${this.data.frame.h}px`;
+        setCssProps(this.el, {
+          width: `${this.data.frame.w}px`,
+          height: `${this.data.frame.h}px`
+        });
       }
     }
     this.ro = new ResizeObserver(() => this.onResize());
@@ -1389,14 +1388,16 @@ var MapInstance = class extends import_obsidian8.Component {
     return e.button === (want === "middle" ? 1 : 0);
   }
   onPointerDownViewport(e) {
-    var _a, _b, _c;
     if (!this.ready) return;
     this.activePointers.set(e.pointerId, {
       x: e.clientX,
       y: e.clientY
     });
-    (_b = (_a = e.target) == null ? void 0 : _a.setPointerCapture) == null ? void 0 : _b.call(_a, e.pointerId);
-    if ((_c = e.target) == null ? void 0 : _c.closest(".zm-marker")) return;
+    if (e.target && e.target instanceof Element && e.target.setPointerCapture) {
+      e.target.setPointerCapture(e.pointerId);
+    }
+    const tgt = e.target;
+    if (tgt && tgt instanceof Element && tgt.closest(".zm-marker")) return;
     if (this.cfg.responsive) return;
     if (this.activePointers.size === 2) {
       this.startPinch();
@@ -1809,16 +1810,28 @@ var MapInstance = class extends import_obsidian8.Component {
         action: () => this.addMarkerInteractive(nx, ny)
       }
     ];
-    const favPins = ((_d = this.plugin.settings.presets) != null ? _d : []).map(
-      (p) => {
-        const ico = this.getIconInfo(p.iconKey);
+    const favPins = ((_d = this.plugin.settings.presets) != null ? _d : []).map((p) => {
+      var _a2, _b2;
+      const ico = this.getIconInfo(p.iconKey);
+      const label = p.name || "(unnamed)";
+      if (p.layerName && p.layerName.trim()) {
         return {
-          label: p.name || "(unnamed)",
+          label,
           iconUrl: ico.imgUrl,
           action: () => this.placePresetAt(p, nx, ny)
         };
       }
-    );
+      const layers = (_b2 = (_a2 = this.data) == null ? void 0 : _a2.layers) != null ? _b2 : [];
+      const layerItems = layers.map((l) => ({
+        label: l.name,
+        action: () => this.placePresetAt(p, nx, ny, l.id)
+      }));
+      return {
+        label,
+        iconUrl: ico.imgUrl,
+        children: layerItems
+      };
+    });
     const favStickers = ((_e = this.plugin.settings.stickerPresets) != null ? _e : []).map((sp) => {
       const url = this.resolveResourceUrl(sp.imagePath);
       return {
@@ -2199,11 +2212,13 @@ var MapInstance = class extends import_obsidian8.Component {
     );
     modal.open();
   }
-  placePresetAt(p, nx, ny) {
+  placePresetAt(p, nx, ny, overrideLayerId) {
     var _a, _b, _c;
     if (!this.data) return;
     let layerId = this.data.layers[0].id;
-    if (p.layerName) {
+    if (overrideLayerId) {
+      layerId = overrideLayerId;
+    } else if (p.layerName) {
       const found = this.data.layers.find((l) => l.name === p.layerName);
       if (found) {
         layerId = found.id;
@@ -2217,6 +2232,9 @@ var MapInstance = class extends import_obsidian8.Component {
         });
         layerId = id;
       }
+    } else {
+      const vis = this.data.layers.find((l) => l.visible);
+      if (vis) layerId = vis.id;
     }
     const draft = {
       id: generateId("marker"),
@@ -3135,7 +3153,12 @@ var ZMMenu = class {
       if (!it.label) continue;
       const row = container.createDiv({ cls: "zm-menu__item" });
       const label = row.createDiv({ cls: "zm-menu__label" });
-      label.setText(it.label);
+      if (it.iconUrl) {
+        const imgLeft = label.createEl("img", { cls: "zm-menu__icon" });
+        imgLeft.src = it.iconUrl;
+        label.appendChild(document.createTextNode(" "));
+      }
+      label.appendText(it.label);
       const right = row.createDiv({ cls: "zm-menu__right" });
       if (it.children && it.children.length) {
         const arrow = right.createDiv({ cls: "zm-menu__arrow" });
@@ -3173,16 +3196,10 @@ var ZMMenu = class {
         } else if (typeof it.checked === "boolean") {
           chk.setText(it.checked ? "\u2713" : "");
         }
-        if (it.iconUrl) {
-          const img = right.createEl("img", { cls: "zm-menu__icon" });
-          img.src = it.iconUrl;
-        }
         row.addEventListener("click", () => {
           if (!it.action) return;
           try {
-            Promise.resolve(it.action(row, this)).catch(
-              (err) => console.error("Menu item action failed:", err)
-            );
+            void Promise.resolve(it.action(row, this)).catch((err) => console.error("Menu item action failed:", err));
           } catch (err) {
             console.error("Menu item action failed:", err);
           }
@@ -3561,7 +3578,7 @@ var ZoomMapSettingTab = class extends import_obsidian9.PluginSettingTab {
     colorRow.addText(
       (t) => {
         var _a2;
-        return t.setPlaceholder("default").setValue((_a2 = this.plugin.settings.measureLineColor) != null ? _a2 : "var(--text-accent)").onChange((v) => {
+        return t.setPlaceholder("Default").setValue((_a2 = this.plugin.settings.measureLineColor) != null ? _a2 : "var(--text-accent)").onChange((v) => {
           this.plugin.settings.measureLineColor = (v == null ? void 0 : v.trim()) || "var(--text-accent)";
           void this.plugin.saveSettings();
           applyStyleToAll();

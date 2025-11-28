@@ -136,8 +136,8 @@ export class MarkerStore {
       ];
     }
 
-    // Layer-Felder normalisieren
-    parsed.layers = parsed.layers.map((l: any) => ({
+	// Layer-Felder normalisieren
+    parsed.layers = parsed.layers.map((l) => ({
       id: l.id,
       name: l.name ?? "Layer",
       visible: typeof l.visible === "boolean" ? l.visible : true,

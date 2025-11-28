@@ -519,7 +519,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
 
     colorRow.addText((t) =>
       t
-        .setPlaceholder("default")
+        .setPlaceholder("Default")
         .setValue(this.plugin.settings.measureLineColor ?? "var(--text-accent)")
         .onChange((v) => {
           this.plugin.settings.measureLineColor =

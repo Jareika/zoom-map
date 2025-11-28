@@ -292,15 +292,12 @@ export class MapInstance extends Component {
 
     // In responsive mode, force width 100% and height auto
     if (this.cfg.responsive) {
-      this.el.style.width = "100%";
-      this.el.style.height = "auto";
+      setCssProps(this.el, { width: "100%", height: "auto" });
     } else {
-      if (this.cfg.width) {
-        this.el.style.width = this.cfg.width;
-      }
-      if (this.cfg.height) {
-        this.el.style.height = this.cfg.height;
-      }
+      setCssProps(this.el, {
+        width: this.cfg.width ?? null,
+        height: this.cfg.height ?? null,
+      });
     }
 
     // Resizing grips disabled in responsive
@@ -352,12 +349,13 @@ export class MapInstance extends Component {
     this.measureHud = this.viewportEl.createDiv({ cls: "zm-measure-hud" });
 
     this.registerDomEvent(this.viewportEl, "wheel", (e: WheelEvent) => {
-      if ((e.target as HTMLElement | null)?.closest(".popover")) return;
-      if (this.cfg.responsive) return; // disable wheel zoom in responsive mode
-      e.preventDefault();
-      e.stopPropagation();
-      this.onWheel(e);
-    });
+		const t = e.target;
+		  if (t && t instanceof Element && t.closest(".popover")) return;
+		  if (this.cfg.responsive) return; // disable wheel zoom in responsive mode
+		  e.preventDefault();
+		  e.stopPropagation();
+		  this.onWheel(e);
+		});
 
     this.registerDomEvent(this.viewportEl, "pointerdown", (e: PointerEvent) => {
       e.preventDefault();
@@ -484,8 +482,10 @@ export class MapInstance extends Component {
         this.data.frame.w > 0 &&
         this.data.frame.h > 0
       ) {
-        this.el.style.width = `${this.data.frame.w}px`;
-        this.el.style.height = `${this.data.frame.h}px`;
+        setCssProps(this.el, {
+          width: `${this.data.frame.w}px`,
+          height: `${this.data.frame.h}px`,
+        });
       }
     }
 
@@ -1005,9 +1005,12 @@ export class MapInstance extends Component {
       x: e.clientX,
       y: e.clientY,
     });
-    (e.target as Element | null)?.setPointerCapture?.(e.pointerId);
+    if (e.target && e.target instanceof Element && e.target.setPointerCapture) {
+      e.target.setPointerCapture(e.pointerId);
+    }
 
-    if ((e.target as HTMLElement | null)?.closest(".zm-marker")) return;
+    const tgt = e.target;
+    if (tgt && tgt instanceof Element && tgt.closest(".zm-marker")) return;
 
     // Disable pinch/pan in responsive mode
     if (this.cfg.responsive) return;
@@ -1464,16 +1467,32 @@ export class MapInstance extends Component {
       },
     ];
 
-    const favPins: ZMMenuItem[] = (this.plugin.settings.presets ?? []).map(
-      (p) => {
-        const ico = this.getIconInfo(p.iconKey);
+	const favPins: ZMMenuItem[] = (this.plugin.settings.presets ?? []).map((p) => {
+      const ico = this.getIconInfo(p.iconKey);
+      const label = p.name || "(unnamed)";
+
+      // Wenn der Favorit einen Layer vorgibt → direkt platzieren
+      if (p.layerName && p.layerName.trim()) {
         return {
-          label: p.name || "(unnamed)",
+          label,
           iconUrl: ico.imgUrl,
           action: () => this.placePresetAt(p, nx, ny),
         };
-      },
-    );
+      }
+
+      // Sonst: Layer-Auswahl als Untermenü anzeigen
+      const layers = this.data?.layers ?? [];
+      const layerItems: ZMMenuItem[] = layers.map((l) => ({
+        label: l.name,
+        action: () => this.placePresetAt(p, nx, ny, l.id),
+      }));
+
+      return {
+        label,
+        iconUrl: ico.imgUrl,
+        children: layerItems,
+      };
+    });
 
     const favStickers: ZMMenuItem[] = (
       this.plugin.settings.stickerPresets ?? []
@@ -1903,10 +1922,22 @@ export class MapInstance extends Component {
     modal.open();
   }
 
-  private placePresetAt(p: MarkerPreset, nx: number, ny: number): void {
+  private placePresetAt(
+    p: MarkerPreset,
+    nx: number,
+    ny: number,
+    overrideLayerId?: string,
+  ): void {
     if (!this.data) return;
+
+    // Ziel-Layer bestimmen
     let layerId = this.data.layers[0].id;
-    if (p.layerName) {
+
+    if (overrideLayerId) {
+      // Vom Menü gewählter existierender Layer
+      layerId = overrideLayerId;
+    } else if (p.layerName) {
+      // Vordefinierter Layername im Favorit
       const found = this.data.layers.find((l) => l.name === p.layerName);
       if (found) {
         layerId = found.id;
@@ -1920,6 +1951,10 @@ export class MapInstance extends Component {
         });
         layerId = id;
       }
+    } else {
+      // Fallback (sollte für Favoriten ohne Layer i.d.R. nicht mehr erreicht werden):
+      const vis = this.data.layers.find((l) => l.visible);
+      if (vis) layerId = vis.id;
     }
 
     const draft: Marker = {
@@ -3082,8 +3117,17 @@ class ZMMenu {
       if (!it.label) continue;
 
       const row = container.createDiv({ cls: "zm-menu__item" });
+
+      // Linke Seite (Label + optional Icon links)
       const label = row.createDiv({ cls: "zm-menu__label" });
-      label.setText(it.label);
+      if (it.iconUrl) {
+        const imgLeft = label.createEl("img", { cls: "zm-menu__icon" });
+        imgLeft.src = it.iconUrl;
+        label.appendChild(document.createTextNode(" "));
+      }
+      label.appendText(it.label);
+
+      // Rechte Seite (Häkchen/Markierungen oder Submenu-Pfeil)
       const right = row.createDiv({ cls: "zm-menu__right" });
 
       if (it.children && it.children.length) {
@@ -3097,8 +3141,7 @@ class ZMMenu {
           this.submenus.push(submenuEl);
           this.buildList(submenuEl, it.children!);
           const rect = row.getBoundingClientRect();
-          const pref =
-            rect.right + 260 < window.innerWidth ? "right" : "left";
+          const pref = rect.right + 260 < window.innerWidth ? "right" : "left";
           const x = pref === "right" ? rect.right : rect.left;
           const y = rect.top;
           this.position(submenuEl, x, y, pref);
@@ -3127,17 +3170,12 @@ class ZMMenu {
           chk.setText(it.checked ? "✓" : "");
         }
 
-        if (it.iconUrl) {
-          const img = right.createEl("img", { cls: "zm-menu__icon" });
-          img.src = it.iconUrl;
-        }
-
         row.addEventListener("click", () => {
           if (!it.action) return;
           try {
-            Promise.resolve(it.action(row, this)).catch((err) =>
-              console.error("Menu item action failed:", err),
-            );
+            void Promise
+              .resolve(it.action(row, this))
+              .catch((err) => console.error("Menu item action failed:", err));
           } catch (err) {
             console.error("Menu item action failed:", err);
           }
