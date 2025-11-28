@@ -1064,7 +1064,7 @@ var MapInstance = class extends import_obsidian8.Component {
     }
     try {
       return await createImageBitmap(img);
-    } catch (error) {
+    } catch (e) {
       return img;
     }
   }
@@ -2600,7 +2600,7 @@ var MapInstance = class extends import_obsidian8.Component {
   }
   openMarkerLink(m) {
     if (!m.link) return;
-    this.app.workspace.openLinkText(m.link, this.cfg.sourcePath);
+    void this.app.workspace.openLinkText(m.link, this.cfg.sourcePath);
   }
   getActiveBasePath() {
     if (!this.data) return this.cfg.imagePath;

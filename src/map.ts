@@ -607,7 +607,7 @@ export class MapInstance extends Component {
     }
     try {
       return await createImageBitmap(img);
-    } catch (error) {
+    } catch {
 		return img;
 	  }
 	}
@@ -1350,29 +1350,29 @@ export class MapInstance extends Component {
 
     const bases = this.getBasesNormalized();
     const baseItems: ZMMenuItem[] = bases.map((b) => ({
-      label: b.name ?? basename(b.path),
-      checked: this.getActiveBasePath() === b.path,
-      action: (rowEl) => {
-        void this.setActiveBase(b.path)
-          .then(() => {
-            const submenu = rowEl.parentElement;
-            if (submenu) {
-              const rows =
-                submenu.querySelectorAll<HTMLDivElement>(".zm-menu__item");
-              rows.forEach((r) => {
-                const c = r.querySelector<HTMLElement>(".zm-menu__check");
-                if (c) c.textContent = "";
-              });
-              const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
-              if (chk) chk.textContent = "✓";
-            }
-          })
-          .catch((err) => {
-            console.error("Set base failed:", err);
-            new Notice("Failed to set base image.", 2500);
-          });
-      },
-    }));
+	  label: b.name ?? basename(b.path),
+	  checked: this.getActiveBasePath() === b.path,
+	  action: (rowEl) => {
+		void this.setActiveBase(b.path)
+		  .then(() => {
+			const submenu = rowEl.parentElement;
+			if (submenu) {
+			  const rows =
+				submenu.querySelectorAll<HTMLDivElement>(".zm-menu__item");
+			  rows.forEach((r) => {
+				const c = r.querySelector<HTMLElement>(".zm-menu__check");
+				if (c) c.textContent = "";
+			  });
+			  const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
+			  if (chk) chk.textContent = "✓";
+			}
+		  })
+		  .catch((err) => {
+			console.error("Set base failed:", err);
+			new Notice("Failed to set base image.", 2500);
+		  });
+	  },
+	}));
 
     const overlayItems: ZMMenuItem[] = (this.data.overlays ?? []).map((o) => ({
       label: o.name ?? basename(o.path),
@@ -2379,9 +2379,9 @@ export class MapInstance extends Component {
 
   private openMarkerLink(m: Marker): void {
     if (!m.link) return;
-    this.app.workspace.openLinkText(m.link, this.cfg.sourcePath);
+    void this.app.workspace.openLinkText(m.link, this.cfg.sourcePath);
   }
-
+  
   private getActiveBasePath(): string {
     if (!this.data) return this.cfg.imagePath;
     return (
