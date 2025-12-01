@@ -1,5 +1,6 @@
-import { App, TFile } from "obsidian";
-import { MarkerFileData } from "./markerStore";
+import { TFile } from "obsidian";
+import type { App } from "obsidian";
+import type { MarkerFileData } from "./markerStore";
 
 /*
 Multiline comment format in Obsidian must NOT close on the same line.
@@ -28,13 +29,11 @@ export class NoteMarkerStore {
   }
 
   getPath(): string {
-    // used to subscribe to vault "modify" → for inline we watch the note itself
     return this.notePath;
   }
 
-  // Label lines inside the comment block (no %% here)
-  private headerLine() { return `ZOOMMAP-DATA id=${this.mapId}`; }
-  private footerLine() { return `/ZOOMMAP-DATA`; }
+  private headerLine(): string { return `ZOOMMAP-DATA id=${this.mapId}`; }
+  private footerLine(): string { return `/ZOOMMAP-DATA`; }
 
   private async readNote(): Promise<{ file: TFile; text: string }> {
     const af = this.app.vault.getAbstractFileByPath(this.notePath);
@@ -43,8 +42,6 @@ export class NoteMarkerStore {
     return { file: af, text };
   }
 
-  // Find the region that starts at the header line and ends after the footer line.
-  // Returns indices covering only the labeled region (not the outer %% lines).
   private findBlock(text: string): { start: number; end: number; jsonStart: number; jsonEnd: number } | null {
     const header = this.headerLine();
     const footer = this.footerLine();
@@ -52,33 +49,25 @@ export class NoteMarkerStore {
     const hIdx = text.indexOf(header);
     if (hIdx < 0) return null;
 
-    // Header line bounds
     const headerLineStart = text.lastIndexOf("\n", hIdx) + 1;
     const headerLineEnd = text.indexOf("\n", hIdx);
     const headerEnd = headerLineEnd === -1 ? text.length : headerLineEnd;
 
-    // JSON starts after the header line break (if any)
     const jsonStart = headerEnd + 1;
 
     const fIdx = text.indexOf(footer, jsonStart);
     if (fIdx < 0) return null;
 
-    // Footer line bounds
     const footerLineStart = text.lastIndexOf("\n", fIdx) + 1;
     const footerLineEnd = text.indexOf("\n", fIdx);
     const endExclusive = footerLineEnd === -1 ? text.length : (footerLineEnd + 1);
 
-    const jsonEnd = footerLineStart - 1; // last char before footer line
+    const jsonEnd = footerLineStart - 1;
 
-    return {
-      start: headerLineStart,
-      end: endExclusive,
-      jsonStart,
-      jsonEnd: Math.max(jsonStart, jsonEnd)
-    };
+    return { start: headerLineStart, end: endExclusive, jsonStart, jsonEnd: Math.max(jsonStart, jsonEnd) };
   }
 
-  async ensureExists(initialImagePath?: string, size?: { w: number; h: number }) {
+  async ensureExists(initialImagePath?: string, size?: { w: number; h: number }): Promise<void> {
     const { file, text } = await this.readNote();
     if (this.findBlock(text)) return;
 
@@ -91,11 +80,10 @@ export class NoteMarkerStore {
       overlays: [],
       activeBase: initialImagePath ?? "",
       measurement: { displayUnit: "auto-metric", metersPerPixel: undefined, scales: {} },
-      frame: undefined
+      frame: undefined,
     };
 
     const payload = JSON.stringify(data, null, 2);
-    // Proper multiline comment wrapper
     const block =
 `\n%%\n${this.headerLine()}\n${payload}\n${this.footerLine()}\n%%\n`;
 
@@ -129,7 +117,6 @@ export class NoteMarkerStore {
     if (blk) {
       out = text.slice(0, blk.start) + replacement + text.slice(blk.end);
     } else {
-      // If the labeled region is missing for some reason, append a fresh full block including %%
       out = text +
 `\n%%\n${this.headerLine()}\n${payload}\n${this.footerLine()}\n%%\n`;
     }

@@ -1,13 +1,14 @@
-import { App, Modal, Setting } from "obsidian";
+import { Modal, Setting } from "obsidian";
+import type { App } from "obsidian";
 
 export class NamePromptModal extends Modal {
-  private title: string;
+  private titleStr: string;
   private value: string;
   private onOk: (name: string) => void;
 
   constructor(app: App, title: string, defaultName: string, onOk: (name: string) => void) {
     super(app);
-    this.title = title;
+    this.titleStr = title;
     this.value = defaultName;
     this.onOk = onOk;
   }
@@ -15,7 +16,7 @@ export class NamePromptModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.createEl("h2", { text: this.title });
+    contentEl.createEl("h2", { text: this.titleStr });
 
     new Setting(contentEl)
       .setName("Name")

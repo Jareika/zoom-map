@@ -1,15 +1,12 @@
-import { App, Notice, TAbstractFile, TFile, normalizePath } from "obsidian";
+import { Notice, TFile, normalizePath } from "obsidian";
+import type { App, TAbstractFile } from "obsidian";
 
 export interface MarkerLayer {
   id: string;
   name: string;
   visible: boolean;
-  // Layer-Lock (Marker dieses Layers nicht verschiebbar)
   locked?: boolean;
-
-  // Optional: an ein Basisbild (Base) binden – Pfad der Base (wie in bases[].path)
-  // Wenn gesetzt, wird der Layer beim Wechsel auf diese Base automatisch sichtbar,
-  // und bei anderen Bases automatisch unsichtbar.
+  // Optional: Layer an ein Base binden – beim Base-Wechsel automatisch (un)sichtbar
   boundBase?: string;
 }
 
@@ -20,14 +17,21 @@ export interface Marker {
   x: number; // 0..1 relative to image width
   y: number; // 0..1 relative to image height
   layer: string; // layer.id
-  link?: string; // e.g. [[Note]]
+  link?: string; // e.g. wiki link without [[ ]]
   iconKey?: string; // for pin markers
   tooltip?: string;
 
-  // optional type + sticker fields
+  // type + sticker fields
   type?: MarkerKind;
   stickerPath?: string;   // vault path or data URL
-  stickerSize?: number;   // px (rendered in image space; scales with zoom)
+  stickerSize?: number;   // px in image space; scales with zoom
+
+  // Optional: per-pin zoom range (undefined → always visible)
+  minZoom?: number;
+  maxZoom?: number;
+
+  // Optional: pin scales like sticker (with the map), no inverse wrapper
+  scaleLikeSticker?: boolean;
 }
 
 export interface BaseImage {
@@ -42,13 +46,7 @@ export interface ImageOverlay {
 }
 
 /* ---- Ruler / scale data ---- */
-export type DistanceUnit =
-  | "m"
-  | "km"
-  | "mi"
-  | "ft"
-  | "auto-metric"
-  | "auto-imperial";
+export type DistanceUnit = "m" | "km" | "mi" | "ft" | "auto-metric" | "auto-imperial";
 
 export interface MeasurementConfig {
   displayUnit: DistanceUnit;          // UI unit
@@ -63,7 +61,7 @@ export interface MarkerFileData {
   markers: Marker[];
 
   // Image layers
-  bases?: Array<string | BaseImage>;
+  bases?: (string | BaseImage)[];
   overlays?: ImageOverlay[];
   activeBase?: string;
 
@@ -104,18 +102,12 @@ export class MarkerStore {
     const data: MarkerFileData = {
       image: initialImagePath ?? "",
       size,
-      layers: [
-        { id: "default", name: "Default", visible: true, locked: false },
-      ],
+      layers: [{ id: "default", name: "Default", visible: true, locked: false }],
       markers: [],
       bases: initialImagePath ? [initialImagePath] : [],
       overlays: [],
       activeBase: initialImagePath ?? "",
-      measurement: {
-        displayUnit: "auto-metric",
-        metersPerPixel: undefined,
-        scales: {},
-      },
+      measurement: { displayUnit: "auto-metric", metersPerPixel: undefined, scales: {} },
     };
 
     await this.create(JSON.stringify(data, null, 2));
@@ -131,29 +123,21 @@ export class MarkerStore {
 
     // Defaults / Back-Compat
     if (!parsed.layers || parsed.layers.length === 0) {
-      parsed.layers = [
-        { id: "default", name: "Default", visible: true, locked: false },
-      ];
+      parsed.layers = [{ id: "default", name: "Default", visible: true, locked: false }];
     }
 
-	// Layer-Felder normalisieren
+    // Layer-Felder normalisieren
     parsed.layers = parsed.layers.map((l) => ({
       id: l.id,
       name: l.name ?? "Layer",
       visible: typeof l.visible === "boolean" ? l.visible : true,
       locked: !!l.locked,
-      // boundBase nur übernehmen, wenn ein nicht-leerer String
-      boundBase:
-        typeof l.boundBase === "string" && l.boundBase.trim()
-          ? l.boundBase
-          : undefined,
+      boundBase: typeof l.boundBase === "string" && l.boundBase.trim() ? l.boundBase : undefined,
     }));
 
-    if (!parsed.markers) parsed.markers = [];
+    parsed.markers ??= [];
 
-    if (!parsed.bases) {
-      parsed.bases = parsed.image ? [parsed.image] : [];
-    }
+    parsed.bases ??= parsed.image ? [parsed.image] : [];
 
     if (!parsed.activeBase) {
       const firstBase = parsed.bases[0];
@@ -163,23 +147,14 @@ export class MarkerStore {
           : isBaseImage(firstBase)
           ? firstBase.path
           : "";
-
       parsed.activeBase = parsed.image || firstPath || "";
     }
 
-    if (!parsed.overlays) parsed.overlays = [];
+    parsed.overlays ??= [];
 
-    if (!parsed.measurement) {
-      parsed.measurement = {
-        displayUnit: "auto-metric",
-        metersPerPixel: undefined,
-        scales: {},
-      };
-    }
-    if (!parsed.measurement.scales) parsed.measurement.scales = {};
-    if (!parsed.measurement.displayUnit) {
-      parsed.measurement.displayUnit = "auto-metric";
-    }
+    parsed.measurement ??= { displayUnit: "auto-metric", metersPerPixel: undefined, scales: {} };
+    parsed.measurement.scales ??= {};
+    parsed.measurement.displayUnit ??= "auto-metric";
 
     return parsed;
   }
@@ -208,11 +183,7 @@ export class MarkerStore {
     return data;
   }
 
-  async updateLayers(
-    data: MarkerFileData,
-    layers: MarkerLayer[],
-  ): Promise<MarkerFileData> {
-    // alle Felder mitschreiben; locked normalisieren
+  async updateLayers(data: MarkerFileData, layers: MarkerLayer[]): Promise<MarkerFileData> {
     data.layers = layers.map((l) => ({ ...l, locked: !!l.locked }));
     await this.save(data);
     return data;
@@ -223,7 +194,7 @@ export class MarkerStore {
     return af instanceof TFile ? af : null;
   }
 
-  private async create(content: string) {
+  private async create(content: string): Promise<void> {
     const dir = this.markersFilePath.split("/").slice(0, -1).join("/");
     if (dir && !this.app.vault.getAbstractFileByPath(dir)) {
       await this.app.vault.createFolder(dir);
@@ -233,10 +204,5 @@ export class MarkerStore {
 }
 
 function isBaseImage(x: unknown): x is BaseImage {
-  return (
-    !!x &&
-    typeof x === "object" &&
-    "path" in x &&
-    typeof (x as { path?: unknown }).path === "string"
-  );
+  return !!x && typeof x === "object" && "path" in x && typeof (x as { path?: unknown }).path === "string";
 }

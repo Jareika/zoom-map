@@ -1,7 +1,7 @@
 import { FuzzySuggestModal } from "obsidian";
 import type { App, TFile } from "obsidian";
 
-export class ImageFileSuggestModal extends FuzzySuggestModal<TFile> {
+export class JsonFileSuggestModal extends FuzzySuggestModal<TFile> {
   private appRef: App;
   private onChoose: (file: TFile) => void;
   private files: TFile[];
@@ -10,12 +10,8 @@ export class ImageFileSuggestModal extends FuzzySuggestModal<TFile> {
     super(app);
     this.appRef = app;
     this.onChoose = onChoose;
-    const exts = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp"]);
-    this.files = this.appRef.vault.getFiles().filter((f) => {
-      const m = f.extension?.toLowerCase();
-      return exts.has(m);
-    });
-    this.setPlaceholder("Choose image file…");
+    this.files = this.appRef.vault.getFiles().filter((f) => f.extension?.toLowerCase() === "json");
+    this.setPlaceholder("Choose JSON file…");
   }
 
   getItems(): TFile[] { return this.files; }

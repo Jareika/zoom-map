@@ -1,4 +1,5 @@
-import { App, Modal, Setting } from "obsidian";
+import { Modal, Setting } from "obsidian";
+import type { App } from "obsidian";
 
 export type ScaleUnit = "m" | "km" | "mi" | "ft";
 
@@ -13,11 +14,7 @@ export class ScaleCalibrateModal extends Modal {
   private inputValue = "1";
   private unit: ScaleUnit = "km";
 
-  constructor(
-    app: App,
-    pxDistance: number,
-    onOk: (res: ScaleCalibrateResult) => void,
-  ) {
+  constructor(app: App, pxDistance: number, onOk: (res: ScaleCalibrateResult) => void) {
     super(app);
     this.pxDistance = pxDistance;
     this.onOk = onOk;
@@ -28,18 +25,14 @@ export class ScaleCalibrateModal extends Modal {
     contentEl.empty();
     contentEl.createEl("h2", { text: "Calibrate scale" });
 
-    contentEl.createEl("div", {
-      text: `Measured pixel distance: ${this.pxDistance.toFixed(1)} px`,
-    });
+    contentEl.createEl("div", { text: `Measured pixel distance: ${this.pxDistance.toFixed(1)} px` });
 
     new Setting(contentEl)
       .setName("Real world length")
       .addText((t) => {
         t.setPlaceholder("Example 2");
         t.setValue(this.inputValue);
-        t.onChange((v) => {
-          this.inputValue = v.trim();
-        });
+        t.onChange((v) => { this.inputValue = v.trim(); });
       })
       .addDropdown((d) => {
         d.addOption("m", "Meters");
@@ -47,25 +40,18 @@ export class ScaleCalibrateModal extends Modal {
         d.addOption("mi", "Miles");
         d.addOption("ft", "Feet");
         d.setValue(this.unit);
-        d.onChange((v) => {
-          this.unit = v as ScaleUnit;
-        });
+        d.onChange((v) => { this.unit = v as ScaleUnit; });
       });
 
     const footer = contentEl.createDiv({
-      attr: {
-        style: "display:flex; gap:8px; justify-content:flex-end; margin-top:12px;",
-      },
+      attr: { style: "display:flex; gap:8px; justify-content:flex-end; margin-top:12px;" },
     });
     const ok = footer.createEl("button", { text: "Save" });
     const cancel = footer.createEl("button", { text: "Cancel" });
 
     ok.addEventListener("click", () => {
       const val = Number(this.inputValue.replace(",", "."));
-      if (!Number.isFinite(val) || val <= 0) {
-        this.close();
-        return;
-      }
+      if (!Number.isFinite(val) || val <= 0) { this.close(); return; }
       const meters = this.toMeters(val, this.unit);
       const mpp = meters / this.pxDistance;
       this.close();
@@ -77,14 +63,10 @@ export class ScaleCalibrateModal extends Modal {
 
   private toMeters(v: number, u: ScaleUnit): number {
     switch (u) {
-      case "km":
-        return v * 1000;
-      case "mi":
-        return v * 1609.344;
-      case "ft":
-        return v * 0.3048;
-      default:
-        return v;
+      case "km": return v * 1000;
+      case "mi": return v * 1609.344;
+      case "ft": return v * 0.3048;
+      default: return v;
     }
   }
 

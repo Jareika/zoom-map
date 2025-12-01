@@ -1,9 +1,9 @@
-import { App, Component, Notice, TFile } from "obsidian";
-import {
+import { Component, Notice, TFile } from "obsidian";
+import type { App } from "obsidian";
+import { generateId, MarkerStore } from "./markerStore";
+import type {
   Marker,
   MarkerFileData,
-  MarkerStore,
-  generateId,
   ImageOverlay,
   BaseImage,
   MarkerLayer,
@@ -16,47 +16,7 @@ import { ImageFileSuggestModal } from "./iconFileSuggest";
 import { NamePromptModal } from "./namePrompt";
 import { RenameLayerModal, DeleteLayerModal } from "./layerManageModals";
 
-export interface ZoomMapConfig {
-  imagePath: string;
-  markersPath: string;
-  minZoom: number;
-  maxZoom: number;
-  sourcePath: string;
-  width?: string;
-  height?: string;
-  resizable?: boolean;
-  resizeHandle?: "left" | "right" | "both" | "native";
-  align?: "left" | "center" | "right";
-  wrap?: boolean;
-  extraClasses?: string[];
-
-  renderMode: "dom" | "canvas";
-
-  yamlBases?: { path: string; name?: string }[];
-  yamlOverlays?: { path: string; name?: string; visible?: boolean }[];
-  yamlMetersPerPixel?: number;
-
-  sectionStart?: number;
-  sectionEnd?: number;
-
-  widthFromYaml?: boolean;
-  heightFromYaml?: boolean;
-
-  storageMode?: "json" | "note";
-  mapId?: string;
-
-  // New: fully responsive container (width 100%, height via aspect ratio)
-  responsive?: boolean;
-}
-
-export interface IconProfile {
-  key: string;
-  pathOrDataUrl: string;
-  size: number;
-  anchorX: number;
-  anchorY: number;
-}
-
+/* ===== Collections (base-bound) ===== */
 export interface MarkerPreset {
   name: string;
   iconKey?: string;
@@ -74,6 +34,61 @@ export interface StickerPreset {
   openEditor: boolean;
 }
 
+export interface BaseCollectionBinding {
+  basePaths: string[];
+  aliases?: string[]; // deprecated
+}
+export interface BaseCollectionOptions {
+  showGlobalAlso?: boolean; // deprecated
+}
+export interface BaseCollection {
+  id: string;
+  name: string;
+  enabled?: boolean; // deprecated
+  bindings: BaseCollectionBinding;
+  include: {
+    pinKeys: string[];
+    favorites: MarkerPreset[];
+    stickers: StickerPreset[];
+  };
+  options?: BaseCollectionOptions; // deprecated
+}
+
+/* ===== Map config/settings ===== */
+export interface ZoomMapConfig {
+  imagePath: string;
+  markersPath: string;
+  minZoom: number;
+  maxZoom: number;
+  sourcePath: string;
+  width?: string;
+  height?: string;
+  resizable?: boolean;
+  resizeHandle?: "left" | "right" | "both" | "native";
+  align?: "left" | "center" | "right";
+  wrap?: boolean;
+  extraClasses?: string[];
+  renderMode: "dom" | "canvas";
+  yamlBases?: { path: string; name?: string }[];
+  yamlOverlays?: { path: string; name?: string; visible?: boolean }[];
+  yamlMetersPerPixel?: number;
+  sectionStart?: number;
+  sectionEnd?: number;
+  widthFromYaml?: boolean;
+  heightFromYaml?: boolean;
+  storageMode?: "json" | "note";
+  mapId?: string;
+  responsive?: boolean; // width 100%, height via aspect ratio; disables wheel/dblclick/pinch pan/zoom
+}
+
+export interface IconProfile {
+  key: string;
+  pathOrDataUrl: string;
+  size: number;
+  anchorX: number;
+  anchorY: number;
+}
+
 export interface ZoomMapSettings {
   icons: IconProfile[];
   defaultIconKey: string;
@@ -81,50 +96,46 @@ export interface ZoomMapSettings {
   panMouseButton: "left" | "middle";
   hoverMaxWidth: number;
   hoverMaxHeight: number;
-  presets: MarkerPreset[];
-  stickerPresets: StickerPreset[];
+  presets?: MarkerPreset[];         // legacy
+  stickerPresets?: StickerPreset[]; // legacy
   defaultWidth: string;
   defaultHeight: string;
   defaultResizable: boolean;
   defaultResizeHandle: "left" | "right" | "both" | "native";
   forcePopoverWithoutModKey: boolean;
-
   measureLineColor: string;
   measureLineWidth: number;
-
   storageDefault: "json" | "note";
+  baseCollections?: BaseCollection[];
+  pinPlaceOpensEditor?: boolean;
 }
 
-type Point = { x: number; y: number };
+interface Point { x: number; y: number; }
 
+type LayerTriState = "visible" | "locked" | "hidden";
+
+/* ===== Helpers ===== */
 function clamp(n: number, min: number, max: number): number {
   return Math.min(Math.max(n, min), max);
 }
-
 function basename(p: string): string {
   const idx = p.lastIndexOf("/");
   return idx >= 0 ? p.slice(idx + 1) : p;
 }
-
-type LayerTriState = "visible" | "locked" | "hidden";
-
-function setCssProps(
-  el: HTMLElement,
-  props: Record<string, string | null>,
-): void {
+function setCssProps(el: HTMLElement, props: Record<string, string | null>): void {
   for (const [key, value] of Object.entries(props)) {
-    if (value === null) {
-      el.style.removeProperty(key);
-    } else {
-      el.style.setProperty(key, value);
-    }
+    if (value === null) el.style.removeProperty(key);
+    else el.style.setProperty(key, value);
   }
 }
-
-// ImageBitmap guard (to avoid unnecessary type assertions)
 function isImageBitmapLike(x: unknown): x is ImageBitmap {
-  return !!x && typeof (x as { close?: unknown }).close === "function";
+  return typeof x === "object" && x !== null && "close" in x && typeof (x as { close: unknown }).close === "function";
 }
+
+/* Per-marker option accessors (typed; avoid any) */
+function getMinZoom(m: Marker): number | undefined { return m.minZoom; }
+function getMaxZoom(m: Marker): number | undefined { return m.maxZoom; }
+function isScaleLikeSticker(m: Marker): boolean { return !!m.scaleLikeSticker; }
 
 export class MapInstance extends Component {
   private app: App;
@@ -148,30 +159,19 @@ export class MapInstance extends Component {
 
   private initialLayoutDone = false;
 
-  private isFrameVisibleEnough(minPx = 48): boolean {
-    if (!this.el || !this.el.isConnected) return false;
-    if (this.el.offsetParent === null) return false;
-    const rect = this.el.getBoundingClientRect();
-    return rect.width >= minPx && rect.height >= minPx;
-  }
-
-  private overlayMap: Map<string, HTMLImageElement> = new Map();
+  private overlayMap: Map<string, HTMLImageElement> = new Map<string, HTMLImageElement>();
 
   private baseCanvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
   private baseBitmap: ImageBitmap | null = null;
 
-  private overlaySources: Map<string, CanvasImageSource> = new Map();
-  private overlayLoading: Map<string, Promise<CanvasImageSource | null>> =
-    new Map();
+  private overlaySources: Map<string, CanvasImageSource> = new Map<string, CanvasImageSource>();
+  private overlayLoading: Map<string, Promise<CanvasImageSource | null>> = new Map<string, Promise<CanvasImageSource | null>>();
 
   private cfg: ZoomMapConfig;
   private store: {
     getPath(): string;
-    ensureExists(
-      a?: string,
-      b?: { w: number; h: number },
-    ): Promise<void>;
+    ensureExists(a?: string, b?: { w: number; h: number }): Promise<void>;
     load(): Promise<MarkerFileData>;
     save(d: MarkerFileData): Promise<void>;
     wouldChange(d: MarkerFileData): Promise<boolean>;
@@ -219,7 +219,7 @@ export class MapInstance extends Component {
   private panAccDx = 0;
   private panAccDy = 0;
 
-  private activePointers: Map<number, { x: number; y: number }> = new Map();
+  private activePointers: Map<number, { x: number; y: number }> = new Map<number, { x: number; y: number }>();
   private pinchActive = false;
   private pinchStartScale = 1;
   private pinchStartDist = 0;
@@ -230,15 +230,9 @@ export class MapInstance extends Component {
   private frameSaveTimer: number | null = null;
   private userResizing = false;
 
-  // Apply YAML bases/overlays only once
   private yamlAppliedOnce = false;
 
-  constructor(
-    app: App,
-    plugin: ZoomMapPlugin,
-    el: HTMLElement,
-    cfg: ZoomMapConfig,
-  ) {
+  constructor(app: App, plugin: ZoomMapPlugin, el: HTMLElement, cfg: ZoomMapConfig) {
     super();
     this.app = app;
     this.plugin = plugin;
@@ -247,52 +241,38 @@ export class MapInstance extends Component {
 
     // Select storage backend
     if (this.cfg.storageMode === "note") {
-      const id = this.cfg.mapId || `map-${this.cfg.sectionStart ?? 0}`;
-      this.store = new NoteMarkerStore(
-        app,
-        cfg.sourcePath,
-        id,
-        this.cfg.sectionEnd,
-      );
+      const id = this.cfg.mapId ?? `map-${this.cfg.sectionStart ?? 0}`;
+      this.store = new NoteMarkerStore(app, cfg.sourcePath, id, this.cfg.sectionEnd);
     } else {
       this.store = new MarkerStore(app, cfg.sourcePath, cfg.markersPath);
     }
   }
 
-  private isCanvas(): boolean {
-    return this.cfg.renderMode === "canvas";
-  }
+  private isCanvas(): boolean { return this.cfg.renderMode === "canvas"; }
 
   onload(): void {
-    void this.bootstrap().catch((err) => {
+    void this.bootstrap().catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error(err);
-      new Notice(`Zoom Map error: ${err instanceof Error ? err.message : err}`, 6000);
+      new Notice(`Zoom Map error: ${msg}`, 6000);
     });
   }
 
   onunload(): void {
-    if (this.tooltipEl?.isConnected) {
-      this.tooltipEl.remove();
-    }
-    if (this.ro) {
-      this.ro.disconnect();
-    }
+    this.tooltipEl?.remove();
+    this.ro?.disconnect();
     this.closeMenu();
     this.disposeBitmaps();
   }
 
   private async bootstrap(): Promise<void> {
     this.el.classList.add("zm-root");
-    if (this.isCanvas()) {
-      this.el.classList.add("zm-root--canvas-mode");
-    }
-    if (this.cfg.responsive) {
-      this.el.classList.add("zm-root--responsive");
-    }
+    if (this.isCanvas()) this.el.classList.add("zm-root--canvas-mode");
+    if (this.cfg.responsive) this.el.classList.add("zm-root--responsive");
 
-    // In responsive mode, force width 100% and height auto
     if (this.cfg.responsive) {
-      setCssProps(this.el, { width: "100%", height: "auto" });
+      this.el.style.setProperty("width", "100%");
+      this.el.style.setProperty("height", "auto");
     } else {
       setCssProps(this.el, {
         width: this.cfg.width ?? null,
@@ -300,24 +280,16 @@ export class MapInstance extends Component {
       });
     }
 
-    // Resizing grips disabled in responsive
     if (!this.cfg.responsive && this.cfg.resizable) {
       if (this.cfg.resizeHandle === "native") {
         this.el.classList.add("resizable-native");
       } else {
         this.el.classList.add("resizable-custom");
-        if (
-          this.cfg.resizeHandle === "left" ||
-          this.cfg.resizeHandle === "both"
-        ) {
+        if (this.cfg.resizeHandle === "left" || this.cfg.resizeHandle === "both") {
           const gripL = this.el.createDiv({ cls: "zm-grip zm-grip-left" });
           this.installGrip(gripL, "left");
         }
-        if (
-          this.cfg.resizeHandle === "right" ||
-          this.cfg.resizeHandle === "both" ||
-          !this.cfg.resizeHandle
-        ) {
+        if (this.cfg.resizeHandle === "right" || this.cfg.resizeHandle === "both" || !this.cfg.resizeHandle) {
           const gripR = this.el.createDiv({ cls: "zm-grip zm-grip-right" });
           this.installGrip(gripR, "right");
         }
@@ -325,12 +297,8 @@ export class MapInstance extends Component {
     }
 
     if (this.cfg.align === "center") this.el.classList.add("zm-align-center");
-    if (this.cfg.align === "left" && this.cfg.wrap) {
-      this.el.classList.add("zm-float-left");
-    }
-    if (this.cfg.align === "right" && this.cfg.wrap) {
-      this.el.classList.add("zm-float-right");
-    }
+    if (this.cfg.align === "left" && this.cfg.wrap) this.el.classList.add("zm-float-left");
+    if (this.cfg.align === "right" && this.cfg.wrap) this.el.classList.add("zm-float-right");
     (this.cfg.extraClasses ?? []).forEach((c) => this.el.classList.add(c));
 
     this.viewportEl = this.el.createDiv({ cls: "zm-viewport" });
@@ -349,13 +317,13 @@ export class MapInstance extends Component {
     this.measureHud = this.viewportEl.createDiv({ cls: "zm-measure-hud" });
 
     this.registerDomEvent(this.viewportEl, "wheel", (e: WheelEvent) => {
-		const t = e.target;
-		  if (t && t instanceof Element && t.closest(".popover")) return;
-		  if (this.cfg.responsive) return; // disable wheel zoom in responsive mode
-		  e.preventDefault();
-		  e.stopPropagation();
-		  this.onWheel(e);
-		});
+      const t = e.target;
+      if (t instanceof Element && t.closest(".popover")) return;
+      if (this.cfg.responsive) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.onWheel(e);
+    });
 
     this.registerDomEvent(this.viewportEl, "pointerdown", (e: PointerEvent) => {
       e.preventDefault();
@@ -364,32 +332,22 @@ export class MapInstance extends Component {
       this.onPointerDownViewport(e);
     });
 
-    this.registerDomEvent(window, "pointermove", (e: PointerEvent) =>
-      this.onPointerMove(e),
-    );
+    this.registerDomEvent(window, "pointermove", (e: PointerEvent) => this.onPointerMove(e));
 
     this.registerDomEvent(window, "pointerup", (e: PointerEvent) => {
-      if (this.activePointers.has(e.pointerId)) {
-        this.activePointers.delete(e.pointerId);
-      }
-      if (this.pinchActive && this.activePointers.size < 2) {
-        this.endPinch();
-      }
+      if (this.activePointers.has(e.pointerId)) this.activePointers.delete(e.pointerId);
+      if (this.pinchActive && this.activePointers.size < 2) this.endPinch();
       e.preventDefault();
       this.onPointerUp();
     });
 
     this.registerDomEvent(window, "pointercancel", (e: PointerEvent) => {
-      if (this.activePointers.has(e.pointerId)) {
-        this.activePointers.delete(e.pointerId);
-      }
-      if (this.pinchActive && this.activePointers.size < 2) {
-        this.endPinch();
-      }
+      if (this.activePointers.has(e.pointerId)) this.activePointers.delete(e.pointerId);
+      if (this.pinchActive && this.activePointers.size < 2) this.endPinch();
     });
 
     this.registerDomEvent(this.viewportEl, "dblclick", (e: MouseEvent) => {
-      if (this.cfg.responsive) return; // disable dblclick zoom in responsive mode
+      if (this.cfg.responsive) return;
       e.preventDefault();
       e.stopPropagation();
       this.closeMenu();
@@ -409,46 +367,35 @@ export class MapInstance extends Component {
     });
 
     this.registerDomEvent(window, "keydown", (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (this.calibrating) {
-          this.calibrating = false;
-          this.calibPts = [];
-          this.calibPreview = null;
-          this.renderCalibrate();
-          new Notice("Calibration cancelled.", 900);
-        } else if (this.measuring) {
-          this.measuring = false;
-          this.measurePreview = null;
-          this.updateMeasureHud();
-        }
-        this.closeMenu();
+      if (e.key !== "Escape") return;
+      if (this.calibrating) {
+        this.calibrating = false;
+        this.calibPts = [];
+        this.calibPreview = null;
+        this.renderCalibrate();
+        new Notice("Calibration cancelled.", 900);
+      } else if (this.measuring) {
+        this.measuring = false;
+        this.measurePreview = null;
+        this.updateMeasureHud();
       }
+      this.closeMenu();
     });
 
     this.registerEvent(
       this.app.vault.on("modify", (f) => {
         if (!(f instanceof TFile)) return;
-        if (f.path === this.store.getPath()) {
-          if (this.ignoreNextModify) {
-            this.ignoreNextModify = false;
-            return;
-          }
-          void this.reloadMarkers();
-        }
+        if (f.path !== this.store.getPath()) return;
+        if (this.ignoreNextModify) { this.ignoreNextModify = false; return; }
+        void this.reloadMarkers();
       }),
     );
 
     await this.loadInitialBase(this.cfg.imagePath);
 
-    // In responsive mode: set aspect-ratio from loaded base
-    if (this.cfg.responsive) {
-      this.updateResponsiveAspectRatio();
-    }
+    if (this.cfg.responsive) this.updateResponsiveAspectRatio();
 
-    await this.store.ensureExists(this.cfg.imagePath, {
-      w: this.imgW,
-      h: this.imgH,
-    });
+    await this.store.ensureExists(this.cfg.imagePath, { w: this.imgW, h: this.imgH });
     this.data = await this.store.load();
 
     await this.applyYamlOnFirstLoad();
@@ -456,7 +403,7 @@ export class MapInstance extends Component {
     if (this.cfg.yamlMetersPerPixel && this.getMetersPerPixel() === undefined) {
       this.ensureMeasurement();
       const base = this.getActiveBasePath();
-      if (this.data && this.data.measurement) {
+      if (this.data?.measurement) {
         this.data.measurement.metersPerPixel = this.cfg.yamlMetersPerPixel;
         this.data.measurement.scales[base] = this.cfg.yamlMetersPerPixel;
         if (await this.store.wouldChange(this.data)) {
@@ -474,18 +421,8 @@ export class MapInstance extends Component {
           await this.store.save(this.data);
         }
       }
-
-      // Do NOT apply saved frame in responsive mode
-      if (
-        this.shouldUseSavedFrame() &&
-        this.data.frame &&
-        this.data.frame.w > 0 &&
-        this.data.frame.h > 0
-      ) {
-        setCssProps(this.el, {
-          width: `${this.data.frame.w}px`,
-          height: `${this.data.frame.h}px`,
-        });
+      if (this.shouldUseSavedFrame() && this.data.frame && this.data.frame.w > 0 && this.data.frame.h > 0) {
+        setCssProps(this.el, { width: `${this.data.frame.w}px`, height: `${this.data.frame.h}px` });
       }
     }
 
@@ -493,12 +430,7 @@ export class MapInstance extends Component {
     this.ro.observe(this.el);
     this.register(() => this.ro?.disconnect());
 
-    // Initial layout
-    if (this.cfg.responsive) {
-      this.fitToView();
-    } else {
-      this.fitToView();
-    }
+    this.fitToView();
 
     await this.applyActiveBaseAndOverlays();
     this.setupMeasureOverlay();
@@ -510,62 +442,42 @@ export class MapInstance extends Component {
   }
 
   private updateResponsiveAspectRatio(): void {
-    // Reflect current base image aspect into the container
     if (!this.imgW || !this.imgH) return;
     this.el.style.aspectRatio = `${this.imgW} / ${this.imgH}`;
   }
 
   private disposeBitmaps(): void {
-	try {
-	  if (this.baseBitmap && isImageBitmapLike(this.baseBitmap)) {
-		this.baseBitmap.close();
-	  }
-	} catch (error) {
-	  console.error("Zoom Map: failed to dispose base bitmap", error);
-	  }
-	this.baseBitmap = null;
+    try {
+      if (this.baseBitmap && isImageBitmapLike(this.baseBitmap)) this.baseBitmap.close();
+    } catch (error) {
+      console.error("Zoom Map: failed to dispose base bitmap", error);
+    }
+    this.baseBitmap = null;
 
-	for (const src of this.overlaySources.values()) {
-	  try {
-		if (isImageBitmapLike(src)) {
-		  src.close();
-		}
-	  } catch (error) {
-		console.error("Zoom Map: failed to dispose overlay bitmap", error);
-		}
-	}
-	this.overlaySources.clear();
-	this.overlayLoading.clear();
+    for (const src of this.overlaySources.values()) {
+      try { if (isImageBitmapLike(src)) src.close(); }
+      catch (error) { console.error("Zoom Map: failed to dispose overlay bitmap", error); }
+    }
+    this.overlaySources.clear();
+    this.overlayLoading.clear();
   }
 
   private async loadBitmapFromPath(path: string): Promise<ImageBitmap | null> {
-	const f = this.resolveTFile(path, this.cfg.sourcePath);
-	if (!f) return null;
-
-	const url = this.app.vault.getResourcePath(f);
-	const img = new Image();
-	img.decoding = "async";
-	img.src = url;
-
-	await img.decode().catch((error) => {
-	  console.warn("Zoom Map: decode warning (continuing)", error);
-	});
-
-	try {
-	  return await createImageBitmap(img);
-	} catch (error) {
-	console.warn("Zoom Map: createImageBitmap failed", error);
-	return null;
-	}
+    const f = this.resolveTFile(path, this.cfg.sourcePath);
+    if (!f) return null;
+    const url = this.app.vault.getResourcePath(f);
+    const img = new Image();
+    img.decoding = "async";
+    img.src = url;
+    try { await img.decode(); } catch (err) { console.warn("Zoom Map: decode warning", err); }
+    try { return await createImageBitmap(img); } catch (error) { console.warn("Zoom Map: createImageBitmap failed", error); return null; }
   }
 
   private async loadBaseBitmapByPath(path: string): Promise<void> {
     const bmp = await this.loadBitmapFromPath(path);
     if (!bmp) throw new Error(`Failed to load image: ${path}`);
     try {
-      if (this.baseBitmap && isImageBitmapLike(this.baseBitmap)) {
-        this.baseBitmap.close();
-      }
+      if (this.baseBitmap && isImageBitmapLike(this.baseBitmap)) this.baseBitmap.close();
     } catch (error) {
       console.error("Zoom Map: failed to dispose previous base bitmap", error);
     }
@@ -580,62 +492,42 @@ export class MapInstance extends Component {
     if (!imgFile) throw new Error(`Image not found: ${path}`);
     const url = this.app.vault.getResourcePath(imgFile);
     await new Promise<void>((resolve, reject) => {
-      this.imgEl.onload = () => {
-        this.imgW = this.imgEl.naturalWidth;
-        this.imgH = this.imgEl.naturalHeight;
-        resolve();
-      };
+      this.imgEl.onload = () => { this.imgW = this.imgEl.naturalWidth; this.imgH = this.imgEl.naturalHeight; resolve(); };
       this.imgEl.onerror = () => reject(new Error("Failed to load image."));
       this.imgEl.src = url;
     });
     this.currentBasePath = path;
   }
 
-  private async loadCanvasSourceFromPath(
-    path: string,
-  ): Promise<CanvasImageSource | null> {
+  private async loadInitialBase(path: string): Promise<void> {
+    if (this.isCanvas()) await this.loadBaseBitmapByPath(path);
+    else await this.loadBaseImageByPath(path);
+  }
+
+  private async loadCanvasSourceFromPath(path: string): Promise<CanvasImageSource | null> {
     const f = this.resolveTFile(path, this.cfg.sourcePath);
     if (!f) return null;
     const url = this.app.vault.getResourcePath(f);
     const img = new Image();
     img.decoding = "async";
     img.src = url;
-    try {
-      await img.decode();
-    } catch (error) {
-      console.warn("Zoom Map: overlay decode warning", error);
-    }
-    try {
-      return await createImageBitmap(img);
-    } catch {
-		return img;
-	  }
-	}
-
-  private closeCanvasSource(src: CanvasImageSource | null): void {
-	try {
-	  if (isImageBitmapLike(src)) {
-		src.close();
-	  }
-	  } catch (error) {
-		console.error("Zoom Map: failed to dispose canvas source", error);
-	  }
+    try { await img.decode(); } catch (error) { console.warn("Zoom Map: overlay decode warning", error); }
+    try { return await createImageBitmap(img); } catch { return img; }
   }
 
-  private async ensureOverlayLoaded(
-    path: string,
-  ): Promise<CanvasImageSource | null> {
-    if (this.overlaySources.has(path)) return this.overlaySources.get(path)!;
-    if (this.overlayLoading.has(path)) {
-      return await this.overlayLoading.get(path)!;
-    }
+  private closeCanvasSource(src: CanvasImageSource | null): void {
+    try { if (isImageBitmapLike(src)) src.close(); }
+    catch (error) { console.error("Zoom Map: failed to dispose canvas source", error); }
+  }
+
+  private async ensureOverlayLoaded(path: string): Promise<CanvasImageSource | null> {
+    if (this.overlaySources.has(path)) return this.overlaySources.get(path) ?? null;
+    if (this.overlayLoading.has(path)) return this.overlayLoading.get(path) ?? null;
 
     const p = this.loadCanvasSourceFromPath(path)
       .then((res) => {
         this.overlayLoading.delete(path);
-        if (res) {
-          this.overlaySources.set(path, res);
-        }
+        if (res) this.overlaySources.set(path, res);
         return res;
       })
       .catch((err) => {
@@ -645,16 +537,12 @@ export class MapInstance extends Component {
       });
 
     this.overlayLoading.set(path, p);
-    return await p;
+    return p;
   }
 
   private async ensureVisibleOverlaysLoaded(): Promise<void> {
     if (!this.data) return;
-    const wantVisible = new Set(
-      (this.data.overlays ?? [])
-        .filter((o) => o.visible)
-        .map((o) => o.path),
-    );
+    const wantVisible = new Set<string>((this.data.overlays ?? []).filter((o) => o.visible).map((o) => o.path));
 
     for (const [path, src] of this.overlaySources) {
       if (!wantVisible.has(path)) {
@@ -664,9 +552,7 @@ export class MapInstance extends Component {
     }
 
     for (const path of wantVisible) {
-      if (!this.overlaySources.has(path)) {
-        await this.ensureOverlayLoaded(path);
-      }
+      if (!this.overlaySources.has(path)) await this.ensureOverlayLoaded(path);
     }
   }
 
@@ -696,8 +582,7 @@ export class MapInstance extends Component {
     ctx.scale(this.scale, this.scale);
 
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality =
-      this.scale < 0.18 ? "low" : "medium";
+    ctx.imageSmoothingQuality = this.scale < 0.18 ? "low" : "medium";
 
     ctx.drawImage(this.baseBitmap, 0, 0);
 
@@ -713,39 +598,24 @@ export class MapInstance extends Component {
   private setupMeasureOverlay(): void {
     this.measureEl = this.worldEl.createDiv({ cls: "zm-measure" });
 
-    this.measureSvg = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "svg",
-    );
+    this.measureSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     this.measureSvg.classList.add("zm-measure__svg");
     this.measureSvg.setAttribute("width", String(this.imgW));
     this.measureSvg.setAttribute("height", String(this.imgH));
     this.measureEl.appendChild(this.measureSvg);
 
-    this.measurePath = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "path",
-    );
+    this.measurePath = document.createElementNS("http://www.w3.org/2000/svg", "path");
     this.measurePath.classList.add("zm-measure__path");
     this.measureSvg.appendChild(this.measurePath);
 
-    this.measureDots = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "g",
-    );
+    this.measureDots = document.createElementNS("http://www.w3.org/2000/svg", "g");
     this.measureSvg.appendChild(this.measureDots);
 
-    this.calibPath = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "path",
-    );
+    this.calibPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
     this.calibPath.classList.add("zm-measure__path", "zm-measure__dash");
     this.measureSvg.appendChild(this.calibPath);
 
-    this.calibDots = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "g",
-    );
+    this.calibDots = document.createElementNS("http://www.w3.org/2000/svg", "g");
     this.measureSvg.appendChild(this.calibDots);
 
     this.updateMeasureHud();
@@ -757,14 +627,9 @@ export class MapInstance extends Component {
     this.measureSvg.setAttribute("height", String(this.imgH));
 
     const pts: Point[] = [...this.measurePts];
-    if (this.measuring && this.measurePreview) {
-      pts.push(this.measurePreview);
-    }
+    if (this.measuring && this.measurePreview) pts.push(this.measurePreview);
 
-    const toAbs = (p: Point) => ({
-      x: p.x * this.imgW,
-      y: p.y * this.imgH,
-    });
+    const toAbs = (p: Point) => ({ x: p.x * this.imgW, y: p.y * this.imgH });
 
     let d = "";
     pts.forEach((p, i) => {
@@ -773,16 +638,11 @@ export class MapInstance extends Component {
     });
     this.measurePath.setAttribute("d", d);
 
-    while (this.measureDots.firstChild) {
-      this.measureDots.removeChild(this.measureDots.firstChild);
-    }
+    while (this.measureDots.firstChild) this.measureDots.removeChild(this.measureDots.firstChild);
 
     for (const p of this.measurePts) {
       const a = toAbs(p);
-      const c = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "circle",
-      );
+      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
       c.setAttribute("cx", String(a.x));
       c.setAttribute("cy", String(a.y));
       c.setAttribute("r", "4");
@@ -796,15 +656,10 @@ export class MapInstance extends Component {
   private renderCalibrate(): void {
     if (!this.measureSvg) return;
 
-    const toAbs = (p: Point) => ({
-      x: p.x * this.imgW,
-      y: p.y * this.imgH,
-    });
+    const toAbs = (p: Point) => ({ x: p.x * this.imgW, y: p.y * this.imgH });
 
     const pts: Point[] = [...this.calibPts];
-    if (this.calibrating && this.calibPts.length === 1 && this.calibPreview) {
-      pts.push(this.calibPreview);
-    }
+    if (this.calibrating && this.calibPts.length === 1 && this.calibPreview) pts.push(this.calibPreview);
 
     let d = "";
     pts.forEach((p, i) => {
@@ -813,15 +668,10 @@ export class MapInstance extends Component {
     });
     this.calibPath.setAttribute("d", d);
 
-    while (this.calibDots.firstChild) {
-      this.calibDots.removeChild(this.calibDots.firstChild);
-    }
+    while (this.calibDots.firstChild) this.calibDots.removeChild(this.calibDots.firstChild);
     for (const p of this.calibPts) {
       const a = toAbs(p);
-      const c = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "circle",
-      );
+      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
       c.setAttribute("cx", String(a.x));
       c.setAttribute("cy", String(a.y));
       c.setAttribute("r", "4");
@@ -846,19 +696,9 @@ export class MapInstance extends Component {
 
   private ensureMeasurement(): void {
     if (!this.data) return;
-    if (!this.data.measurement) {
-      this.data.measurement = {
-        displayUnit: "auto-metric",
-        metersPerPixel: undefined,
-        scales: {},
-      };
-    }
-    if (!this.data.measurement.scales) {
-      this.data.measurement.scales = {};
-    }
-    if (!this.data.measurement.displayUnit) {
-      this.data.measurement.displayUnit = "auto-metric";
-    }
+    this.data.measurement ??= { displayUnit: "auto-metric", metersPerPixel: undefined, scales: {} };
+    this.data.measurement.scales ??= {};
+    this.data.measurement.displayUnit ??= "auto-metric";
   }
 
   private updateMeasureHud(): void {
@@ -876,17 +716,10 @@ export class MapInstance extends Component {
   private computeDistanceMeters(): number | null {
     if (!this.data) return null;
 
-    if (
-      this.measurePts.length < 2 &&
-      !(this.measuring && this.measurePts.length >= 1 && this.measurePreview)
-    ) {
-      return null;
-    }
+    if (this.measurePts.length < 2 && !(this.measuring && this.measurePts.length >= 1 && this.measurePreview)) return null;
 
     const pts: Point[] = [...this.measurePts];
-    if (this.measuring && this.measurePreview) {
-      pts.push(this.measurePreview);
-    }
+    if (this.measuring && this.measurePreview) pts.push(this.measurePreview);
 
     let px = 0;
     for (let i = 1; i < pts.length; i += 1) {
@@ -903,37 +736,20 @@ export class MapInstance extends Component {
 
   private formatDistance(m: number): string {
     const unit = this.data?.measurement?.displayUnit ?? "auto-metric";
-    const round = (v: number, d = 2) =>
-      Math.round(v * 10 ** d) / 10 ** d;
+    const round = (v: number, d = 2) => Math.round(v * 10 ** d) / 10 ** d;
 
     switch (unit) {
-      case "m":
-        return `${Math.round(m)} m`;
-      case "km":
-        return `${round(m / 1000, 3)} km`;
-      case "mi":
-        return `${round(m / 1609.344, 3)} mi`;
-      case "ft":
-        return `${Math.round(m / 0.3048)} ft`;
+      case "m": return `${Math.round(m)} m`;
+      case "km": return `${round(m / 1000, 3)} km`;
+      case "mi": return `${round(m / 1609.344, 3)} mi`;
+      case "ft": return `${Math.round(m / 0.3048)} ft`;
       case "auto-imperial": {
         const mi = m / 1609.344;
-        return mi >= 0.25
-          ? `${round(mi, 2)} mi`
-          : `${Math.round(m / 0.3048)} ft`;
+        return mi >= 0.25 ? `${round(mi, 2)} mi` : `${Math.round(m / 0.3048)} ft`;
       }
       case "auto-metric":
       default:
-        return m >= 1000
-          ? `${round(m / 1000, 2)} km`
-          : `${Math.round(m)} m`;
-    }
-  }
-
-  private async loadInitialBase(path: string): Promise<void> {
-    if (this.isCanvas()) {
-      await this.loadBaseBitmapByPath(path);
-    } else {
-      await this.loadBaseImageByPath(path);
+        return m >= 1000 ? `${round(m / 1000, 2)} km` : `${Math.round(m)} m`;
     }
   }
 
@@ -963,7 +779,6 @@ export class MapInstance extends Component {
     this.vh = r.height;
 
     if (this.cfg.responsive) {
-      // Always keep the image perfectly fitted in responsive mode
       this.fitToView();
       if (this.isCanvas()) this.renderCanvas();
       return;
@@ -971,23 +786,15 @@ export class MapInstance extends Component {
 
     this.applyTransform(this.scale, this.tx, this.ty, true);
 
-    if (
-      this.shouldUseSavedFrame() &&
-      this.cfg.resizable &&
-      this.cfg.resizeHandle === "native" &&
-      !this.userResizing
-    ) {
-      if (!this.initialLayoutDone) {
-        this.initialLayoutDone = true;
-      } else if (this.isFrameVisibleEnough()) {
-        this.requestPersistFrame();
-      }
+    if (this.shouldUseSavedFrame() && this.cfg.resizable && this.cfg.resizeHandle === "native" && !this.userResizing) {
+      if (!this.initialLayoutDone) this.initialLayoutDone = true;
+      else if (this.isFrameVisibleEnough()) this.requestPersistFrame();
     }
   }
 
   private onWheel(e: WheelEvent): void {
     if (!this.ready) return;
-    const factor = this.plugin.settings.wheelZoomFactor || 1.1;
+    const factor = this.plugin.settings.wheelZoomFactor ?? 1.1;
     const step = Math.pow(factor, e.deltaY < 0 ? 1 : -1);
     const vpRect = this.viewportEl.getBoundingClientRect();
     const cx = clamp(e.clientX - vpRect.left, 0, this.vw);
@@ -1003,24 +810,15 @@ export class MapInstance extends Component {
   private onPointerDownViewport(e: PointerEvent): void {
     if (!this.ready) return;
 
-    this.activePointers.set(e.pointerId, {
-      x: e.clientX,
-      y: e.clientY,
-    });
-    if (e.target && e.target instanceof Element && e.target.setPointerCapture) {
-      e.target.setPointerCapture(e.pointerId);
-    }
+    this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (e.target instanceof Element && e.target.setPointerCapture) (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
     const tgt = e.target;
-    if (tgt && tgt instanceof Element && tgt.closest(".zm-marker")) return;
+    if (tgt instanceof Element && tgt.closest(".zm-marker")) return;
 
-    // Disable pinch/pan in responsive mode
     if (this.cfg.responsive) return;
 
-    if (this.activePointers.size === 2) {
-      this.startPinch();
-      return;
-    }
+    if (this.activePointers.size === 2) { this.startPinch(); return; }
 
     if (this.pinchActive) return;
     if (!this.panButtonMatches(e)) return;
@@ -1032,22 +830,12 @@ export class MapInstance extends Component {
   private onPointerMove(e: PointerEvent): void {
     if (!this.ready) return;
 
-    if (this.activePointers.has(e.pointerId)) {
-      this.activePointers.set(e.pointerId, {
-        x: e.clientX,
-        y: e.clientY,
-      });
-    }
+    if (this.activePointers.has(e.pointerId)) this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-    if (this.pinchActive) {
-      this.updatePinch();
-      return;
-    }
+    if (this.pinchActive) { this.updatePinch(); return; }
 
     if (this.draggingMarkerId && this.data) {
-      const m = this.data.markers.find(
-        (mm) => mm.id === this.draggingMarkerId,
-      );
+      const m = this.data.markers.find((mm) => mm.id === this.draggingMarkerId);
       if (!m) return;
       const vpRect = this.viewportEl.getBoundingClientRect();
       const vx = e.clientX - vpRect.left;
@@ -1059,10 +847,7 @@ export class MapInstance extends Component {
       const nx = clamp((wx - off.dx) / this.imgW, 0, 1);
       const ny = clamp((wy - off.dy) / this.imgH, 0, 1);
 
-      const movedEnough = Math.hypot(
-        (nx - m.x) * this.imgW,
-        (ny - m.y) * this.imgH,
-      ) > 1;
+      const movedEnough = Math.hypot((nx - m.x) * this.imgW, (ny - m.y) * this.imgH) > 1;
       if (movedEnough) this.dragMoved = true;
 
       m.x = nx;
@@ -1077,10 +862,7 @@ export class MapInstance extends Component {
       const vy = e.clientY - vpRect.top;
       const wx = (vx - this.tx) / this.scale;
       const wy = (vy - this.ty) / this.scale;
-      this.measurePreview = {
-        x: clamp(wx / this.imgW, 0, 1),
-        y: clamp(wy / this.imgH, 0, 1),
-      };
+      this.measurePreview = { x: clamp(wx / this.imgW, 0, 1), y: clamp(wy / this.imgH, 0, 1) };
       this.renderMeasure();
     }
 
@@ -1090,10 +872,7 @@ export class MapInstance extends Component {
       const vy = e.clientY - vpRect.top;
       const wx = (vx - this.tx) / this.scale;
       const wy = (vy - this.ty) / this.scale;
-      this.calibPreview = {
-        x: clamp(wx / this.imgW, 0, 1),
-        y: clamp(wy / this.imgH, 0, 1),
-      };
+      this.calibPreview = { x: clamp(wx / this.imgW, 0, 1), y: clamp(wy / this.imgH, 0, 1) };
       this.renderCalibrate();
     }
 
@@ -1111,9 +890,7 @@ export class MapInstance extends Component {
     if (this.draggingMarkerId) {
       if (this.dragMoved) {
         this.suppressClickMarkerId = this.draggingMarkerId;
-        window.setTimeout(() => {
-          this.suppressClickMarkerId = null;
-        }, 0);
+        window.setTimeout(() => { this.suppressClickMarkerId = null; }, 0);
         void this.saveDataSoon();
       }
     }
@@ -1152,40 +929,30 @@ export class MapInstance extends Component {
     const curDist = this.dist(pts[0], pts[1]);
     if (this.pinchStartDist <= 0) return;
 
-    const targetScale = clamp(
-      this.pinchStartScale * (curDist / this.pinchStartDist),
-      this.cfg.minZoom,
-      this.cfg.maxZoom,
-    );
+    const targetScale = clamp(this.pinchStartScale * (curDist / this.pinchStartDist), this.cfg.minZoom, this.cfg.maxZoom);
 
     const vpRect = this.viewportEl.getBoundingClientRect();
     const cx = clamp(center.x - vpRect.left, 0, this.vw);
     const cy = clamp(center.y - vpRect.top, 0, this.vh);
 
     const factor = targetScale / this.scale;
-    if (Math.abs(factor - 1) > 1e-3) {
-      this.zoomAt(cx, cy, factor);
-    }
+    if (Math.abs(factor - 1) > 1e-3) this.zoomAt(cx, cy, factor);
 
     if (this.pinchPrevCenter) {
       const dx = center.x - this.pinchPrevCenter.x;
       const dy = center.y - this.pinchPrevCenter.y;
-      if (Math.abs(dx) + Math.abs(dy) > 0.5) {
-        this.panBy(dx, dy);
-      }
+      if (Math.abs(dx) + Math.abs(dy) > 0.5) this.panBy(dx, dy);
     }
     this.pinchPrevCenter = center;
   }
 
   private endPinch(): void {
     this.pinchActive = false;
-       this.pinchPrevCenter = null;
+    this.pinchPrevCenter = null;
     this.pinchStartDist = 0;
   }
 
-  private getTwoPointers():
-    | [{ x: number; y: number }, { x: number; y: number }]
-    | null {
+  private getTwoPointers(): [{ x: number; y: number }, { x: number; y: number }] | null {
     if (this.activePointers.size !== 2) return null;
     const it = Array.from(this.activePointers.values());
     return [it[0], it[1]];
@@ -1194,11 +961,7 @@ export class MapInstance extends Component {
   private dist(a: { x: number; y: number }, b: { x: number; y: number }): number {
     return Math.hypot(a.x - b.x, a.y - b.y);
   }
-
-  private mid(a: { x: number; y: number }, b: { x: number; y: number }): {
-    x: number;
-    y: number;
-  } {
+  private mid(a: { x: number; y: number }, b: { x: number; y: number }): { x: number; y: number } {
     return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
   }
 
@@ -1226,32 +989,22 @@ export class MapInstance extends Component {
       const vy = e.clientY - vpRect.top;
       const wx = (vx - this.tx) / this.scale;
       const wy = (vy - this.ty) / this.scale;
-      const p = {
-        x: clamp(wx / this.imgW, 0, 1),
-        y: clamp(wy / this.imgH, 0, 1),
-      };
+      const p = { x: clamp(wx / this.imgW, 0, 1), y: clamp(wy / this.imgH, 0, 1) };
       this.calibPts.push(p);
       if (this.calibPts.length === 2) {
         const pxDist = Math.hypot(
           (this.calibPts[1].x - this.calibPts[0].x) * this.imgW,
           (this.calibPts[1].y - this.calibPts[0].y) * this.imgH,
         );
-        new ScaleCalibrateModal(
-          this.app,
-          pxDist,
-          (result) => {
-            void this.applyScaleCalibration(result.metersPerPixel);
-            new Notice(
-              `Scale set: ${result.metersPerPixel.toFixed(6)} m/px`,
-              2000,
-            );
-            this.calibrating = false;
-            this.calibPts = [];
-            this.calibPreview = null;
-            this.renderCalibrate();
-            this.updateMeasureHud();
-          },
-        ).open();
+        new ScaleCalibrateModal(this.app, pxDist, (result) => {
+          void this.applyScaleCalibration(result.metersPerPixel);
+          new Notice(`Scale set: ${result.metersPerPixel.toFixed(6)} m/px`, 2000);
+          this.calibrating = false;
+          this.calibPts = [];
+          this.calibPreview = null;
+          this.renderCalibrate();
+          this.updateMeasureHud();
+        }).open();
       }
       this.renderCalibrate();
       return;
@@ -1263,10 +1016,7 @@ export class MapInstance extends Component {
       const vy = e.clientY - vpRect.top;
       const wx = (vx - this.tx) / this.scale;
       const wy = (vy - this.ty) / this.scale;
-      const p = {
-        x: clamp(wx / this.imgW, 0, 1),
-        y: clamp(wy / this.imgH, 0, 1),
-      };
+      const p = { x: clamp(wx / this.imgW, 0, 1), y: clamp(wy / this.imgH, 0, 1) };
       this.measurePts.push(p);
       this.renderMeasure();
       return;
@@ -1275,7 +1025,7 @@ export class MapInstance extends Component {
     if (e.shiftKey) {
       const vpRect = this.viewportEl.getBoundingClientRect();
       const vx = e.clientX - vpRect.left;
-      const vy = e.clientY - vpRect.top;
+      const vy = e.clientY - vpRect.top; // FIX: was vp.top
       const wx = (vx - this.tx) / this.scale;
       const wy = (vy - this.ty) / this.scale;
       const nx = clamp(wx / this.imgW, 0, 1);
@@ -1317,7 +1067,6 @@ export class MapInstance extends Component {
     return !!(l && l.visible && l.locked);
   }
 
-  // Neu: Sichtbarkeit für gebundene Layer nach aktivem Base setzen
   private async applyBoundBaseVisibility(): Promise<void> {
     if (!this.data) return;
     const active = this.getActiveBasePath();
@@ -1336,6 +1085,53 @@ export class MapInstance extends Component {
     }
   }
 
+  /* ===== Collections helpers ===== */
+  private getActiveBasePath(): string {
+    if (!this.data) return this.cfg.imagePath;
+    return this.data.activeBase ?? this.data.image ?? this.cfg.imagePath;
+  }
+
+  private getCollectionsSplitForActive(): { matched: BaseCollection[]; globals: BaseCollection[] } {
+    const all = (this.plugin.settings.baseCollections ?? []).filter(Boolean);
+    const active = this.getActiveBasePath();
+
+    const matches = (c: BaseCollection) => (c.bindings?.basePaths ?? []).some((p) => p === active);
+    const isGlobal = (c: BaseCollection) => !c.bindings || (c.bindings.basePaths?.length ?? 0) === 0;
+
+    const matched = all.filter(matches);
+    const globals = all.filter(isGlobal);
+    return { matched, globals };
+  }
+
+  private computeCollectionSets(): {
+    pinsBase: string[];
+    pinsGlobal: string[];
+    favsBase: MarkerPreset[];
+    favsGlobal: MarkerPreset[];
+    stickersBase: StickerPreset[];
+    stickersGlobal: StickerPreset[];
+  } {
+    const { matched, globals } = this.getCollectionsSplitForActive();
+
+    const pinsBase = [...new Set(matched.flatMap((c) => c.include?.pinKeys ?? []))];
+
+    const favsBase: MarkerPreset[] = [];
+    matched.forEach((c) => (c.include?.favorites ?? []).forEach((f) => favsBase.push(f)));
+
+    const stickersBase: StickerPreset[] = [];
+    matched.forEach((c) => (c.include?.stickers ?? []).forEach((s) => stickersBase.push(s)));
+
+    const pinsGlobal = [...new Set(globals.flatMap((c) => c.include?.pinKeys ?? []))];
+
+    const favsGlobal: MarkerPreset[] = [];
+    globals.forEach((c) => (c.include?.favorites ?? []).forEach((f) => favsGlobal.push(f)));
+
+    const stickersGlobal: StickerPreset[] = [];
+    globals.forEach((c) => (c.include?.stickers ?? []).forEach((s) => stickersGlobal.push(s)));
+
+    return { pinsBase, pinsGlobal, favsBase, favsGlobal, stickersBase, stickersGlobal };
+  }
+
   private onContextMenuViewport(e: MouseEvent): void {
     if (!this.ready || !this.data) return;
     this.closeMenu();
@@ -1350,29 +1146,26 @@ export class MapInstance extends Component {
 
     const bases = this.getBasesNormalized();
     const baseItems: ZMMenuItem[] = bases.map((b) => ({
-	  label: b.name ?? basename(b.path),
-	  checked: this.getActiveBasePath() === b.path,
-	  action: (rowEl) => {
-		void this.setActiveBase(b.path)
-		  .then(() => {
-			const submenu = rowEl.parentElement;
-			if (submenu) {
-			  const rows =
-				submenu.querySelectorAll<HTMLDivElement>(".zm-menu__item");
-			  rows.forEach((r) => {
-				const c = r.querySelector<HTMLElement>(".zm-menu__check");
-				if (c) c.textContent = "";
-			  });
-			  const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
-			  if (chk) chk.textContent = "✓";
-			}
-		  })
-		  .catch((err) => {
-			console.error("Set base failed:", err);
-			new Notice("Failed to set base image.", 2500);
-		  });
-	  },
-	}));
+      label: b.name ?? basename(b.path),
+      checked: this.getActiveBasePath() === b.path,
+      action: (rowEl) => {
+        void this.setActiveBase(b.path)
+          .then(() => {
+            const submenu = rowEl.parentElement;
+            const rows = submenu?.querySelectorAll<HTMLDivElement>(".zm-menu__item");
+            rows?.forEach((r) => {
+              const c = r.querySelector<HTMLElement>(".zm-menu__check");
+              if (c) c.textContent = "";
+            });
+            const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
+            if (chk) chk.textContent = "✓";
+          })
+          .catch((err: unknown) => {
+            console.error("Set base failed:", err);
+            new Notice("Failed to set base image.", 2500);
+          });
+      },
+    }));
 
     const overlayItems: ZMMenuItem[] = (this.data.overlays ?? []).map((o) => ({
       label: o.name ?? basename(o.path),
@@ -1393,7 +1186,7 @@ export class MapInstance extends Component {
         checked: unit === "auto-metric",
         action: () => {
           this.ensureMeasurement();
-          if (this.data && this.data.measurement) {
+          if (this.data?.measurement) {
             this.data.measurement.displayUnit = "auto-metric";
             void this.saveDataSoon();
             this.updateMeasureHud();
@@ -1405,7 +1198,7 @@ export class MapInstance extends Component {
         checked: unit === "auto-imperial",
         action: () => {
           this.ensureMeasurement();
-          if (this.data && this.data.measurement) {
+          if (this.data?.measurement) {
             this.data.measurement.displayUnit = "auto-imperial";
             void this.saveDataSoon();
             this.updateMeasureHud();
@@ -1417,7 +1210,7 @@ export class MapInstance extends Component {
         checked: unit === "m",
         action: () => {
           this.ensureMeasurement();
-          if (this.data && this.data.measurement) {
+          if (this.data?.measurement) {
             this.data.measurement.displayUnit = "m";
             void this.saveDataSoon();
             this.updateMeasureHud();
@@ -1429,7 +1222,7 @@ export class MapInstance extends Component {
         checked: unit === "km",
         action: () => {
           this.ensureMeasurement();
-          if (this.data && this.data.measurement) {
+          if (this.data?.measurement) {
             this.data.measurement.displayUnit = "km";
             void this.saveDataSoon();
             this.updateMeasureHud();
@@ -1441,7 +1234,7 @@ export class MapInstance extends Component {
         checked: unit === "mi",
         action: () => {
           this.ensureMeasurement();
-          if (this.data && this.data.measurement) {
+          if (this.data?.measurement) {
             this.data.measurement.displayUnit = "mi";
             void this.saveDataSoon();
             this.updateMeasureHud();
@@ -1453,7 +1246,7 @@ export class MapInstance extends Component {
         checked: unit === "ft",
         action: () => {
           this.ensureMeasurement();
-          if (this.data && this.data.measurement) {
+          if (this.data?.measurement) {
             this.data.measurement.displayUnit = "ft";
             void this.saveDataSoon();
             this.updateMeasureHud();
@@ -1462,64 +1255,57 @@ export class MapInstance extends Component {
       },
     ];
 
-    const items: ZMMenuItem[] = [
-      {
-        label: "Add marker here",
-        action: () => this.addMarkerInteractive(nx, ny),
-      },
+    // Collections
+    const { pinsBase, pinsGlobal, favsBase, favsGlobal, stickersBase, stickersGlobal } = this.computeCollectionSets();
+
+    const pinItemFromKey = (key: string): ZMMenuItem | null => {
+      const info = this.getIconInfo(key);
+      if (!info) return null;
+      return { label: key || "(pin)", iconUrl: info.imgUrl, action: () => this.placePinAt(key, nx, ny) };
+    };
+    const pinsBaseMenu = pinsBase.map(pinItemFromKey).filter((x): x is ZMMenuItem => !!x);
+    const pinsGlobalMenu = pinsGlobal.map(pinItemFromKey).filter((x): x is ZMMenuItem => !!x);
+
+    const favItems = (arr: MarkerPreset[]): ZMMenuItem[] =>
+      arr.map((p) => {
+        const ico = this.getIconInfo(p.iconKey);
+        return { label: p.name || "(favorite)", iconUrl: ico.imgUrl, action: () => this.placePresetAt(p, nx, ny) };
+      });
+
+    const favsBaseMenu = favItems(favsBase);
+    const favsGlobalMenu = favItems(favsGlobal);
+
+    const stickerItems = (arr: StickerPreset[]): ZMMenuItem[] =>
+      arr.map((sp) => ({ label: sp.name || "(sticker)", iconUrl: this.resolveResourceUrl(sp.imagePath), action: () => this.placeStickerPresetAt(sp, nx, ny) }));
+
+    const stickersBaseMenu = stickerItems(stickersBase);
+    const stickersGlobalMenu = stickerItems(stickersGlobal);
+
+    const addHereChildren: ZMMenuItem[] = [
+      { label: "Default (open editor)", action: () => this.addMarkerInteractive(nx, ny) },
     ];
-
-	const favPins: ZMMenuItem[] = (this.plugin.settings.presets ?? []).map((p) => {
-      const ico = this.getIconInfo(p.iconKey);
-      const label = p.name || "(unnamed)";
-
-      // Wenn der Favorit einen Layer vorgibt → direkt platzieren
-      if (p.layerName && p.layerName.trim()) {
-        return {
-          label,
-          iconUrl: ico.imgUrl,
-          action: () => this.placePresetAt(p, nx, ny),
-        };
-      }
-
-      // Sonst: Layer-Auswahl als Untermenü anzeigen
-      const layers = this.data?.layers ?? [];
-      const layerItems: ZMMenuItem[] = layers.map((l) => ({
-        label: l.name,
-        action: () => this.placePresetAt(p, nx, ny, l.id),
-      }));
-
-      return {
-        label,
-        iconUrl: ico.imgUrl,
-        children: layerItems,
-      };
-    });
-
-    const favStickers: ZMMenuItem[] = (
-      this.plugin.settings.stickerPresets ?? []
-    ).map((sp) => {
-      const url = this.resolveResourceUrl(sp.imagePath);
-      return {
-        label: sp.name || "(unnamed)",
-        iconUrl: url,
-        action: () => this.placeStickerPresetAt(sp, nx, ny),
-      };
-    });
-
-    if (favPins.length > 0) {
-      items.push({ label: "Favorites", children: favPins });
+    if (pinsBaseMenu.length) {
+      addHereChildren.push({ type: "separator" });
+      addHereChildren.push({ label: "Pins (Base)", children: pinsBaseMenu });
     }
-    if (favStickers.length > 0) {
-      items.push({ label: "Stickers", children: favStickers });
+    if (pinsGlobalMenu.length) addHereChildren.push({ label: "Pins (Global)", children: pinsGlobalMenu });
+    if (favsBaseMenu.length) {
+      addHereChildren.push({ type: "separator" });
+      addHereChildren.push({ label: "Favorites (Base)", children: favsBaseMenu });
     }
+    if (favsGlobalMenu.length) addHereChildren.push({ label: "Favorites (Global)", children: favsGlobalMenu });
+    if (stickersBaseMenu.length) {
+      addHereChildren.push({ type: "separator" });
+      addHereChildren.push({ label: "Stickers (Base)", children: stickersBaseMenu });
+    }
+    if (stickersGlobalMenu.length) addHereChildren.push({ label: "Stickers (Global)", children: stickersGlobalMenu });
 
-    // Layer-Liste (Tri-State) – Label ergänzt um "(bound)" wenn gebunden
+    const items: ZMMenuItem[] = [{ label: "Add marker here", children: addHereChildren }];
+
     const layerChildren: ZMMenuItem[] = this.data.layers.map((layer) => {
       const state = this.getLayerState(layer);
       const { mark, color } = this.triStateIndicator(state);
-      const label =
-        layer.name + (layer.boundBase ? " (bound)" : "");
+      const label = layer.name + (layer.boundBase ? " (bound)" : "");
       return {
         label,
         mark,
@@ -1539,7 +1325,6 @@ export class MapInstance extends Component {
       };
     });
 
-    // Binding-Untermenü: pro Layer "None" + alle Bases
     const labelForBase = (p: string) => {
       const b = bases.find((bb) => bb.path === p);
       return b ? (b.name ?? basename(b.path)) : basename(p);
@@ -1556,15 +1341,10 @@ export class MapInstance extends Component {
             action: (rowEl) => {
               l.boundBase = undefined;
               void this.saveDataSoon();
-              // Häkchen im Submenü aktualisieren
               const menu = rowEl.parentElement;
-              if (menu) {
-                menu
-                  .querySelectorAll<HTMLElement>(".zm-menu__check")
-                  .forEach((c) => (c.textContent = ""));
-                const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
-                if (chk) chk.textContent = "✓";
-              }
+              menu?.querySelectorAll<HTMLElement>(".zm-menu__check").forEach((c) => (c.textContent = ""));
+              const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
+              if (chk) chk.textContent = "✓";
             },
           },
           { type: "separator" },
@@ -1573,18 +1353,12 @@ export class MapInstance extends Component {
             checked: l.boundBase === b.path,
             action: (rowEl) => {
               l.boundBase = b.path;
-              // Sichtbarkeit aller gebundenen Layer gem. aktivem Base anwenden
               void this.applyBoundBaseVisibility();
               void this.saveDataSoon();
-              // Häkchen im Submenü aktualisieren
               const menu = rowEl.parentElement;
-              if (menu) {
-                menu
-                  .querySelectorAll<HTMLElement>(".zm-menu__check")
-                  .forEach((c) => (c.textContent = ""));
-                const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
-                if (chk) chk.textContent = "✓";
-              }
+              menu?.querySelectorAll<HTMLElement>(".zm-menu__check").forEach((c) => (c.textContent = ""));
+              const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
+              if (chk) chk.textContent = "✓";
             },
           })),
         ],
@@ -1598,121 +1372,91 @@ export class MapInstance extends Component {
       {
         label: "Add layer",
         children: [
-          {
-            label: "Base…",
-            action: () => this.promptAddLayer("base"),
-          },
-          {
-            label: "Overlay…",
-            action: () => this.promptAddLayer("overlay"),
-          },
+          { label: "Base…", action: () => this.promptAddLayer("base") },
+          { label: "Overlay…", action: () => this.promptAddLayer("overlay") },
         ],
       },
     ];
 
-	items.push(
-	  { type: "separator" },
-	  {
-		label: "Image layers",
-		children: imageLayersChildren,
-	  },
-	  {
-		label: "Measure",
-		children: [
-		  {
-			label: this.measuring ? "Stop measuring" : "Start measuring",
-			action: () => {
-			  this.measuring = !this.measuring;
-			  if (!this.measuring) {
-				this.measurePreview = null;
-			  }
-			  this.updateMeasureHud();
-			  this.renderMeasure();
-			},
-		  },
-		  {
-			label: "Clear measurement",
-			action: () => {
-			  this.clearMeasure();
-			},
-		  },
-		  {
-			label: "Remove last point",
-			action: () => {
-			  if (this.measurePts.length > 0) {
-				this.measurePts.pop();
-				this.renderMeasure();
-			  }
-			},
-		  },
-		  { type: "separator" },
-		  { label: "Unit", children: unitItems },
-		  { type: "separator" },
-		  {
-			label: this.calibrating ? "Stop calibration" : "Calibrate scale…",
-			action: () => {
-			  if (this.calibrating) {
-				this.calibrating = false;
-				this.calibPts = [];
-				this.calibPreview = null;
-				this.renderCalibrate();
-			  } else {
-				this.calibrating = true;
-				this.calibPts = [];
-				this.calibPreview = null;
-				this.renderCalibrate();
-				new Notice("Calibration: click two points.", 1500);
-			  }
-			},
-		  },
-		],
-	  },
-	  {
-		label: "Marker layers",
-		children: [
-		  ...layerChildren,
-		  { type: "separator" },
-		  { label: "Bind layer to base", children: bindLayerSubmenus },
-		  { type: "separator" },
-		  {
-			label: "Rename layer…",
-			children: this.data.layers.map((l) => ({
-			  label: l.name,
-			  action: () => {
-				new RenameLayerModal(this.app, l, (newName) => {
-				  void this.renameMarkerLayer(l, newName);
-				}).open();
-			  },
-			})),
-		  },
-		  {
-			label: "Delete layer…",
-			children: this.data.layers.map((l) => ({
-			  label: l.name,
-			  action: () => {
-				const others = this.data!.layers.filter((x) => x.id !== l.id);
-				if (others.length === 0) {
-				  new Notice("Cannot delete the last layer.", 2000);
-				  return;
-				}
-				const hasMarkers = this.data!.markers.some((m) => m.layer === l.id);
-				new DeleteLayerModal(
-				  this.app,
-				  l,
-				  others,
-				  hasMarkers,
-				  (decision) => {
-					void this.deleteMarkerLayer(l, decision);
-				  },
-				).open();
-			  },
-			})),
-		  },
-		],
-	  },
-	);
+    items.push(
+      { type: "separator" },
+      { label: "Image layers", children: imageLayersChildren },
+      {
+        label: "Measure",
+        children: [
+          {
+            label: this.measuring ? "Stop measuring" : "Start measuring",
+            action: () => {
+              this.measuring = !this.measuring;
+              if (!this.measuring) this.measurePreview = null;
+              this.updateMeasureHud();
+              this.renderMeasure();
+            },
+          },
+          { label: "Clear measurement", action: () => this.clearMeasure() },
+          {
+            label: "Remove last point",
+            action: () => {
+              if (this.measurePts.length > 0) {
+                this.measurePts.pop();
+                this.renderMeasure();
+              }
+            },
+          },
+          { type: "separator" },
+          { label: "Unit", children: unitItems },
+          { type: "separator" },
+          {
+            label: this.calibrating ? "Stop calibration" : "Calibrate scale…",
+            action: () => {
+              if (this.calibrating) {
+                this.calibrating = false;
+                this.calibPts = [];
+                this.calibPreview = null;
+                this.renderCalibrate();
+              } else {
+                this.calibrating = true;
+                this.calibPts = [];
+                this.calibPreview = null;
+                this.renderCalibrate();
+                new Notice("Calibration: click two points.", 1500);
+              }
+            },
+          },
+        ],
+      },
+      {
+        label: "Marker layers",
+        children: [
+          ...layerChildren,
+          { type: "separator" },
+          { label: "Bind layer to base", children: bindLayerSubmenus },
+          { type: "separator" },
+          {
+            label: "Rename layer…",
+            children: this.data.layers.map((l) => ({
+              label: l.name,
+              action: () => {
+                new RenameLayerModal(this.app, l, (newName) => { void this.renameMarkerLayer(l, newName); }).open();
+              },
+            })),
+          },
+          {
+            label: "Delete layer…",
+            children: this.data.layers.map((l) => ({
+              label: l.name,
+              action: () => {
+                const others = this.data!.layers.filter((x) => x.id !== l.id);
+                if (others.length === 0) { new Notice("Cannot delete the last layer.", 2000); return; }
+                const hasMarkers = this.data!.markers.some((m) => m.layer === l.id);
+                new DeleteLayerModal(this.app, l, others, hasMarkers, (decision) => { void this.deleteMarkerLayer(l, decision); }).open();
+              },
+            })),
+          },
+        ],
+      },
+    );
 
-    // Add zoom/view items only when not responsive
     if (!this.cfg.responsive) {
       items.push(
         { type: "separator" },
@@ -1721,12 +1465,7 @@ export class MapInstance extends Component {
         { label: "Fit to window", action: () => this.fitToView() },
         {
           label: "Reset view",
-          action: () =>
-            this.applyTransform(
-              1,
-              (this.vw - this.imgW) / 2,
-              (this.vh - this.imgH) / 2,
-            ),
+          action: () => this.applyTransform(1, (this.vw - this.imgW) / 2, (this.vh - this.imgH) / 2),
         },
       );
     }
@@ -1735,20 +1474,16 @@ export class MapInstance extends Component {
     this.openMenu.open(e.clientX, e.clientY, items);
 
     const outside = (ev: Event) => {
-	  if (!this.openMenu) return;
-	  const t = ev.target;
-	  if (t instanceof Node && this.openMenu.contains(t)) return;
-	  this.closeMenu();
-	};
-    const keyClose = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape") this.closeMenu();
+      if (!this.openMenu) return;
+      const t = ev.target;
+      if (t instanceof Node && this.openMenu.contains(t)) return;
+      this.closeMenu();
     };
+    const keyClose = (ev: KeyboardEvent) => { if (ev.key === "Escape") this.closeMenu(); };
     const rightClickClose = () => this.closeMenu();
 
     document.addEventListener("pointerdown", outside, { capture: true });
-    document.addEventListener("contextmenu", rightClickClose, {
-      capture: true,
-    });
+    document.addEventListener("contextmenu", rightClickClose, { capture: true });
     document.addEventListener("keydown", keyClose, { capture: true });
 
     this.register(() => {
@@ -1765,46 +1500,31 @@ export class MapInstance extends Component {
     }
   }
 
-  private triStateIndicator(
-    state: LayerTriState,
-  ): { mark: "check" | "x" | "minus"; color?: string } {
+  private triStateIndicator(state: LayerTriState): { mark: "check" | "x" | "minus"; color?: string } {
     if (state === "visible") return { mark: "check" };
-    if (state === "locked") {
-      return {
-        mark: "x",
-        color: "var(--text-error, #d23c3c)",
-      };
-    }
+    if (state === "locked") return { mark: "x", color: "var(--text-error, #d23c3c)" };
     return { mark: "minus", color: "var(--text-muted)" };
   }
 
   private symbolForMark(mark: "check" | "x" | "minus"): string {
     switch (mark) {
-      case "x":
-        return "×";
-      case "minus":
-        return "–";
-      default:
-        return "✓";
+      case "x": return "×";
+      case "minus": return "–";
+      default: return "✓";
     }
   }
 
-  private applyTransform(
-    scale: number,
-    tx: number,
-    ty: number,
-    render = true,
-  ): void {
+  private applyTransform(scale: number, tx: number, ty: number, render = true): void {
     const prevScale = this.scale;
 
     const s = clamp(scale, this.cfg.minZoom, this.cfg.maxZoom);
     const scaledW = this.imgW * s;
     const scaledH = this.imgH * s;
 
-    let minTx = this.vw - scaledW;
-    let maxTx = 0;
-    let minTy = this.vh - scaledH;
-    let maxTy = 0;
+    const minTx = this.vw - scaledW;
+    const maxTx = 0;
+    const minTy = this.vh - scaledH;
+    const maxTy = 0;
 
     if (scaledW <= this.vw) {
       tx = (this.vw - scaledW) / 2;
@@ -1828,7 +1548,10 @@ export class MapInstance extends Component {
     this.worldEl.style.transform = `translate3d(${this.tx}px, ${this.ty}px, 0) scale3d(${this.scale}, ${this.scale}, 1)`;
 
     if (render) {
-      if (prevScale !== s) this.updateMarkerInvScaleOnly();
+      if (prevScale !== s) {
+        this.updateMarkerInvScaleOnly();
+        this.updateMarkerZoomVisibilityOnly();
+      }
       this.renderMeasure();
       this.renderCalibrate();
       if (this.isCanvas()) this.renderCanvas();
@@ -1841,11 +1564,7 @@ export class MapInstance extends Component {
 
   private zoomAt(cx: number, cy: number, factor: number): void {
     const sOld = this.scale;
-    const sNew = clamp(
-      sOld * factor,
-      this.cfg.minZoom,
-      this.cfg.maxZoom,
-    );
+    const sNew = clamp(sOld * factor, this.cfg.minZoom, this.cfg.maxZoom);
     const wx = (cx - this.tx) / sOld;
     const wy = (cy - this.ty) / sOld;
     const txNew = cx - wx * sNew;
@@ -1867,10 +1586,22 @@ export class MapInstance extends Component {
 
   private updateMarkerInvScaleOnly(): void {
     const invScale = this.cfg.responsive ? 1 : (1 / this.scale);
-    const invs =
-      this.markersEl.querySelectorAll<HTMLDivElement>(".zm-marker-inv");
-    invs.forEach((el) => {
-      el.style.transform = `scale(${invScale})`;
+    const invs = this.markersEl.querySelectorAll<HTMLDivElement>(".zm-marker-inv");
+    invs.forEach((el) => { el.style.transform = `scale(${invScale})`; });
+  }
+
+  private updateMarkerZoomVisibilityOnly(): void {
+    const s = this.scale;
+    const nodes = this.markersEl.querySelectorAll<HTMLDivElement>(".zm-marker");
+    nodes.forEach((el) => {
+      const minStr = el.dataset.minz;
+      const maxStr = el.dataset.maxz;
+      const hasMin = typeof minStr === "string" && minStr.length > 0;
+      const hasMax = typeof maxStr === "string" && maxStr.length > 0;
+      const min = hasMin ? Number.parseFloat(minStr) : undefined;
+      const max = hasMax ? Number.parseFloat(maxStr) : undefined;
+      const visible = (!hasMin || (Number.isFinite(min!) && s >= (min!))) && (!hasMax || (Number.isFinite(max!) && s <= (max!)));
+      el.style.display = visible ? "" : "none";
     });
   }
 
@@ -1878,25 +1609,19 @@ export class MapInstance extends Component {
     const raw = this.data?.bases ?? [];
     const out: BaseImage[] = [];
     for (const it of raw) {
-      if (typeof it === "string") {
-        out.push({ path: it, name: undefined });
-      } else if (it && typeof it === "object") {
+      if (typeof it === "string") out.push({ path: it });
+      else if (it && typeof it === "object") {
         const obj = it as Partial<BaseImage>;
-        if (typeof obj.path === "string") {
-          out.push({ path: obj.path, name: obj.name });
-        }
+        if (typeof obj.path === "string") out.push({ path: obj.path, name: obj.name });
       }
     }
-    if (out.length === 0 && this.data?.image) {
-      out.push({ path: this.data.image });
-    }
+    if (out.length === 0 && this.data?.image) out.push({ path: this.data.image });
     return out;
   }
 
   private addMarkerInteractive(nx: number, ny: number): void {
     if (!this.data) return;
-    const defaultLayer =
-      this.data.layers.find((l) => l.visible) ?? this.data.layers[0];
+    const defaultLayer = this.data.layers.find((l) => l.visible) ?? this.data.layers[0];
     const draft: Marker = {
       id: generateId("marker"),
       x: nx,
@@ -1907,54 +1632,66 @@ export class MapInstance extends Component {
       tooltip: "",
     };
 
-    const modal = new MarkerEditorModal(
-      this.app,
-      this.plugin,
-      this.data,
-      draft,
-      (res) => {
-        if (res.action === "save" && res.marker && this.data) {
-          this.data.markers.push(res.marker);
-          void this.saveDataSoon();
-          new Notice("Marker added.", 900);
-          this.renderMarkersOnly();
-        }
-      },
-    );
+    const modal = new MarkerEditorModal(this.app, this.plugin, this.data, draft, (res) => {
+      if (res.action === "save" && res.marker && this.data) {
+        this.data.markers.push(res.marker);
+        void this.saveDataSoon();
+        new Notice("Marker added.", 900);
+        this.renderMarkersOnly();
+      }
+    });
     modal.open();
   }
 
-  private placePresetAt(
-    p: MarkerPreset,
-    nx: number,
-    ny: number,
-    overrideLayerId?: string,
-  ): void {
+  private placePinAt(iconKey: string, nx: number, ny: number): void {
+    if (!this.data) return;
+    const defaultLayer = this.data.layers.find((l) => l.visible) ?? this.data.layers[0];
+
+    const draft: Marker = {
+      id: generateId("marker"),
+      x: nx,
+      y: ny,
+      layer: defaultLayer.id,
+      link: "",
+      iconKey,
+      tooltip: "",
+    };
+
+    const openEditor = !!this.plugin.settings.pinPlaceOpensEditor;
+    if (openEditor) {
+      const modal = new MarkerEditorModal(this.app, this.plugin, this.data, draft, (res) => {
+        if (res.action === "save" && res.marker && this.data) {
+          this.data.markers.push(res.marker);
+          void this.saveDataSoon();
+          this.renderMarkersOnly();
+          new Notice("Marker added.", 900);
+        }
+      });
+      modal.open();
+    } else {
+      this.data.markers.push(draft);
+      void this.saveDataSoon();
+      this.renderMarkersOnly();
+      new Notice("Marker added.", 900);
+    }
+  }
+
+  private placePresetAt(p: MarkerPreset, nx: number, ny: number, overrideLayerId?: string): void {
     if (!this.data) return;
 
-    // Ziel-Layer bestimmen
     let layerId = this.data.layers[0].id;
 
     if (overrideLayerId) {
-      // Vom Menü gewählter existierender Layer
       layerId = overrideLayerId;
     } else if (p.layerName) {
-      // Vordefinierter Layername im Favorit
       const found = this.data.layers.find((l) => l.name === p.layerName);
-      if (found) {
-        layerId = found.id;
-      } else {
+      if (found) layerId = found.id;
+      else {
         const id = generateId("layer");
-        this.data.layers.push({
-          id,
-          name: p.layerName,
-          visible: true,
-          locked: false,
-        });
+        this.data.layers.push({ id, name: p.layerName, visible: true, locked: false });
         layerId = id;
       }
     } else {
-      // Fallback (sollte für Favoriten ohne Layer i.d.R. nicht mehr erreicht werden):
       const vis = this.data.layers.find((l) => l.visible);
       if (vis) layerId = vis.id;
     }
@@ -1970,20 +1707,14 @@ export class MapInstance extends Component {
     };
 
     if (p.openEditor) {
-      const modal = new MarkerEditorModal(
-        this.app,
-        this.plugin,
-        this.data,
-        draft,
-        (res) => {
-          if (res.action === "save" && res.marker && this.data) {
-            this.data.markers.push(res.marker);
-            void this.saveDataSoon();
-            this.renderMarkersOnly();
-            new Notice("Marker added (favorite).", 900);
-          }
-        },
-      );
+      const modal = new MarkerEditorModal(this.app, this.plugin, this.data, draft, (res) => {
+        if (res.action === "save" && res.marker && this.data) {
+          this.data.markers.push(res.marker);
+          void this.saveDataSoon();
+          this.renderMarkersOnly();
+          new Notice("Marker added (favorite).", 900);
+        }
+      });
       modal.open();
     } else {
       this.data.markers.push(draft);
@@ -1998,16 +1729,10 @@ export class MapInstance extends Component {
     let layerId = this.data.layers[0].id;
     if (p.layerName) {
       const found = this.data.layers.find((l) => l.name === p.layerName);
-      if (found) {
-        layerId = found.id;
-      } else {
+      if (found) layerId = found.id;
+      else {
         const id = generateId("layer");
-        this.data.layers.push({
-          id,
-          name: p.layerName,
-          visible: true,
-          locked: false,
-        });
+        this.data.layers.push({ id, name: p.layerName, visible: true, locked: false });
         layerId = id;
       }
     }
@@ -2019,24 +1744,18 @@ export class MapInstance extends Component {
       y: ny,
       layer: layerId,
       stickerPath: p.imagePath,
-      stickerSize: Math.max(1, Math.round(p.size || 64)),
+      stickerSize: Math.max(1, Math.round(p.size ?? 64)),
     };
 
     if (p.openEditor) {
-      const modal = new MarkerEditorModal(
-        this.app,
-        this.plugin,
-        this.data,
-        draft,
-        (res) => {
-          if (res.action === "save" && res.marker && this.data) {
-            this.data.markers.push(res.marker);
-            void this.saveDataSoon();
-            this.renderMarkersOnly();
-            new Notice("Sticker added.", 900);
-          }
-        },
-      );
+      const modal = new MarkerEditorModal(this.app, this.plugin, this.data, draft, (res) => {
+        if (res.action === "save" && res.marker && this.data) {
+          this.data.markers.push(res.marker);
+          void this.saveDataSoon();
+          this.renderMarkersOnly();
+          new Notice("Sticker added.", 900);
+        }
+      });
       modal.open();
     } else {
       this.data.markers.push(draft);
@@ -2048,9 +1767,7 @@ export class MapInstance extends Component {
 
   private deleteMarker(m: Marker): void {
     if (!this.data) return;
-    this.data.markers = this.data.markers.filter(
-      (mm) => mm.id !== m.id,
-    );
+    this.data.markers = this.data.markers.filter((mm) => mm.id !== m.id);
     void this.saveDataSoon();
     this.renderMarkersOnly();
     new Notice("Marker deleted.", 900);
@@ -2083,14 +1800,10 @@ export class MapInstance extends Component {
     if (!this.data) return;
     const s = this.scale;
     this.markersEl.empty();
-    const visibleLayers = new Set(
-      this.data.layers.filter((l) => l.visible).map((l) => l.id),
-    );
+    const visibleLayers = new Set(this.data.layers.filter((l) => l.visible).map((l) => l.id));
 
     const rank = (m: Marker) => (m.type === "sticker" ? 0 : 1);
-    const toRender = this.data.markers
-      .filter((m) => visibleLayers.has(m.layer))
-      .sort((a, b) => rank(a) - rank(b));
+    const toRender = this.data.markers.filter((m) => visibleLayers.has(m.layer)).sort((a, b) => rank(a) - rank(b));
 
     for (const m of toRender) {
       const L = m.x * this.imgW;
@@ -2103,41 +1816,60 @@ export class MapInstance extends Component {
       host.style.zIndex = m.type === "sticker" ? "5" : "10";
       host.ondragstart = (ev) => ev.preventDefault();
 
-      const layerLocked = this.isLayerLocked(m.layer);
-      if (layerLocked) host.classList.add("zm-marker--locked");
+      // Zoom-visibility data on pins
+      if (m.type !== "sticker") {
+        const minZ = getMinZoom(m);
+        const maxZ = getMaxZoom(m);
+        if (typeof minZ === "number") host.dataset.minz = String(minZ);
+        if (typeof maxZ === "number") host.dataset.maxz = String(maxZ);
+        const visibleByZoom = (minZ === undefined || s >= minZ) && (maxZ === undefined || s <= maxZ);
+        if (!visibleByZoom) host.style.display = "none";
+      }
+
+      if (this.isLayerLocked(m.layer)) host.classList.add("zm-marker--locked");
 
       let icon: HTMLImageElement;
+
       if (m.type === "sticker") {
-        const size = Math.max(1, Math.round(m.stickerSize || 64));
+        const size = Math.max(1, Math.round(m.stickerSize ?? 64));
         const anch = host.createDiv({ cls: "zm-marker-anchor" });
         anch.style.transform = `translate(${-size / 2}px, ${-size / 2}px)`;
         icon = createEl("img", { cls: "zm-marker-icon" });
-        icon.src = this.resolveResourceUrl(m.stickerPath || "");
+        icon.src = this.resolveResourceUrl(m.stickerPath ?? "");
         icon.style.width = `${size}px`;
         icon.style.height = `${size}px`;
         icon.draggable = false;
         anch.appendChild(icon);
       } else {
-        const { imgUrl, size, anchorX, anchorY } = this.getIconInfo(
-          m.iconKey,
-        );
-        const inv = host.createDiv({ cls: "zm-marker-inv" });
-        const invScale = this.cfg.responsive ? 1 : (1 / s);
-        inv.style.transform = `scale(${invScale})`;
-        const anch = inv.createDiv({ cls: "zm-marker-anchor" });
-        anch.style.transform = `translate(${-anchorX}px, ${-anchorY}px)`;
-        icon = createEl("img", { cls: "zm-marker-icon" });
-        icon.src = imgUrl;
-        icon.style.width = `${size}px`;
-        icon.style.height = `${size}px`;
-        icon.draggable = false;
-        anch.appendChild(icon);
+        const scaleLike = isScaleLikeSticker(m);
+        const { imgUrl, size, anchorX, anchorY } = this.getIconInfo(m.iconKey);
+
+        if (scaleLike) {
+          const anch = host.createDiv({ cls: "zm-marker-anchor" });
+          anch.style.transform = `translate(${-anchorX}px, ${-anchorY}px)`;
+          icon = createEl("img", { cls: "zm-marker-icon" });
+          icon.src = imgUrl;
+          icon.style.width = `${size}px`;
+          icon.style.height = `${size}px`;
+          icon.draggable = false;
+          anch.appendChild(icon);
+        } else {
+          const inv = host.createDiv({ cls: "zm-marker-inv" });
+          const invScale = this.cfg.responsive ? 1 : (1 / s);
+          inv.style.transform = `scale(${invScale})`;
+          const anch = inv.createDiv({ cls: "zm-marker-anchor" });
+          anch.style.transform = `translate(${-anchorX}px, ${-anchorY}px)`;
+          icon = createEl("img", { cls: "zm-marker-icon" });
+          icon.src = imgUrl;
+          icon.style.width = `${size}px`;
+          icon.style.height = `${size}px`;
+          icon.draggable = false;
+          anch.appendChild(icon);
+        }
       }
 
       if (m.type !== "sticker") {
-        host.addEventListener("mouseenter", (ev) =>
-          this.onMarkerEnter(ev, m, host),
-        );
+        host.addEventListener("mouseenter", (ev) => this.onMarkerEnter(ev, m, host));
         host.addEventListener("mouseleave", () => this.hideTooltipSoon());
       }
 
@@ -2180,84 +1912,59 @@ export class MapInstance extends Component {
         }
       });
 
-      host.addEventListener("contextmenu", (e: MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
+      host.addEventListener("contextmenu", (ev: MouseEvent) => {
+        ev.preventDefault();
+        ev.stopPropagation();
         this.closeMenu();
         const items: ZMMenuItem[] = [
           {
             label: m.type === "sticker" ? "Edit sticker" : "Edit marker",
             action: () => {
               if (!this.data) return;
-              const modal = new MarkerEditorModal(
-                this.app,
-                this.plugin,
-                this.data,
-                m,
-                (res) => {
-                  if (res.action === "save" && res.marker && this.data) {
-                    const idx = this.data.markers.findIndex(
-                      (mm) => mm.id === m.id,
-                    );
-                    if (idx >= 0) {
-                      this.data.markers[idx] = res.marker;
-                    }
-                    void this.saveDataSoon();
-                    this.renderMarkersOnly();
-                  } else if (res.action === "delete") {
-                    this.deleteMarker(m);
-                  }
-                },
-              );
+              const modal = new MarkerEditorModal(this.app, this.plugin, this.data, m, (res) => {
+                if (res.action === "save" && res.marker && this.data) {
+                  const idx = this.data.markers.findIndex((mm) => mm.id === m.id);
+                  if (idx >= 0) this.data.markers[idx] = res.marker;
+                  void this.saveDataSoon();
+                  this.renderMarkersOnly();
+                } else if (res.action === "delete") {
+                  this.deleteMarker(m);
+                }
+              });
               modal.open();
             },
           },
           {
-            label:
-              m.type === "sticker" ? "Delete sticker" : "Delete marker",
+            label: m.type === "sticker" ? "Delete sticker" : "Delete marker",
             action: () => this.deleteMarker(m),
           },
         ];
         this.openMenu = new ZMMenu();
-        this.openMenu.open(e.clientX, e.clientY, items);
+        this.openMenu.open(ev.clientX, ev.clientY, items);
 
-        const outside = (ev: Event) => {
-		  if (!this.openMenu) return;
-		  const t = ev.target;
-		  if (t instanceof HTMLElement && this.openMenu.contains(t)) return;
-		  this.closeMenu();
-		};
-        const keyClose = (ev: KeyboardEvent) => {
-          if (ev.key === "Escape") this.closeMenu();
+        const outside = (event: Event) => {
+          if (!this.openMenu) return;
+          const t = event.target;
+          if (t instanceof HTMLElement && this.openMenu.contains(t)) return;
+          this.closeMenu();
         };
+        const keyClose = (event: KeyboardEvent) => { if (event.key === "Escape") this.closeMenu(); };
         const rightClickClose = () => this.closeMenu();
 
-        document.addEventListener("pointerdown", outside, {
-          capture: true,
-        });
-        document.addEventListener("contextmenu", rightClickClose, {
-          capture: true,
-        });
+        document.addEventListener("pointerdown", outside, { capture: true });
+        document.addEventListener("contextmenu", rightClickClose, { capture: true });
         document.addEventListener("keydown", keyClose, { capture: true });
 
         this.register(() => {
           document.removeEventListener("pointerdown", outside, true);
-          document.removeEventListener(
-            "contextmenu",
-            rightClickClose,
-            true,
-          );
+          document.removeEventListener("contextmenu", rightClickClose, true);
           document.removeEventListener("keydown", keyClose, true);
         });
       });
     }
   }
 
-  private onMarkerEnter(
-    ev: MouseEvent,
-    m: Marker,
-    hostEl: HTMLElement,
-  ): void {
+  private onMarkerEnter(ev: MouseEvent, m: Marker, hostEl: HTMLElement): void {
     if (m.type === "sticker") return;
     if (m.link) {
       const workspace = this.app.workspace;
@@ -2289,19 +1996,11 @@ export class MapInstance extends Component {
     if (!this.ready) return;
     if (!this.tooltipEl) {
       this.tooltipEl = this.viewportEl.createDiv({ cls: "zm-tooltip" });
-      this.tooltipEl.addEventListener("mouseenter", () =>
-        this.cancelHideTooltip(),
-      );
-      this.tooltipEl.addEventListener("mouseleave", () =>
-        this.hideTooltipSoon(),
-      );
+      this.tooltipEl.addEventListener("mouseenter", () => this.cancelHideTooltip());
+      this.tooltipEl.addEventListener("mouseleave", () => this.hideTooltipSoon());
     }
-    this.tooltipEl.style.maxWidth = `${
-      this.plugin.settings.hoverMaxWidth || 360
-    }px`;
-    this.tooltipEl.style.maxHeight = `${
-      this.plugin.settings.hoverMaxHeight || 260
-    }px`;
+    this.tooltipEl.style.maxWidth = `${this.plugin.settings.hoverMaxWidth ?? 360}px`;
+    this.tooltipEl.style.maxHeight = `${this.plugin.settings.hoverMaxHeight ?? 260}px`;
 
     this.cancelHideTooltip();
     this.tooltipEl.empty();
@@ -2329,19 +2028,14 @@ export class MapInstance extends Component {
     if (y + rect.height > vh) y = clientY - vpRect.top - rect.height - pad;
     if (y < 0) y = pad;
 
-    setCssProps(this.tooltipEl, {
-      left: `${x}px`,
-      top: `${y}px`,
-    });
+    setCssProps(this.tooltipEl, { left: `${x}px`, top: `${y}px` });
   }
 
   private hideTooltipSoon(delay = 150): void {
     if (!this.tooltipEl) return;
     this.cancelHideTooltip();
     this.tooltipHideTimer = window.setTimeout(() => {
-      if (this.tooltipEl) {
-        this.tooltipEl.classList.remove("zm-tooltip-visible");
-      }
+      this.tooltipEl?.classList.remove("zm-tooltip-visible");
     }, delay);
   }
 
@@ -2352,51 +2046,25 @@ export class MapInstance extends Component {
     }
   }
 
-  private getIconInfo(
-    iconKey?: string,
-  ): { imgUrl: string; size: number; anchorX: number; anchorY: number } {
+  private getIconInfo(iconKey?: string): { imgUrl: string; size: number; anchorX: number; anchorY: number } {
     const key = iconKey ?? this.plugin.settings.defaultIconKey;
-    const profile =
-      this.plugin.settings.icons.find((i) => i.key === key) ??
-      this.plugin.builtinIcon();
-    let imgUrl = profile.pathOrDataUrl;
+    const profile = this.plugin.settings.icons.find((i) => i.key === key) ?? this.plugin.builtinIcon();
+    const imgUrl = profile.pathOrDataUrl;
     const f = this.resolveTFile(imgUrl, this.cfg.sourcePath);
     if (f) {
-      return {
-        imgUrl: this.app.vault.getResourcePath(f),
-        size: profile.size,
-        anchorX: profile.anchorX,
-        anchorY: profile.anchorY,
-      };
+      return { imgUrl: this.app.vault.getResourcePath(f), size: profile.size, anchorX: profile.anchorX, anchorY: profile.anchorY };
     }
-    return {
-      imgUrl,
-      size: profile.size,
-      anchorX: profile.anchorX,
-      anchorY: profile.anchorY,
-    };
+    return { imgUrl, size: profile.size, anchorX: profile.anchorX, anchorY: profile.anchorY };
   }
 
   private openMarkerLink(m: Marker): void {
     if (!m.link) return;
     void this.app.workspace.openLinkText(m.link, this.cfg.sourcePath);
   }
-  
-  private getActiveBasePath(): string {
-    if (!this.data) return this.cfg.imagePath;
-    return (
-      this.data.activeBase ||
-      this.data.image ||
-      this.cfg.imagePath
-    );
-  }
 
   private async setActiveBase(path: string): Promise<void> {
     if (!this.data) return;
-
-    if (this.currentBasePath === path && this.imgW > 0 && this.imgH > 0) {
-      return;
-    }
+    if (this.currentBasePath === path && this.imgW > 0 && this.imgH > 0) return;
 
     this.data.activeBase = path;
     this.data.image = path;
@@ -2405,46 +2073,28 @@ export class MapInstance extends Component {
       await this.loadBaseBitmapByPath(path);
     } else {
       const file = this.resolveTFile(path, this.cfg.sourcePath);
-      if (!file) {
-        new Notice(`Base image not found: ${path}`);
-        return;
-      }
+      if (!file) { new Notice(`Base image not found: ${path}`); return; }
       const url = this.app.vault.getResourcePath(file);
       await new Promise<void>((resolve, reject) => {
-        this.imgEl.onload = () => {
-          this.imgW = this.imgEl.naturalWidth;
-          this.imgH = this.imgEl.naturalHeight;
-          resolve();
-        };
-        this.imgEl.onerror = () =>
-          reject(new Error("Failed to load image."));
+        this.imgEl.onload = () => { this.imgW = this.imgEl.naturalWidth; this.imgH = this.imgEl.naturalHeight; resolve(); };
+        this.imgEl.onerror = () => reject(new Error("Failed to load image."));
         this.imgEl.src = url;
       });
       this.currentBasePath = path;
     }
 
-    // Update aspect ratio and fit when responsive
-    if (this.cfg.responsive) {
-      this.updateResponsiveAspectRatio();
-    }
+    if (this.cfg.responsive) this.updateResponsiveAspectRatio();
 
     this.renderAll();
 
-    if (this.cfg.responsive) {
-      this.fitToView();
-    } else {
-      this.applyTransform(this.scale, this.tx, this.ty);
-    }
+    if (this.cfg.responsive) this.fitToView();
+    else this.applyTransform(this.scale, this.tx, this.ty);
 
-    // Neu: gebundene Layer entsprechend aktueller Base setzen
     await this.applyBoundBaseVisibility();
     void this.saveDataSoon();
 
-    if (!this.isCanvas()) {
-      this.updateOverlaySizes();
-    } else {
-      this.renderCanvas();
-    }
+    if (!this.isCanvas()) this.updateOverlaySizes();
+    else this.renderCanvas();
   }
 
   private async applyActiveBaseAndOverlays(): Promise<void> {
@@ -2466,9 +2116,7 @@ export class MapInstance extends Component {
     if (!this.data) return;
 
     const mkImgEl = (url: string) => {
-      const el = this.overlaysEl.createEl("img", {
-        cls: "zm-overlay-image",
-      });
+      const el = this.overlaysEl.createEl("img", { cls: "zm-overlay-image" });
       el.decoding = "async";
       el.loading = "eager";
       el.src = url;
@@ -2483,16 +2131,10 @@ export class MapInstance extends Component {
       const pre = new Image();
       pre.decoding = "async";
       pre.src = url;
-      void pre
-        .decode()
-        .catch((error) => {
-          console.error("Zoom Map: overlay decode error", error);
-        })
+      void pre.decode().catch((error) => { console.error("Zoom Map: overlay decode error", error); })
         .finally(() => {
           const el = mkImgEl(url);
-          if (!o.visible) {
-            el.classList.add("zm-overlay-hidden");
-          }
+          if (!o.visible) el.classList.add("zm-overlay-hidden");
           this.overlayMap.set(o.path, el);
         });
     }
@@ -2513,13 +2155,9 @@ export class MapInstance extends Component {
     }
     for (const o of this.data.overlays ?? []) {
       const el = this.overlayMap.get(o.path);
-      if (el) {
-        if (o.visible) {
-          el.classList.remove("zm-overlay-hidden");
-        } else {
-          el.classList.add("zm-overlay-hidden");
-        }
-      }
+      if (!el) continue;
+      if (o.visible) el.classList.remove("zm-overlay-hidden");
+      else el.classList.add("zm-overlay-hidden");
     }
   }
 
@@ -2532,31 +2170,31 @@ export class MapInstance extends Component {
       this.renderMarkersOnly();
       this.renderMeasure();
       this.renderCalibrate();
-    } catch (e) {
+    } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
       new Notice(`Failed to reload markers: ${message}`);
     }
   }
 
   private saveDataSoon = (() => {
-	let t: number | null = null;
-	return () =>
-	new Promise<void>((resolve) => {
-	  if (t) window.clearTimeout(t);
-	  t = window.setTimeout(() => {
-		t = null;
-		void (async () => {
-		  if (this.data) {
-			const would = await this.store.wouldChange(this.data);
-			if (would) {
-			  this.ignoreNextModify = true;
-			  await this.store.save(this.data);
-			}
-		}
-		resolve();
-		})();
-	  }, 200);
-	});
+    let t: number | null = null;
+    return () =>
+      new Promise<void>((resolve) => {
+        if (t) window.clearTimeout(t);
+        t = window.setTimeout(() => {
+          t = null;
+          void (async () => {
+            if (this.data) {
+              const would = await this.store.wouldChange(this.data);
+              if (would) {
+                this.ignoreNextModify = true;
+                await this.store.save(this.data);
+              }
+            }
+            resolve();
+          })();
+        }, 200);
+      });
   })();
 
   private installGrip(grip: HTMLDivElement, side: "left" | "right"): void {
@@ -2582,15 +2220,10 @@ export class MapInstance extends Component {
     const onUp = () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp, true);
-      document.body.classList.remove(
-        "zm-cursor-resize-nwse",
-        "zm-cursor-resize-nesw",
-      );
+      document.body.classList.remove("zm-cursor-resize-nwse", "zm-cursor-resize-nesw");
       this.userResizing = false;
 
-      if (this.shouldUseSavedFrame() && this.cfg.resizable) {
-        void this.persistFrameNow();
-      }
+      if (this.shouldUseSavedFrame() && this.cfg.resizable) void this.persistFrameNow();
     };
 
     grip.addEventListener("pointerdown", (e) => {
@@ -2601,11 +2234,8 @@ export class MapInstance extends Component {
       startH = rect.height;
       startX = e.clientX;
       startY = e.clientY;
-      if (side === "right") {
-        document.body.classList.add("zm-cursor-resize-nwse");
-      } else {
-        document.body.classList.add("zm-cursor-resize-nesw");
-      }
+      if (side === "right") document.body.classList.add("zm-cursor-resize-nwse");
+      else document.body.classList.add("zm-cursor-resize-nesw");
       this.userResizing = true;
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp, true);
@@ -2613,11 +2243,14 @@ export class MapInstance extends Component {
   }
 
   private shouldUseSavedFrame(): boolean {
-    return (
-      !!this.cfg.resizable &&
-      !(this.cfg.widthFromYaml || this.cfg.heightFromYaml) &&
-      !this.cfg.responsive
-    );
+    return !!this.cfg.resizable && !((this.cfg.widthFromYaml ?? false) || (this.cfg.heightFromYaml ?? false)) && !this.cfg.responsive;
+  }
+
+  private isFrameVisibleEnough(minPx = 48): boolean {
+    if (!this.el?.isConnected) return false;
+    if (this.el.offsetParent === null) return false;
+    const rect = this.el.getBoundingClientRect();
+    return rect.width >= minPx && rect.height >= minPx;
   }
 
   private requestPersistFrame(delay = 500): void {
@@ -2629,39 +2262,30 @@ export class MapInstance extends Component {
   }
 
   private persistFrameNow(): void {
-    if (this.cfg.responsive) return; // never persist frame in responsive mode
+    if (this.cfg.responsive) return;
     if (!this.data || !this.shouldUseSavedFrame()) return;
     if (!this.isFrameVisibleEnough(48)) return;
 
     const wNow = this.el.offsetWidth;
     const hNow = this.el.offsetHeight;
-
     if (wNow < 48 || hNow < 48) return;
 
     const prev = this.data.frame;
     const tol = 1;
 
-    if (
-      prev &&
-      Math.abs(wNow - prev.w) <= tol &&
-      Math.abs(hNow - prev.h) <= tol
-    ) {
-      return;
-    }
+    if (prev && Math.abs(wNow - prev.w) <= tol && Math.abs(hNow - prev.h) <= tol) return;
 
     const w = prev && Math.abs(wNow - prev.w) <= tol ? prev.w : wNow;
     const h = prev && Math.abs(hNow - prev.h) <= tol ? prev.h : hNow;
 
-    if (!prev || w !== prev.w || h !== prev.h) {
+    if (w !== prev?.w || h !== prev?.h) {
       this.data.frame = { w, h };
       void this.saveDataSoon();
     }
   }
 
   private applyMeasureStyle(): void {
-    const color = (
-      this.plugin.settings.measureLineColor ?? "var(--text-accent)"
-    ).trim();
+    const color = (this.plugin.settings.measureLineColor ?? "var(--text-accent)").trim();
     const widthPx = Math.max(1, this.plugin.settings.measureLineWidth ?? 2);
     setCssProps(this.el, {
       "--zm-measure-color": color,
@@ -2674,25 +2298,19 @@ export class MapInstance extends Component {
     this.panRAF = window.requestAnimationFrame(() => {
       this.panRAF = null;
       if (this.panAccDx !== 0 || this.panAccDy !== 0) {
-        this.applyTransform(
-          this.scale,
-          this.tx + this.panAccDx,
-          this.ty + this.panAccDy,
-        );
+        this.applyTransform(this.scale, this.tx + this.panAccDx, this.ty + this.panAccDy);
         this.panAccDx = 0;
         this.panAccDy = 0;
       }
     });
   }
 
-  // Apply YAML bases/overlays on first load (once)
   private async applyYamlOnFirstLoad(): Promise<void> {
     if (this.yamlAppliedOnce) return;
     this.yamlAppliedOnce = true;
     const yb = this.cfg.yamlBases ?? [];
     const yo = this.cfg.yamlOverlays ?? [];
 
-    // Detect explicit presence of imageOverlays: key (even if empty)
     const overlaysProvided = await this.isYamlKeyPresent("imageOverlays");
 
     if (yb.length === 0 && yo.length === 0 && !overlaysProvided) return;
@@ -2704,14 +2322,9 @@ export class MapInstance extends Component {
     }
   }
 
-  // Read current code block and check if a YAML key is present in it
   private async isYamlKeyPresent(key: string): Promise<boolean> {
     try {
-      if (
-        typeof this.cfg.sectionStart !== "number" ||
-        typeof this.cfg.sectionEnd !== "number"
-      )
-        return false;
+      if (typeof this.cfg.sectionStart !== "number" || typeof this.cfg.sectionEnd !== "number") return false;
       const af = this.app.vault.getAbstractFileByPath(this.cfg.sourcePath);
       if (!(af instanceof TFile)) return false;
       const text = await this.app.vault.read(af);
@@ -2719,8 +2332,8 @@ export class MapInstance extends Component {
       const blk = this.findZoommapBlock(lines, this.cfg.sectionStart);
       if (!blk) return false;
       const content = lines.slice(blk.start + 1, blk.end).join("\n");
-      const re = new RegExp(`(^|\\n)\\s*${key}\\s*:`, "i");
-      return re.test(content);
+      const keyLower = key.toLowerCase();
+      return content.split("\n").some((ln) => ln.trimStart().toLowerCase().startsWith(`${keyLower}:`));
     } catch {
       return false;
     }
@@ -2728,11 +2341,7 @@ export class MapInstance extends Component {
 
   private syncYamlLayers(
     yamlBases: { path: string; name?: string }[],
-    yamlOverlays: {
-      path: string;
-      name?: string;
-      visible?: boolean;
-    }[],
+    yamlOverlays: { path: string; name?: string; visible?: boolean }[],
     yamlImage?: string,
     overlaysProvided = false,
   ): boolean {
@@ -2741,10 +2350,7 @@ export class MapInstance extends Component {
 
     if (yamlBases && yamlBases.length > 0) {
       const prevActive = this.getActiveBasePath();
-      const newBases: BaseImage[] = yamlBases.map((b) => ({
-        path: b.path,
-        name: b.name,
-      }));
+      const newBases: BaseImage[] = yamlBases.map((b) => ({ path: b.path, name: b.name }));
       const newPaths = new Set(newBases.map((b) => b.path));
       let newActive = prevActive;
       if (yamlImage && newPaths.has(yamlImage)) newActive = yamlImage;
@@ -2756,18 +2362,12 @@ export class MapInstance extends Component {
       changed = true;
     }
 
-    // Apply overlays from YAML if key was provided (even when empty)
     if (overlaysProvided || (yamlOverlays && yamlOverlays.length > 0)) {
-      const prev = new Map(
-        (this.data.overlays ?? []).map((o) => [o.path, o]),
-      );
+      const prev = new Map<string, ImageOverlay>((this.data.overlays ?? []).map((o) => [o.path, o]));
       const next: ImageOverlay[] = (yamlOverlays ?? []).map((o) => ({
         path: o.path,
         name: o.name,
-        visible:
-          typeof o.visible === "boolean"
-            ? o.visible
-            : prev.get(o.path)?.visible ?? false,
+        visible: typeof o.visible === "boolean" ? o.visible : prev.get(o.path)?.visible ?? false,
       }));
       this.data.overlays = next;
       changed = true;
@@ -2776,9 +2376,7 @@ export class MapInstance extends Component {
     return changed;
   }
 
-  private async applyScaleCalibration(
-    metersPerPixel: number,
-  ): Promise<void> {
+  private async applyScaleCalibration(metersPerPixel: number): Promise<void> {
     if (!this.data) return;
     this.ensureMeasurement();
     const base = this.getActiveBasePath();
@@ -2792,17 +2390,13 @@ export class MapInstance extends Component {
     }
   }
 
-  // ===== Add Layer → choose file, then ask for name; write YAML without "visible"
   private promptAddLayer(kind: "base" | "overlay"): void {
     new ImageFileSuggestModal(this.app, (file: TFile) => {
       const base = file.name.replace(/\.[^.]+$/, "");
       const title = kind === "base" ? "Name for base layer" : "Name for overlay";
       new NamePromptModal(this.app, title, base, (name) => {
-        if (kind === "base") {
-          void this.addBaseByPath(file.path, name);
-        } else {
-          void this.addOverlayByPath(file.path, name);
-        }
+        if (kind === "base") void this.addBaseByPath(file.path, name);
+        else void this.addOverlayByPath(file.path, name);
       }).open();
     }).open();
   }
@@ -2810,10 +2404,7 @@ export class MapInstance extends Component {
   private async addBaseByPath(path: string, name?: string): Promise<void> {
     if (!this.data) return;
     const exists = this.getBasesNormalized().some((b) => b.path === path);
-    if (exists) {
-      new Notice("Base already exists.", 1500);
-      return;
-    }
+    if (exists) { new Notice("Base already exists.", 1500); return; }
     this.data.bases = this.data.bases ?? [];
     this.data.bases.push({ path, name: (name ?? "") || undefined });
     await this.saveDataSoon();
@@ -2824,16 +2415,8 @@ export class MapInstance extends Component {
   private async addOverlayByPath(path: string, name?: string): Promise<void> {
     if (!this.data) return;
     this.data.overlays = this.data.overlays ?? [];
-    if (this.data.overlays.some((o) => o.path === path)) {
-      new Notice("Overlay already exists.", 1500);
-      return;
-    }
-    // In JSON: visible true so it appears immediately
-    this.data.overlays.push({
-      path,
-      name: (name ?? "") || undefined,
-      visible: true,
-    });
+    if (this.data.overlays.some((o) => o.path === path)) { new Notice("Overlay already exists.", 1500); return; }
+    this.data.overlays.push({ path, name: (name ?? "") || undefined, visible: true });
     await this.saveDataSoon();
 
     if (this.isCanvas()) {
@@ -2845,22 +2428,15 @@ export class MapInstance extends Component {
       await this.updateOverlayVisibility();
     }
 
-    // In YAML: write path + name only (no "visible")
     void this.appendLayerToYaml("overlay", path, name ?? "");
     new Notice("Overlay added.", 1200);
   }
 
-  private async appendLayerToYaml(
-    kind: "base" | "overlay",
-    path: string,
-    name: string,
-  ): Promise<void> {
+  private async appendLayerToYaml(kind: "base" | "overlay", path: string, name: string): Promise<void> {
     try {
       const key = kind === "base" ? "imageBases" : "imageOverlays";
       const ok = await this.updateYamlList(key, path, { name });
-      if (!ok) {
-        new Notice("Added, but YAML could not be updated.", 2500);
-      }
+      if (!ok) new Notice("Added, but YAML could not be updated.", 2500);
     } catch (err) {
       console.error("Zoom Map: failed to update YAML", err);
       new Notice("Added, but YAML update failed.", 2500);
@@ -2872,12 +2448,7 @@ export class MapInstance extends Component {
     newPath: string,
     opts?: { name?: string },
   ): Promise<boolean> {
-    if (
-      typeof this.cfg.sectionStart !== "number" ||
-      typeof this.cfg.sectionEnd !== "number"
-    ) {
-      return false;
-    }
+    if (typeof this.cfg.sectionStart !== "number" || typeof this.cfg.sectionEnd !== "number") return false;
     const af = this.app.vault.getAbstractFileByPath(this.cfg.sourcePath);
     if (!(af instanceof TFile)) return false;
 
@@ -2896,7 +2467,6 @@ export class MapInstance extends Component {
       ...lines.slice(blk.end),
     ].join("\n");
 
-    // Avoid triggering our own reload in inline-storage mode
     if (af.path === this.store.getPath()) this.ignoreNextModify = true;
 
     await this.app.vault.modify(af, out);
@@ -2909,19 +2479,14 @@ export class MapInstance extends Component {
   ): { start: number; end: number } | null {
     let result: { start: number; end: number } | null = null;
     for (let i = 0; i < lines.length; i++) {
-      if (/^\s*```zoommap\b/i.test(lines[i])) {
+      const ln = lines[i].trimStart().toLowerCase();
+      if (ln.startsWith("```zoommap")) {
         let j = i + 1;
-        while (j < lines.length && !/^\s*```/.test(lines[j])) j++;
+        while (j < lines.length && !lines[j].trimStart().startsWith("```")) j++;
         if (j >= lines.length) break;
         const block = { start: i, end: j };
-        if (
-          typeof approxLine === "number" &&
-          i <= approxLine &&
-          approxLine <= j
-        ) {
-          return block;
-        }
-        if (!result) result = block;
+        if (typeof approxLine === "number" && i <= approxLine && approxLine <= j) return block;
+        result ??= block;
         i = j;
       }
     }
@@ -2941,10 +2506,10 @@ export class MapInstance extends Component {
     let after = "";
 
     for (let i = 0; i < out.length; i++) {
-      const m = out[i].match(keyRe);
+      const m = keyRe.exec(out[i]);
       if (m) {
         keyIdx = i;
-        keyIndent = (m[1] ?? "");
+        keyIndent = m[1] ?? "";
         after = (m[2] ?? "").trim();
         break;
       }
@@ -2953,85 +2518,57 @@ export class MapInstance extends Component {
     const jsonQuoted = JSON.stringify(path);
     const nm = opts?.name ?? "";
     const itemLines: string[] = [];
-    const itemIndent = keyIndent + "  ";
+    const itemIndent = `${keyIndent}  `;
     itemLines.push(`${itemIndent}- path: ${jsonQuoted}`);
     itemLines.push(`${itemIndent}  name: ${JSON.stringify(nm)}`);
 
-    // If key exists → insert into existing list region
     if (keyIdx >= 0) {
-      // Handle inline empty list: key: []
-      if (/^\[\s*\]$/.test(after)) {
-        out[keyIdx] = `${keyIndent}${key}:`;
-      }
+      if (/^\[\s*\]$/.exec(after)) out[keyIdx] = `${keyIndent}${key}:`;
 
-      // Determine region of the list
       let insertAt = keyIdx + 1;
       let scan = keyIdx + 1;
 
-      // If next line is not indented (no list yet), we'll insert at keyIdx+1
       const isNextTopLevelKey = (ln: string) => {
         const trimmed = ln.trim();
         if (!trimmed) return false;
-        if (/^#/.test(trimmed)) return false;
-        // top-level-ish key (indent <= keyIndent)
-        const spaces = ln.match(/^\s*/)?.[0].length ?? 0;
-        return (
-          spaces <= keyIndent.length && /^[A-Za-z0-9_-]+\s*:/.test(trimmed)
-        );
+        if (trimmed.startsWith("#")) return false;
+        const spaces = (/^\s*/.exec(ln))?.[0].length ?? 0;
+        return spaces <= keyIndent.length && /^[A-Za-z0-9_-]+\s*:/.exec(trimmed) !== null;
       };
 
-      // Find end of current list (until next top-level key)
-      while (scan < out.length && !isNextTopLevelKey(out[scan])) {
-        scan++;
-      }
+      while (scan < out.length && !isNextTopLevelKey(out[scan])) scan++;
       insertAt = scan;
 
-      // Duplicate check inside the region [keyIdx+1, insertAt)
       const region = out.slice(keyIdx + 1, insertAt).join("\n");
       const esc = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const dupObj = new RegExp(`-\\s*path\\s*:\\s*["']?${esc}["']?`);
       const dupStr = new RegExp(`-\\s*["']?${esc}["']?\\s*$`);
-      if (dupObj.test(region) || dupStr.test(region)) {
+      if (dupObj.exec(region) || dupStr.exec(region)) {
         return { changed: false, out };
       }
 
-      // Ensure there's at least an empty list start if nothing was there
-      if (insertAt === keyIdx + 1) {
-        // list was empty
-        out.splice(insertAt, 0, ...itemLines);
-      } else {
-        // append after existing list region
-        out.splice(insertAt, 0, ...itemLines);
-      }
+      out.splice(insertAt, 0, ...itemLines);
       return { changed: true, out };
     }
 
-    // Key not found → append a fresh section at the end of block
     const defaultIndent = this.detectYamlKeyIndent(out);
     out.push(`${defaultIndent}${key}:`);
-    out.push(...itemLines.map((l) => (defaultIndent ? l : l)));
+    out.push(...itemLines);
     return { changed: true, out };
   }
 
   private detectYamlKeyIndent(lines: string[]): string {
     for (const ln of lines) {
-      const m = ln.match(/^(\s*)[A-Za-z0-9_-]+\s*:/);
-      if (m) return (m[1] ?? "");
+      const m = /^(\s*)[A-Za-z0-9_-]+\s*:/.exec(ln);
+      if (m) return m[1] ?? "";
     }
-    return ""; // no indent
+    return "";
   }
 
-  private async renameMarkerLayer(
-    layer: MarkerLayer,
-    newName: string,
-  ): Promise<void> {
+  private async renameMarkerLayer(layer: MarkerLayer, newName: string): Promise<void> {
     if (!this.data) return;
-    const exists = this.data.layers.some(
-      (l) => l !== layer && l.name === newName,
-    );
-    const finalName = exists
-      ? `${newName} (${Math.random().toString(36).slice(2, 4)})`
-      : newName;
+    const exists = this.data.layers.some((l) => l !== layer && l.name === newName);
+    const finalName = exists ? `${newName} (${Math.random().toString(36).slice(2, 4)})` : newName;
     layer.name = finalName;
     await this.saveDataSoon();
     this.renderMarkersOnly();
@@ -3044,20 +2581,12 @@ export class MapInstance extends Component {
   ): Promise<void> {
     if (!this.data) return;
     const others = this.data.layers.filter((l) => l.id !== layer.id);
-    if (others.length === 0) {
-      new Notice("Cannot delete the last layer.", 2000);
-      return;
-    }
+    if (others.length === 0) { new Notice("Cannot delete the last layer.", 2000); return; }
 
     if (decision.mode === "move") {
       const targetId = decision.targetId;
-      if (!targetId || targetId === layer.id) {
-        new Notice("Invalid target layer.", 1500);
-        return;
-      }
-      for (const m of this.data.markers) {
-        if (m.layer === layer.id) m.layer = targetId;
-      }
+      if (!targetId || targetId === layer.id) { new Notice("Invalid target layer.", 1500); return; }
+      for (const m of this.data.markers) if (m.layer === layer.id) m.layer = targetId;
     } else {
       this.data.markers = this.data.markers.filter((m) => m.layer !== layer.id);
     }
@@ -3069,8 +2598,8 @@ export class MapInstance extends Component {
   }
 }
 
-/* ------------ Menu ------------- */
-type ZMMenuItem = {
+/* ------------ Context Menu ------------- */
+interface ZMMenuItem {
   type?: "item" | "separator";
   label?: string;
   action?: (rowEl: HTMLDivElement, menu: ZMMenu) => void | Promise<void>;
@@ -3079,7 +2608,7 @@ type ZMMenuItem = {
   mark?: "check" | "x" | "minus";
   markColor?: string;
   children?: ZMMenuItem[];
-};
+}
 
 class ZMMenu {
   private root: HTMLDivElement;
@@ -3104,7 +2633,7 @@ class ZMMenu {
   }
 
   contains(el: Node): boolean {
-	return this.root.contains(el) || this.submenus.some((s) => s.contains(el));
+    return this.root.contains(el) || this.submenus.some((s) => s.contains(el));
   }
 
   private buildList(container: HTMLDivElement, items: ZMMenuItem[]): void {
@@ -3118,7 +2647,6 @@ class ZMMenu {
 
       const row = container.createDiv({ cls: "zm-menu__item" });
 
-      // Linke Seite (Label + optional Icon links)
       const label = row.createDiv({ cls: "zm-menu__label" });
       if (it.iconUrl) {
         const imgLeft = label.createEl("img", { cls: "zm-menu__icon" });
@@ -3127,41 +2655,37 @@ class ZMMenu {
       }
       label.appendText(it.label);
 
-      // Rechte Seite (Häkchen/Markierungen oder Submenu-Pfeil)
       const right = row.createDiv({ cls: "zm-menu__right" });
 
-      if (it.children && it.children.length) {
-		const arrow = right.createDiv({ cls: "zm-menu__arrow" });
-		arrow.setText("▶");
-		let submenuEl: HTMLDivElement | null = null;
+      if (it.children?.length) {
+        const arrow = right.createDiv({ cls: "zm-menu__arrow" });
+        arrow.setText("▶");
+        let submenuEl: HTMLDivElement | null = null;
 
-		const openSub = () => {
-		  if (submenuEl) return;
-		  submenuEl = document.body.createDiv({ cls: "zm-submenu" });
-		  this.submenus.push(submenuEl);
-		  this.buildList(submenuEl, it.children!);
-		  const rect = row.getBoundingClientRect();
-		  const pref = rect.right + 260 < window.innerWidth ? "right" : "left";
-		  const x = pref === "right" ? rect.right : rect.left;
-		  const y = rect.top;
-		  this.position(submenuEl, x, y, pref);
-	  };
+        const openSub = () => {
+          if (submenuEl) return;
+          submenuEl = document.body.createDiv({ cls: "zm-submenu" });
+          this.submenus.push(submenuEl);
+          this.buildList(submenuEl, it.children!);
+          const rect = row.getBoundingClientRect();
+          const pref = rect.right + 260 < window.innerWidth ? "right" : "left";
+          const x = pref === "right" ? rect.right : rect.left;
+          const y = rect.top;
+          this.position(submenuEl, x, y, pref);
+        };
 
-		const closeSub = () => {
-		  if (!submenuEl) return;
-		  submenuEl.remove();
-		  this.submenus = this.submenus.filter((s) => s !== submenuEl);
-		  submenuEl = null;
-		};
+        const closeSub = () => {
+          if (!submenuEl) return;
+          submenuEl.remove();
+          this.submenus = this.submenus.filter((s) => s !== submenuEl);
+          submenuEl = null;
+        };
 
-		row.addEventListener("mouseenter", openSub);
-
-		row.addEventListener("mouseleave", (e) => {
-		  const to = e.relatedTarget;
-		  if (submenuEl && !(to instanceof Node && submenuEl.contains(to))) {
-			closeSub();
-		  }
-		});
+        row.addEventListener("mouseenter", openSub);
+        row.addEventListener("mouseleave", (e) => {
+          const to = e.relatedTarget;
+          if (submenuEl && !(to instanceof Node && submenuEl.contains(to))) closeSub();
+        });
       } else {
         const chk = right.createDiv({ cls: "zm-menu__check" });
         if (it.mark) {
@@ -3174,9 +2698,7 @@ class ZMMenu {
         row.addEventListener("click", () => {
           if (!it.action) return;
           try {
-            void Promise
-              .resolve(it.action(row, this))
-              .catch((err) => console.error("Menu item action failed:", err));
+            void Promise.resolve(it.action(row, this)).catch((err) => console.error("Menu item action failed:", err));
           } catch (err) {
             console.error("Menu item action failed:", err);
           }
@@ -3187,12 +2709,9 @@ class ZMMenu {
 
   private symbolForMark(mark: "check" | "x" | "minus"): string {
     switch (mark) {
-      case "x":
-        return "×";
-      case "minus":
-        return "–";
-      default:
-        return "✓";
+      case "x": return "×";
+      case "minus": return "–";
+      default: return "✓";
     }
   }
 
@@ -3210,16 +2729,12 @@ class ZMMenu {
     const vh = window.innerHeight;
 
     if (prefer === "right") {
-      if (clientX + rect.width + pad > vw) {
-        x = Math.max(pad, vw - rect.width - pad);
-      }
+      if (clientX + rect.width + pad > vw) x = Math.max(pad, vw - rect.width - pad);
     } else {
       x = clientX - rect.width;
       if (x < pad) x = pad;
     }
-    if (clientY + rect.height + pad > vh) {
-      y = Math.max(pad, vh - rect.height - pad);
-    }
+    if (clientY + rect.height + pad > vh) y = Math.max(pad, vh - rect.height - pad);
 
     el.style.left = `${x}px`;
     el.style.top = `${y}px`;
