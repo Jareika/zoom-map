@@ -280,6 +280,27 @@
   display: none;
 }
 
+/* Zoom HUD */
+.zm-zoom-hud {
+  position: absolute;
+  z-index: 6;
+  right: 8px;
+  top: 8px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 2px 6px;
+  box-shadow: var(--shadow-s);
+  font-size: 11px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.zm-zoom-hud-visible {
+  opacity: 1;
+}
+
 .zm-measure-hud.zm-measure-hud-visible {
   display: block;
 }
@@ -501,6 +522,37 @@ body.is-tablet .zoommap-settings .zm-icon-btn svg {
   justify-content: flex-end;
   margin-top: 12px;
   flex-wrap: wrap;
+}
+
+/* Link-Autocomplete in Marker-Editor */
+.zoommap-link-input-wrapper {
+  position: relative;
+}
+
+.zoommap-link-suggestions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 10000;
+  max-height: 220px;
+  overflow: auto;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  box-shadow: var(--shadow-s);
+  margin-top: 4px;
+}
+
+.zoommap-link-suggestion-item {
+  padding: 4px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.zoommap-link-suggestion-item.is-selected,
+.zoommap-link-suggestion-item:hover {
+  background: var(--background-modifier-hover);
 }
 
 /* Settings: collections list rows + actions */

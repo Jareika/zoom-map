@@ -195,8 +195,25 @@ async function readSavedFrame(
 export default class ZoomMapPlugin extends Plugin {
   settings: ZoomMapSettings = DEFAULT_SETTINGS;
 
+  activeMap: MapInstance | null = null;
+
+  setActiveMap(inst: MapInstance): void {
+    this.activeMap = inst;
+  }
+
   async onload(): Promise<void> {
     await this.loadSettings();
+
+    this.addCommand({
+      id: "zoom-map-toggle-measure",
+      name: "Toggle measure mode",
+      checkCallback: (checking) => {
+        const map = this.activeMap;
+        if (!map) return false;
+        if (!checking) map.toggleMeasureFromCommand();
+        return true;
+      },
+    });
 
     this.registerMarkdownCodeBlockProcessor(
       "zoommap",

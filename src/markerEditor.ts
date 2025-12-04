@@ -1,24 +1,11 @@
-import { Modal, Setting, FuzzySuggestModal, TFile } from "obsidian";
+import { Modal, Setting, TFile } from "obsidian";
 import type { App, TextComponent } from "obsidian";
 import type { Marker, MarkerFileData } from "./markerStore";
 import type ZoomMapPlugin from "./main";
 
-class NoteSuggestModal extends FuzzySuggestModal<TFile> {
-  private appRef: App;
-  private onChooseCb: (file: TFile) => void;
-  private files: TFile[];
-
-  constructor(app: App, onChoose: (file: TFile) => void) {
-    super(app);
-    this.appRef = app;
-    this.onChooseCb = onChoose;
-    this.files = this.appRef.vault.getFiles().filter((f) => f.extension?.toLowerCase() === "md");
-    this.setPlaceholder("Choose note…");
-  }
-
-  getItems(): TFile[] { return this.files; }
-  getItemText(item: TFile): string { return item.path; }
-  onChooseItem(item: TFile): void { this.onChooseCb(item); }
+interface LinkSuggestion {
+  label: string; // Anzeige im Dropdown (z.B. "Note › Heading")
+  value: string; // tatsächlicher Linktext (z.B. "Note#Heading")
 }
 
 export interface MarkerEditorResult {
@@ -35,6 +22,11 @@ export class MarkerEditorModal extends Modal {
 
   private linkInput?: TextComponent;
 
+  private suggestionsEl: HTMLDivElement | null = null;
+  private allSuggestions: LinkSuggestion[] = [];
+  private filteredSuggestions: LinkSuggestion[] = [];
+  private selectedSuggestionIndex = -1;
+
   constructor(
     app: App,
     plugin: ZoomMapPlugin,
@@ -49,31 +41,176 @@ export class MarkerEditorModal extends Modal {
     this.onResult = onResult;
   }
 
+  private buildLinkSuggestions(): void {
+    const files = this.app.vault.getFiles().filter((f) => f.extension?.toLowerCase() === "md");
+    const suggestions: LinkSuggestion[] = [];
+
+    const active = this.app.workspace.getActiveFile();
+    const fromPath = active?.path ?? files[0]?.path ?? "";
+
+    for (const file of files) {
+      const baseLink = this.app.metadataCache.fileToLinktext(file, fromPath);
+
+      // Basis: nur die Note
+      suggestions.push({
+        label: baseLink,
+        value: baseLink,
+      });
+
+      // Überschriften
+      const cache = this.app.metadataCache.getCache(file.path);
+      const headings = cache?.headings ?? [];
+      for (const h of headings) {
+        const headingName = h.heading;
+        const full = `${baseLink}#${headingName}`;
+        suggestions.push({
+          label: `${baseLink} › ${headingName}`,
+          value: full,
+        });
+      }
+    }
+
+    this.allSuggestions = suggestions;
+  }
+
+  private updateLinkSuggestions(input: string): void {
+    if (!this.suggestionsEl) return;
+
+    const query = input.trim().toLowerCase();
+    this.suggestionsEl.empty();
+    this.filteredSuggestions = [];
+    this.selectedSuggestionIndex = -1;
+
+    if (!query) {
+      this.suggestionsEl.style.display = "none";
+      return;
+    }
+
+    const maxItems = 20;
+    const matches = this.allSuggestions
+      .filter((s) =>
+        s.value.toLowerCase().includes(query) ||
+        s.label.toLowerCase().includes(query),
+      )
+      .slice(0, maxItems);
+
+    if (matches.length === 0) {
+      this.suggestionsEl.style.display = "none";
+      return;
+    }
+
+    this.filteredSuggestions = matches;
+    this.suggestionsEl.style.display = "";
+
+    matches.forEach((s, i) => {
+      const row = this.suggestionsEl!.createDiv({ cls: "zoommap-link-suggestion-item" });
+      row.setText(s.label);
+      if (i === 0) {
+        row.classList.add("is-selected");
+        this.selectedSuggestionIndex = 0;
+      }
+      row.addEventListener("mousedown", (ev) => {
+        // mousedown statt click, damit blur des Inputs nicht vorher feuert
+        ev.preventDefault();
+        this.applyLinkSuggestion(i);
+      });
+    });
+  }
+
+  private hideLinkSuggestions(): void {
+    if (!this.suggestionsEl) return;
+    this.suggestionsEl.style.display = "none";
+    this.suggestionsEl.empty();
+    this.filteredSuggestions = [];
+    this.selectedSuggestionIndex = -1;
+  }
+
+  private moveLinkSuggestionSelection(delta: number): void {
+    if (!this.suggestionsEl) return;
+    const n = this.filteredSuggestions.length;
+    if (n === 0) return;
+
+    let idx = this.selectedSuggestionIndex;
+    if (idx < 0) idx = 0;
+    idx = (idx + delta + n) % n;
+    this.selectedSuggestionIndex = idx;
+
+    const rows = this.suggestionsEl.querySelectorAll<HTMLDivElement>(".zoommap-link-suggestion-item");
+    rows.forEach((row, i) => {
+      if (i === idx) row.classList.add("is-selected");
+      else row.classList.remove("is-selected");
+    });
+
+    const sel = rows[idx];
+    if (sel) sel.scrollIntoView({ block: "nearest" });
+  }
+
+  private applyLinkSuggestion(index: number): void {
+    if (!this.linkInput) return;
+    if (index < 0 || index >= this.filteredSuggestions.length) return;
+
+    const s = this.filteredSuggestions[index];
+    this.linkInput.setValue(s.value);
+    this.marker.link = s.value;
+    this.hideLinkSuggestions();
+
+    // Fokus zurück auf das Eingabefeld
+    this.linkInput.inputEl.focus();
+    const len = s.value.length;
+    this.linkInput.inputEl.setSelectionRange(len, len);
+  }
+
   onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", { text: this.marker.type === "sticker" ? "Edit sticker" : "Edit marker" });
 
     if (this.marker.type !== "sticker") {
-      new Setting(contentEl)
+      const linkSetting = new Setting(contentEl)
         .setName("Link")
-        .setDesc("Wiki link note (without [[ ]]).")
-        .addText((t) => {
-          this.linkInput = t;
-          t.setPlaceholder("Folder/Note")
-            .setValue(this.marker.link ?? "")
-            .onChange((v) => { this.marker.link = v.trim(); });
-        })
-        .addButton((b) =>
-          b.setButtonText("Pick…").onClick(() => {
-            new NoteSuggestModal(this.app, (file: TFile) => {
-              const fromPath = this.app.workspace.getActiveFile()?.path ?? file.path;
-              const rel = this.app.metadataCache.fileToLinktext(file, fromPath);
-              this.marker.link = rel;
-              this.linkInput?.setValue(rel);
-            }).open();
-          }),
-        );
+        .setDesc("Wiki link (without [[ ]]). Supports note and note#heading.");
+
+      linkSetting.addText((t) => {
+        this.linkInput = t;
+        t.setPlaceholder("Folder/Note or Note#Heading")
+          .setValue(this.marker.link ?? "")
+          .onChange((v) => {
+            this.marker.link = v.trim();
+            this.updateLinkSuggestions(v);
+          });
+
+        const wrapper = t.inputEl.parentElement;
+        if (wrapper instanceof HTMLElement) {
+          wrapper.classList.add("zoommap-link-input-wrapper");
+          this.suggestionsEl = wrapper.createDiv({ cls: "zoommap-link-suggestions" });
+          this.suggestionsEl.style.display = "none";
+        }
+
+        this.buildLinkSuggestions();
+
+        t.inputEl.addEventListener("keydown", (ev) => {
+          if (!this.suggestionsEl || this.suggestionsEl.style.display === "none") return;
+
+          if (ev.key === "ArrowDown") {
+            ev.preventDefault();
+            this.moveLinkSuggestionSelection(1);
+          } else if (ev.key === "ArrowUp") {
+            ev.preventDefault();
+            this.moveLinkSuggestionSelection(-1);
+          } else if (ev.key === "Enter") {
+            if (this.selectedSuggestionIndex >= 0) {
+              ev.preventDefault();
+              this.applyLinkSuggestion(this.selectedSuggestionIndex);
+            }
+          } else if (ev.key === "Escape") {
+            this.hideLinkSuggestions();
+          }
+        });
+
+        t.inputEl.addEventListener("blur", () => {
+          window.setTimeout(() => this.hideLinkSuggestions(), 150);
+        });
+      });
 
       new Setting(contentEl)
         .setName("Tooltip")

@@ -157,6 +157,9 @@ export class MapInstance extends Component {
   private calibDots!: SVGGElement;
   private measureHud!: HTMLDivElement;
 
+  private zoomHud!: HTMLDivElement;
+  private zoomHudTimer: number | null = null;
+
   private initialLayoutDone = false;
 
   private overlayMap: Map<string, HTMLImageElement> = new Map<string, HTMLImageElement>();
@@ -259,6 +262,10 @@ export class MapInstance extends Component {
   }
 
   onunload(): void {
+    if (this.zoomHudTimer !== null) {
+      window.clearTimeout(this.zoomHudTimer);
+      this.zoomHudTimer = null;
+    }
     this.tooltipEl?.remove();
     this.ro?.disconnect();
     this.closeMenu();
@@ -315,6 +322,7 @@ export class MapInstance extends Component {
     this.markersEl = this.worldEl.createDiv({ cls: "zm-markers" });
 
     this.measureHud = this.viewportEl.createDiv({ cls: "zm-measure-hud" });
+	this.zoomHud = this.viewportEl.createDiv({ cls: "zm-zoom-hud" });
 
     this.registerDomEvent(this.viewportEl, "wheel", (e: WheelEvent) => {
       const t = e.target;
@@ -705,6 +713,24 @@ export class MapInstance extends Component {
     this.measurePreview = null;
     this.renderMeasure();
   }
+  
+  public toggleMeasureFromCommand(): void {
+    if (!this.ready) return;
+
+    if (this.calibrating) {
+      this.calibrating = false;
+      this.calibPts = [];
+      this.calibPreview = null;
+      this.renderCalibrate();
+    }
+
+    this.measuring = !this.measuring;
+    if (!this.measuring) {
+      this.measurePreview = null;
+    }
+    this.updateMeasureHud();
+    this.renderMeasure();
+  }
 
   private getMetersPerPixel(): number | undefined {
     const base = this.getActiveBasePath();
@@ -829,6 +855,8 @@ export class MapInstance extends Component {
 
   private onPointerDownViewport(e: PointerEvent): void {
     if (!this.ready) return;
+
+    this.plugin.setActiveMap(this);
 
     this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (e.target instanceof Element && e.target.setPointerCapture) (e.target as HTMLElement).setPointerCapture(e.pointerId);
@@ -1211,6 +1239,7 @@ export class MapInstance extends Component {
             void this.saveDataSoon();
             this.updateMeasureHud();
           }
+		  this.closeMenu();
         },
       },
       {
@@ -1223,6 +1252,7 @@ export class MapInstance extends Component {
             void this.saveDataSoon();
             this.updateMeasureHud();
           }
+		  this.closeMenu();
         },
       },
       {
@@ -1235,6 +1265,7 @@ export class MapInstance extends Component {
             void this.saveDataSoon();
             this.updateMeasureHud();
           }
+		  this.closeMenu();
         },
       },
       {
@@ -1247,6 +1278,7 @@ export class MapInstance extends Component {
             void this.saveDataSoon();
             this.updateMeasureHud();
           }
+		  this.closeMenu();
         },
       },
       {
@@ -1259,6 +1291,7 @@ export class MapInstance extends Component {
             void this.saveDataSoon();
             this.updateMeasureHud();
           }
+		  this.closeMenu();
         },
       },
       {
@@ -1271,6 +1304,7 @@ export class MapInstance extends Component {
             void this.saveDataSoon();
             this.updateMeasureHud();
           }
+		  this.closeMenu();
         },
       },
     ];
@@ -1281,7 +1315,14 @@ export class MapInstance extends Component {
     const pinItemFromKey = (key: string): ZMMenuItem | null => {
       const info = this.getIconInfo(key);
       if (!info) return null;
-      return { label: key || "(pin)", iconUrl: info.imgUrl, action: () => this.placePinAt(key, nx, ny) };
+      return {
+        label: key || "(pin)",
+        iconUrl: info.imgUrl,
+        action: () => {
+          this.placePinAt(key, nx, ny);
+          this.closeMenu();
+        },
+      };
     };
     const pinsBaseMenu = pinsBase.map(pinItemFromKey).filter((x): x is ZMMenuItem => !!x);
     const pinsGlobalMenu = pinsGlobal.map(pinItemFromKey).filter((x): x is ZMMenuItem => !!x);
@@ -1289,20 +1330,40 @@ export class MapInstance extends Component {
     const favItems = (arr: MarkerPreset[]): ZMMenuItem[] =>
       arr.map((p) => {
         const ico = this.getIconInfo(p.iconKey);
-        return { label: p.name || "(favorite)", iconUrl: ico.imgUrl, action: () => this.placePresetAt(p, nx, ny) };
+        return {
+          label: p.name || "(favorite)",
+          iconUrl: ico.imgUrl,
+          action: () => {
+            this.placePresetAt(p, nx, ny);
+            this.closeMenu();
+          },
+        };
       });
 
     const favsBaseMenu = favItems(favsBase);
     const favsGlobalMenu = favItems(favsGlobal);
 
     const stickerItems = (arr: StickerPreset[]): ZMMenuItem[] =>
-      arr.map((sp) => ({ label: sp.name || "(sticker)", iconUrl: this.resolveResourceUrl(sp.imagePath), action: () => this.placeStickerPresetAt(sp, nx, ny) }));
+      arr.map((sp) => ({
+        label: sp.name || "(sticker)",
+        iconUrl: this.resolveResourceUrl(sp.imagePath),
+        action: () => {
+          this.placeStickerPresetAt(sp, nx, ny);
+          this.closeMenu();
+        },
+      }));
 
     const stickersBaseMenu = stickerItems(stickersBase);
     const stickersGlobalMenu = stickerItems(stickersGlobal);
 
     const addHereChildren: ZMMenuItem[] = [
-      { label: "Default (open editor)", action: () => this.addMarkerInteractive(nx, ny) },
+      {
+        label: "Default (open editor)",
+        action: () => {
+          this.addMarkerInteractive(nx, ny);
+          this.closeMenu(); // nach dem Platzieren Menü schließen
+        },
+      },
     ];
     if (pinsBaseMenu.length) {
       addHereChildren.push({ type: "separator" });
@@ -1404,15 +1465,18 @@ export class MapInstance extends Component {
       {
         label: "Measure",
         children: [
-          {
-            label: this.measuring ? "Stop measuring" : "Start measuring",
-            action: () => {
-              this.measuring = !this.measuring;
-              if (!this.measuring) this.measurePreview = null;
-              this.updateMeasureHud();
-              this.renderMeasure();
-            },
-          },
+		  {
+			label: this.measuring ? "Stop measuring" : "Start measuring",
+			action: () => {
+			  this.measuring = !this.measuring;
+			  if (!this.measuring) {
+				this.measurePreview = null;
+			  }
+			  this.updateMeasureHud();
+			  this.renderMeasure();
+			  this.closeMenu();
+			},
+		  },
           { label: "Clear measurement", action: () => this.clearMeasure() },
           {
             label: "Remove last point",
@@ -1441,6 +1505,7 @@ export class MapInstance extends Component {
                 this.renderCalibrate();
                 new Notice("Calibration: click two points.", 1500);
               }
+              this.closeMenu();
             },
           },
         ],
@@ -1569,6 +1634,7 @@ export class MapInstance extends Component {
 
     if (render) {
       if (prevScale !== s) {
+        this.showZoomHud();
         this.updateMarkerInvScaleOnly();
         this.updateMarkerZoomVisibilityOnly();
       }
@@ -1906,6 +1972,8 @@ export class MapInstance extends Component {
         if (this.isLayerLocked(m.layer)) return;
         this.hideTooltipSoon(0);
 
+        this.plugin.setActiveMap(this);
+
         this.draggingMarkerId = m.id;
         this.dragMoved = false;
 
@@ -1951,12 +2019,16 @@ export class MapInstance extends Component {
                   this.deleteMarker(m);
                 }
               });
+              this.closeMenu();
               modal.open();
             },
           },
           {
             label: m.type === "sticker" ? "Delete sticker" : "Delete marker",
-            action: () => this.deleteMarker(m),
+            action: () => {
+              this.deleteMarker(m);
+              this.closeMenu();
+            },
           },
         ];
         this.openMenu = new ZMMenu();
@@ -2311,6 +2383,22 @@ export class MapInstance extends Component {
       "--zm-measure-color": color,
       "--zm-measure-width": `${widthPx}px`,
     });
+  }
+  
+  private showZoomHud(): void {
+    if (!this.zoomHud) return;
+    const percent = Math.round(this.scale * 100);
+    this.zoomHud.textContent = `Zoom: ${percent}%`;
+
+    this.zoomHud.classList.add("zm-zoom-hud-visible");
+
+    if (this.zoomHudTimer !== null) {
+      window.clearTimeout(this.zoomHudTimer);
+    }
+    this.zoomHudTimer = window.setTimeout(() => {
+      this.zoomHud?.classList.remove("zm-zoom-hud-visible");
+      this.zoomHudTimer = null;
+    }, 5000); // 5 seconds display time
   }
 
   private requestPanFrame(): void {
