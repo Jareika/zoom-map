@@ -5,13 +5,21 @@ import type { MarkerLayer } from "./markerStore";
 export type DeleteLayerDecision =
   | { mode: "move"; targetId: string }
   | { mode: "delete-markers" };
+  
+// Callback when a layer has been renamed.
+/* eslint-disable-next-line no-unused-vars */
+type RenameLayerCallback = (newName: string) => void;
+
+// Callback when the user confirmed how to delete a layer.
+/* eslint-disable-next-line no-unused-vars */
+type DeleteLayerCallback = (decision: DeleteLayerDecision) => void;
 
 export class RenameLayerModal extends Modal {
   private layer: MarkerLayer;
-  private onDone: (newName: string) => void;
+  private onDone: RenameLayerCallback;
   private value = "";
 
-  constructor(app: App, layer: MarkerLayer, onDone: (newName: string) => void) {
+  constructor(app: App, layer: MarkerLayer, onDone: RenameLayerCallback) {
     super(app);
     this.layer = layer;
     this.onDone = onDone;
@@ -51,7 +59,7 @@ export class DeleteLayerModal extends Modal {
   private layer: MarkerLayer;
   private targets: MarkerLayer[];
   private hasMarkers: boolean;
-  private onDone: (decision: DeleteLayerDecision) => void;
+  private onDone: DeleteLayerCallback;
 
   private mode: "delete-markers" | "move" = "delete-markers";
   private targetId = "";
@@ -61,7 +69,7 @@ export class DeleteLayerModal extends Modal {
     layer: MarkerLayer,
     targets: MarkerLayer[],
     hasMarkers: boolean,
-    onDone: (decision: DeleteLayerDecision) => void,
+    onDone: DeleteLayerCallback,
   ) {
     super(app);
     this.layer = layer;

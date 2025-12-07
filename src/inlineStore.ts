@@ -78,8 +78,14 @@ export class NoteMarkerStore {
       bases: initialImagePath ? [initialImagePath] : [],
       overlays: [],
       activeBase: initialImagePath ?? "",
-      measurement: { displayUnit: "auto-metric", metersPerPixel: undefined, scales: {} },
+      measurement: {
+        displayUnit: "auto-metric",
+        metersPerPixel: undefined,
+        scales: {},
+		customUnitId: undefined,
+      },
       frame: undefined,
+      pinSizeOverrides: {},
     };
 
 	const payload = JSON.stringify(data, null, 2);

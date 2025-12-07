@@ -191,6 +191,23 @@
   cursor: not-allowed;
 }
 
+.zm-hud-markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 15;
+}
+
+.zm-hud-marker {
+  position: absolute;
+  transform-origin: 0 0;
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  z-index: 20;
+}
+
 .zm-marker-inv {
   transform-origin: 0 0;
 } /* scale(1/s) */

@@ -12,19 +12,32 @@ export interface MarkerLayer {
 
 export type MarkerKind = "pin" | "sticker";
 
+export type AnchorSpace = "world" | "viewport";
+
 export interface Marker {
   id: string;
-  x: number; // 0..1 relative to image width
-  y: number; // 0..1 relative to image height
-  layer: string; // layer.id
-  link?: string; // e.g. wiki link without [[ ]]
-  iconKey?: string; // for pin markers
+
+  /**
+   * For anchorSpace === "world":
+   *   x,y are 0..1 relative to image width/height.
+   *
+   * For anchorSpace === "viewport":
+   *   x,y are currently not used for rendering, but kept as
+   *   normalized values (hudX / viewportWidth, hudY / viewportHeight)
+   *   for potential future use.
+   */
+  x: number;
+  y: number;
+
+  layer: string;
+  link?: string;
+  iconKey?: string;
   tooltip?: string;
 
-  // type + sticker fields
+  // Marker type + sticker fields
   type?: MarkerKind;
-  stickerPath?: string;   // vault path or data URL
-  stickerSize?: number;   // px in image space; scales with zoom
+  stickerPath?: string;
+  stickerSize?: number;
 
   // Optional: per-pin zoom range (undefined → always visible)
   minZoom?: number;
@@ -32,6 +45,19 @@ export interface Marker {
 
   // Optional: pin scales like sticker (with the map), no inverse wrapper
   scaleLikeSticker?: boolean;
+
+  // Anchor space:
+  // - "world" (default): coordinates in image space (normalized 0..1).
+  // - "viewport": HUD pin positioned relative to the viewport.
+  anchorSpace?: AnchorSpace;
+
+  // HUD metadata (only used when anchorSpace === "viewport")
+  hudX?: number;      // anchor position in px from left edge of viewport
+  hudY?: number;      // anchor position in px from top edge of viewport
+  hudModeX?: "left" | "right" | "center";
+  hudModeY?: "top" | "bottom" | "center";
+  hudLastWidth?: number;
+  hudLastHeight?: number;
 }
 
 export interface BaseImage {
@@ -46,17 +72,25 @@ export interface ImageOverlay {
 }
 
 /* ---- Ruler / scale data ---- */
-export type DistanceUnit = "m" | "km" | "mi" | "ft" | "auto-metric" | "auto-imperial";
+export type DistanceUnit =
+  | "m"
+  | "km"
+  | "mi"
+  | "ft"
+  | "auto-metric"
+  | "auto-imperial"
+  | "custom";
 
 export interface MeasurementConfig {
-  displayUnit: DistanceUnit;          // UI unit
-  metersPerPixel?: number;            // fallback if base-specific scale is missing
-  scales?: Record<string, number>;    // per base image: metersPerPixel
+  displayUnit: DistanceUnit;
+  metersPerPixel?: number;
+  scales?: Record<string, number>;
+  customUnitId?: string;
 }
 
 export interface MarkerFileData {
   image: string; // active base image (back-compat)
-  size?: { w: number; h: number };    // Bildgröße (Pixel)
+  size?: { w: number; h: number }; // image size in pixels
   layers: MarkerLayer[];
   markers: Marker[];
 
@@ -68,8 +102,11 @@ export interface MarkerFileData {
   // Ruler / scale
   measurement?: MeasurementConfig;
 
-  // gespeicherte Frame-Größe (Viewport) in Pixeln
+  // Saved frame (viewport) size in pixels
   frame?: { w: number; h: number };
+
+  // Per-map pin size overrides (iconKey → size in px on this map)
+  pinSizeOverrides?: Record<string, number>;
 }
 
 export function generateId(prefix = "m"): string {
@@ -107,7 +144,14 @@ export class MarkerStore {
       bases: initialImagePath ? [initialImagePath] : [],
       overlays: [],
       activeBase: initialImagePath ?? "",
-      measurement: { displayUnit: "auto-metric", metersPerPixel: undefined, scales: {} },
+      measurement: {
+        displayUnit: "auto-metric",
+        metersPerPixel: undefined,
+        scales: {},
+		customUnitId: undefined,
+      },
+      frame: undefined,
+      pinSizeOverrides: {},
     };
 
     await this.create(JSON.stringify(data, null, 2));
@@ -126,7 +170,7 @@ export class MarkerStore {
       parsed.layers = [{ id: "default", name: "Default", visible: true, locked: false }];
     }
 
-    // Layer-Felder normalisieren
+    // Layer-Fields
     parsed.layers = parsed.layers.map((l) => ({
       id: l.id,
       name: l.name ?? "Layer",
@@ -152,9 +196,16 @@ export class MarkerStore {
 
     parsed.overlays ??= [];
 
-    parsed.measurement ??= { displayUnit: "auto-metric", metersPerPixel: undefined, scales: {} };
+    parsed.measurement ??= {
+      displayUnit: "auto-metric",
+      metersPerPixel: undefined,
+      scales: {},
+    };
     parsed.measurement.scales ??= {};
     parsed.measurement.displayUnit ??= "auto-metric";
+
+    // Per-map pin size overrides
+    parsed.pinSizeOverrides ??= {};
 
     return parsed;
   }

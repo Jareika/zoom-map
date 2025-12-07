@@ -10,17 +10,27 @@ function deepClone<T>(x: T): T {
   return JSON.parse(json) as unknown as T;
 }
 
+interface CollectionEditorResult {
+  updated: boolean;
+  deleted: boolean;
+}
+
+// Callback signature for the editor result.
+// The parameter name is only used at call sites, not inside this type.
+/* eslint-disable-next-line no-unused-vars */
+type CollectionEditorCallback = (result: CollectionEditorResult) => void;
+
 export class CollectionEditorModal extends Modal {
   private plugin: ZoomMapPlugin;
   private original: BaseCollection;
   private working: BaseCollection;
-  private onDone: (updated: boolean, deleted: boolean) => void;
+  private onDone: CollectionEditorCallback;
 
   constructor(
     app: App,
     plugin: ZoomMapPlugin,
     collection: BaseCollection,
-    onDone: (updated: boolean, deleted: boolean) => void,
+    onDone: CollectionEditorCallback,
   ) {
     super(app);
     this.plugin = plugin;
@@ -99,7 +109,7 @@ export class CollectionEditorModal extends Modal {
       const lib = this.plugin.settings.icons ?? [];
       if (lib.length === 0) {
         pinWrap.createEl("div", {
-          text: "No icons in library yet. Add some in 'Marker icons (library)'.",
+        text: "No icons in library yet.",
           attr: { style: "color: var(--text-muted);" },
         });
       } else {
@@ -235,7 +245,7 @@ export class CollectionEditorModal extends Modal {
         name.oninput = () => (s.name = name.value.trim());
 
         const path = row.createEl("input", { type: "text" });
-        path.placeholder = "image path or data URL";
+        path.placeholder = "Image path or data URL";
         path.value = s.imagePath ?? "";
         path.oninput = () => (s.imagePath = path.value.trim());
 
@@ -288,19 +298,19 @@ export class CollectionEditorModal extends Modal {
       this.original.include = deepClone(this.working.include);
       await this.plugin.saveSettings();
       this.close();
-      this.onDone(true, false);
+      this.onDone({ updated: true, deleted: false });
     };
 
     const del = footer.createEl("button", { text: "Delete" });
     del.onclick = () => {
       this.close();
-      this.onDone(false, true);
+      this.onDone({ updated: false, deleted: true });
     };
 
     const cancel = footer.createEl("button", { text: "Cancel" });
     cancel.onclick = () => {
       this.close();
-      this.onDone(false, false);
+      this.onDone({ updated: false, deleted: false });
     };
   }
 

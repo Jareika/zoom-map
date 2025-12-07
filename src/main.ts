@@ -7,13 +7,16 @@ import {
   TFile,
   Notice,
   setIcon,
+  requestUrl,
 } from "obsidian";
 import type { App, MarkdownPostProcessorContext } from "obsidian";
 import { MapInstance } from "./map";
-import type { ZoomMapConfig, ZoomMapSettings, IconProfile, BaseCollection } from "./map";
+import type { ZoomMapConfig, ZoomMapSettings, IconProfile, BaseCollection, CustomUnitDef } from "./map";
 import { ImageFileSuggestModal } from "./iconFileSuggest";
 import { CollectionEditorModal } from "./collectionsModals";
 import { JsonFileSuggestModal } from "./jsonFileSuggest";
+import { FaIconPickerModal } from "./faIconPickerModal";
+import { FaCreateIconModal } from "./faCreateIconModal"
 
 /* ---------------- Utils ---------------- */
 
@@ -28,6 +31,7 @@ function svgPinDataUrl(color = "#d23c3c"): string {
 interface ZoomMapSettingsExtended extends ZoomMapSettings {
   defaultWidthWrapped?: string;
   libraryFilePath?: string; // single library file in the vault that stores icons + collections
+  faFolderPath?: string;    // folder in vault containing Font Awesome SVG icons
 }
 
 interface LibraryFileData {
@@ -47,6 +51,11 @@ function folderOf(path: string): string {
   const i = path.lastIndexOf("/");
   return i >= 0 ? path.slice(0, i) : "";
 }
+
+// URL for Font Awesome Free web ZIP that contains SVG icons.
+// You can update this URL to a newer release if needed.
+const DEFAULT_FA_ZIP_URL =
+  "https://use.fontawesome.com/releases/v6.4.0/fontawesome-free-6.4.0-web.zip";
 
 function isPlainObject(val: unknown): val is Record<string, unknown> {
   return typeof val === "object" && val !== null && !Array.isArray(val);
@@ -78,6 +87,8 @@ const DEFAULT_SETTINGS: ZoomMapSettingsExtended = {
   baseCollections: [],
   pinPlaceOpensEditor: false,
   libraryFilePath: "ZoomMap/library.json",
+  faFolderPath: "ZoomMap/FontAwesome",
+  customUnits: [],
 };
 
 /* ---------------- YAML parsing helpers ---------------- */
@@ -88,8 +99,8 @@ interface YamlOverlay { path: string; name?: string; visible?: boolean }
 interface YamlOptions {
   image?: string;
   markers?: string;
-  minZoom?: number;
-  maxZoom?: number;
+  minZoom?: number | string;
+  maxZoom?: number | string;
   height?: string | number;
   width?: string | number;
   resizable?: boolean;
@@ -147,9 +158,33 @@ function parseOverlaysYaml(v: unknown): YamlOverlay[] {
 function parseScaleYaml(v: unknown): number | undefined {
   if (!v || typeof v !== "object") return undefined;
   const obj = v as { metersPerPixel?: unknown; pixelsPerMeter?: unknown };
-  const mpp = typeof obj.metersPerPixel === "number" && obj.metersPerPixel > 0 ? obj.metersPerPixel : undefined;
-  const ppm = typeof obj.pixelsPerMeter === "number" && obj.pixelsPerMeter > 0 ? 1 / obj.pixelsPerMeter : undefined;
+  const mpp =
+    typeof obj.metersPerPixel === "number" && obj.metersPerPixel > 0
+      ? obj.metersPerPixel
+      : undefined;
+  const ppm =
+    typeof obj.pixelsPerMeter === "number" && obj.pixelsPerMeter > 0
+      ? 1 / obj.pixelsPerMeter
+      : undefined;
   return mpp ?? ppm;
+}
+
+function parseZoomYaml(value: unknown, fallback: number): number {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return value;
+  }
+  if (typeof value === "string") {
+    let s = value.trim();
+    if (!s) return fallback;
+    const hasPercent = s.endsWith("%");
+    if (hasPercent) s = s.slice(0, -1).trim();
+    s = s.replace(",", ".");
+    const n = Number(s);
+    if (Number.isFinite(n) && n > 0) {
+      return hasPercent ? n / 100 : n;
+    }
+  }
+  return fallback;
 }
 
 function parseAlign(v: unknown): "left" | "center" | "right" | undefined {
@@ -205,7 +240,7 @@ export default class ZoomMapPlugin extends Plugin {
     await this.loadSettings();
 
     this.addCommand({
-      id: "zoom-map-toggle-measure",
+      id: "toggle-measure-mode",
       name: "Toggle measure mode",
       checkCallback: (checking) => {
         const map = this.activeMap;
@@ -261,8 +296,12 @@ export default class ZoomMapPlugin extends Plugin {
 
         const markersPathRaw = typeof opts.markers === "string" ? opts.markers : undefined;
 
-        const minZoom = responsive ? 1e-6 : (typeof opts.minZoom === "number" ? opts.minZoom : 0.25);
-        const maxZoom = responsive ? 1e6  : (typeof opts.maxZoom === "number" ? opts.maxZoom : 8);
+        const minZoom = responsive
+          ? 1e-6
+          : parseZoomYaml(opts.minZoom, 0.25);
+        const maxZoom = responsive
+          ? 1e6
+          : parseZoomYaml(opts.maxZoom, 8);
 
         const markersPath = normalizePath(markersPathRaw ?? `${image}.markers.json`);
 
@@ -359,6 +398,8 @@ export default class ZoomMapPlugin extends Plugin {
     this.settings.baseCollections ??= [];
     ext.defaultWidthWrapped ??= "50%";
     ext.libraryFilePath ??= "ZoomMap/library.json";
+    ext.faFolderPath ??= "ZoomMap/FontAwesome";
+	this.settings.customUnits ??= [];
   }
 
   async saveSettings(): Promise<void> {
@@ -405,13 +446,12 @@ export default class ZoomMapPlugin extends Plugin {
   async loadLibraryFromFile(file: TFile): Promise<void> {
     try {
       const raw = await this.app.vault.read(file);
-      const obj: unknown = (JSON.parse as (s: string) => unknown)(raw);
+      const obj: unknown = JSON.parse(raw);
       if (!isPlainObject(obj)) {
         new Notice("Invalid library file.", 2500);
         return;
       }
 
-      // Narrow with type guards instead of unnecessary assertions
       const hasIcons = (x: unknown): x is { icons: unknown } =>
         isPlainObject(x) && "icons" in x;
       const hasBaseCollections = (x: unknown): x is { baseCollections: unknown } =>
@@ -436,6 +476,39 @@ export default class ZoomMapPlugin extends Plugin {
     } catch (e) {
       console.error("Load library failed", e);
       new Notice("Failed to load library.", 2500);
+    }
+  }
+
+  async downloadFontAwesomeZip(): Promise<void> {
+    const ext = this.settings as ZoomMapSettingsExtended;
+    const folder = normalizePath(ext.faFolderPath?.trim() || "ZoomMap/FontAwesome");
+    const zipPath = normalizePath(`${folder}/fontawesome-free.zip`);
+
+    try {
+      // Ensure target folder exists
+      if (!this.app.vault.getAbstractFileByPath(folder)) {
+        await this.app.vault.createFolder(folder);
+      }
+
+      new Notice("Downloading font awesome free zip…", 2500);
+
+      const res = await requestUrl({
+        url: DEFAULT_FA_ZIP_URL,
+        method: "GET",
+      });
+
+      const data = res.arrayBuffer;
+      // Write ZIP file into the vault
+      // @ts-expect-error writeBinary is available on desktop adapters
+      await this.app.vault.adapter.writeBinary(zipPath, data);
+
+      new Notice(
+        `Downloaded Font Awesome ZIP to ${zipPath}. Please unzip it so that SVG files are available in this folder.`,
+        6000,
+      );
+    } catch (e) {
+      console.error("Download Font Awesome ZIP failed", e);
+      new Notice("Failed to download font awesome zip.", 4000);
     }
   }
 }
@@ -561,7 +634,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Open editor when placing pin from menu")
-      .setDesc("When enabled, placing a pin from Pins menu opens the marker editor.")
+      .setDesc("When enabled, placing a pin from the pins menu opens the marker editor.")
       .addToggle((t) =>
         t
           .setValue(!!this.plugin.settings.pinPlaceOpensEditor)
@@ -638,6 +711,87 @@ class ZoomMapSettingTab extends PluginSettingTab {
             }
           }),
       );
+	  
+	  // Custom units
+    new Setting(containerEl).setName("Custom units").setHeading();
+
+    const customUnitsWrap = containerEl.createDiv();
+    const renderCustomUnits = () => {
+      customUnitsWrap.empty();
+
+      const ext = this.plugin.settings as ZoomMapSettingsExtended;
+      ext.customUnits ??= [];
+      const units = ext.customUnits;
+
+      if (units.length === 0) {
+        customUnitsWrap.createEl("div", {
+          text: "No custom units defined yet.",
+        });
+      } else {
+        units.forEach((u, idx) => {
+          const row = customUnitsWrap.createDiv();
+          row.style.display = "grid";
+          row.style.gridTemplateColumns = "1.5fr 1fr 1fr auto";
+          row.style.gap = "8px";
+          row.style.alignItems = "center";
+          row.style.marginBottom = "4px";
+
+          const nameInput = row.createEl("input", { type: "text" });
+          nameInput.placeholder = "Name (e.g. Hex)";
+          nameInput.value = u.name;
+          nameInput.oninput = () => {
+            u.name = nameInput.value.trim();
+            void this.plugin.saveSettings();
+          };
+
+          const abbrInput = row.createEl("input", { type: "text" });
+          abbrInput.placeholder = "Abbreviation";
+          abbrInput.value = u.abbreviation;
+          abbrInput.oninput = () => {
+            u.abbreviation = abbrInput.value.trim();
+            void this.plugin.saveSettings();
+          };
+
+          const factorInput = row.createEl("input", { type: "number" });
+          factorInput.placeholder = "1.0";
+          factorInput.value = String(u.metersPerUnit);
+          factorInput.step = "0.0001";
+          factorInput.oninput = () => {
+            const n = Number(factorInput.value);
+            if (Number.isFinite(n) && n > 0) {
+              u.metersPerUnit = n;
+              void this.plugin.saveSettings();
+            }
+          };
+
+          const delBtn = row.createEl("button", { text: "Delete" });
+          delBtn.onclick = async () => {
+            units.splice(idx, 1);
+            await this.plugin.saveSettings();
+            renderCustomUnits();
+          };
+        });
+      }
+
+      const addBtn = customUnitsWrap.createEl("button", {
+        text: "Add custom unit",
+      });
+      addBtn.style.marginTop = "6px";
+      addBtn.onclick = async () => {
+        const ext2 = this.plugin.settings as ZoomMapSettingsExtended;
+        ext2.customUnits ??= [];
+        const id = `cu-${Math.random().toString(36).slice(2, 8)}`;
+        ext2.customUnits.push({
+          id,
+          name: "Hex",
+          abbreviation: "hex",
+          metersPerUnit: 5 * 0.3048, // default 5 ft
+        } as CustomUnitDef);
+        await this.plugin.saveSettings();
+        renderCustomUnits();
+      };
+    };
+    renderCustomUnits();
 
     /* ---------------- Collections ---------------- */
 
@@ -648,7 +802,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
       collectionsWrap.empty();
 
       const hint = collectionsWrap.createEl("div", {
-        text: "Collections bundle pins, favorites and stickers for specific base images. Create a 'Global' collection without bindings for items that should be available everywhere.",
+        text: "Collections bundle pins, favorites and stickers for specific base images. Create a 'global' collection without bindings for items that should be available everywhere.",
       });
       hint.style.marginBottom = "8px";
 
@@ -670,20 +824,25 @@ class ZoomMapSettingTab extends PluginSettingTab {
 
           const edit = row.createEl("button", { text: "Edit" });
           edit.onclick = () => {
-            new CollectionEditorModal(this.app, this.plugin, c, async (updated, deleted) => {
-              if (deleted) {
-                const arr = this.plugin.settings.baseCollections ?? [];
-                const pos = arr.indexOf(c);
-                if (pos >= 0) arr.splice(pos, 1);
-                await this.plugin.saveSettings();
-                renderCollections();
-                return;
-              }
-              if (updated) {
-                await this.plugin.saveSettings();
-                renderCollections();
-              }
-            }).open();
+            new CollectionEditorModal(
+              this.app,
+              this.plugin,
+              c,
+              async ({ updated, deleted }) => {
+                if (deleted) {
+                  const arr = this.plugin.settings.baseCollections ?? [];
+                  const pos = arr.indexOf(c);
+                  if (pos >= 0) arr.splice(pos, 1);
+                  await this.plugin.saveSettings();
+                  renderCollections();
+                  return;
+                }
+                if (updated) {
+                  await this.plugin.saveSettings();
+                  renderCollections();
+                }
+              },
+            ).open();
           };
 
           const del = row.createEl("button", { text: "Delete" });
@@ -706,20 +865,26 @@ class ZoomMapSettingTab extends PluginSettingTab {
           bindings: { basePaths: [] }, // unbound (global) until base added
           include: { pinKeys: [], favorites: [], stickers: [] },
         };
-        new CollectionEditorModal(this.app, this.plugin, fresh, async (updated, deleted) => {
-          if (deleted) return;
-          if (updated) {
-            this.plugin.settings.baseCollections = this.plugin.settings.baseCollections ?? [];
-            this.plugin.settings.baseCollections.push(fresh);
-            await this.plugin.saveSettings();
-            renderCollections();
-          }
-        }).open();
+        new CollectionEditorModal(
+          this.app,
+          this.plugin,
+          fresh,
+          async ({ updated, deleted }) => {
+            if (deleted) return;
+            if (updated) {
+              this.plugin.settings.baseCollections =
+                this.plugin.settings.baseCollections ?? [];
+              this.plugin.settings.baseCollections.push(fresh);
+              await this.plugin.saveSettings();
+              renderCollections();
+            }
+          },
+        ).open();
       };
     };
     renderCollections();
 
-    /* ---------------- Marker icons (library) ---------------- */
+   /* ---------------- Marker icons (library) ---------------- */
 
     new Setting(containerEl).setName("Marker icons (library)").setHeading();
 
@@ -733,7 +898,8 @@ class ZoomMapSettingTab extends PluginSettingTab {
       t.setPlaceholder("ZoomMap/library.json");
       t.setValue(ext.libraryFilePath ?? "ZoomMap/library.json");
       t.onChange((v) => {
-        (this.plugin.settings as ZoomMapSettingsExtended).libraryFilePath = v.trim() || "ZoomMap/library.json";
+        (this.plugin.settings as ZoomMapSettingsExtended).libraryFilePath =
+          v.trim() || "ZoomMap/library.json";
         void this.plugin.saveSettings();
       });
     });
@@ -741,7 +907,8 @@ class ZoomMapSettingTab extends PluginSettingTab {
     libRow.addButton((b) =>
       b.setButtonText("Pick…").onClick(() => {
         new JsonFileSuggestModal(this.app, async (file) => {
-          (this.plugin.settings as ZoomMapSettingsExtended).libraryFilePath = file.path;
+          (this.plugin.settings as ZoomMapSettingsExtended).libraryFilePath =
+            file.path;
           await this.plugin.saveSettings();
           this.display();
         }).open();
@@ -751,7 +918,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
     libRow.addButton((b) =>
       b.setButtonText("Save now").onClick(async () => {
         const ext = this.plugin.settings as ZoomMapSettingsExtended;
-        const p = (ext.libraryFilePath?.trim()) ?? "ZoomMap/library.json";
+        const p = ext.libraryFilePath?.trim() ?? "ZoomMap/library.json";
         await this.plugin.saveLibraryToPath(p);
       }),
     );
@@ -765,7 +932,49 @@ class ZoomMapSettingTab extends PluginSettingTab {
       }),
     );
 
-    const iconsHead = containerEl.createDiv({ cls: "zm-icons-grid-head zm-grid" });
+    // Font Awesome section
+    new Setting(containerEl).setName("Font awesome free").setHeading();
+
+    const faRow = new Setting(containerEl)
+      .setName("Font awesome folder in vault")
+      .setDesc(
+        "Zoom map will load SVG icons from this folder. Place SVG files here or download the font awesome free zip.",
+      );
+
+    faRow.addText((t) => {
+      const ext = this.plugin.settings as ZoomMapSettingsExtended;
+      t.setPlaceholder("ZoomMap/FontAwesome");
+      t.setValue(ext.faFolderPath ?? "ZoomMap/FontAwesome");
+      t.onChange((v) => {
+        ext.faFolderPath = (v || "ZoomMap/FontAwesome").trim();
+        void this.plugin.saveSettings();
+      });
+    });
+
+    faRow.addButton((b) =>
+      b.setButtonText("Ensure folder").onClick(async () => {
+        const ext = this.plugin.settings as ZoomMapSettingsExtended;
+        const folder = normalizePath(
+          ext.faFolderPath?.trim() || "ZoomMap/FontAwesome",
+        );
+        if (!this.app.vault.getAbstractFileByPath(folder)) {
+          await this.app.vault.createFolder(folder);
+          new Notice(`Created folder: ${folder}`, 2000);
+        } else {
+          new Notice("Folder already exists.", 1500);
+        }
+      }),
+    );
+
+    faRow.addButton((b) =>
+      b.setButtonText("Download zip").onClick(async () => {
+        await this.plugin.downloadFontAwesomeZip();
+      }),
+    );
+
+    const iconsHead = containerEl.createDiv({
+      cls: "zm-icons-grid-head zm-grid",
+    });
     iconsHead.createSpan({ text: "Name" });
     iconsHead.createSpan({ text: "Path / data:URL" });
     iconsHead.createSpan({ text: "Size" });
@@ -865,7 +1074,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Add new icon")
-      .setDesc("Creates an empty icon entry; pick a file or paste a data URL.")
+      .setDesc("Create an empty icon entry or import one from font awesome.")
       .addButton((b) =>
         b.setButtonText("Add").onClick(() => {
           const idx = this.plugin.settings.icons.length + 1;
@@ -878,6 +1087,26 @@ class ZoomMapSettingTab extends PluginSettingTab {
           });
           void this.plugin.saveSettings();
           this.display();
+        }),
+      )
+      .addButton((b) =>
+        b.setButtonText("Add from font awesome…").onClick(() => {
+          const ext = this.plugin.settings as ZoomMapSettingsExtended;
+          const folder =
+            ext.faFolderPath?.trim() || "ZoomMap/FontAwesome";
+
+          new FaIconPickerModal(this.app, folder, (file: TFile) => {
+            new FaCreateIconModal(
+              this.app,
+              this.plugin,
+              file,
+              async (profile) => {
+                this.plugin.settings.icons.push(profile);
+                await this.plugin.saveSettings();
+                this.display();
+              },
+            ).open();
+          }).open();
         }),
       );
   }

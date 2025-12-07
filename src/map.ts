@@ -15,6 +15,7 @@ import { NoteMarkerStore } from "./inlineStore";
 import { ImageFileSuggestModal } from "./iconFileSuggest";
 import { NamePromptModal } from "./namePrompt";
 import { RenameLayerModal, DeleteLayerModal } from "./layerManageModals";
+import { PinSizeEditorModal, type PinSizeEditorRow } from "./pinSizeEditorModal";
 
 /* ===== Collections (base-bound) ===== */
 export interface MarkerPreset {
@@ -89,6 +90,13 @@ export interface IconProfile {
   anchorY: number;
 }
 
+export interface CustomUnitDef {
+  id: string;
+  name: string;
+  abbreviation: string;
+  metersPerUnit: number;
+}
+
 export interface ZoomMapSettings {
   icons: IconProfile[];
   defaultIconKey: string;
@@ -108,6 +116,7 @@ export interface ZoomMapSettings {
   storageDefault: "json" | "note";
   baseCollections?: BaseCollection[];
   pinPlaceOpensEditor?: boolean;
+  customUnits?: CustomUnitDef[];
 }
 
 interface Point { x: number; y: number; }
@@ -148,6 +157,7 @@ export class MapInstance extends Component {
   private imgEl!: HTMLImageElement;
   private overlaysEl!: HTMLDivElement;
   private markersEl!: HTMLDivElement;
+  private hudMarkersEl!: HTMLDivElement;
 
   private measureEl!: HTMLDivElement;
   private measureSvg!: SVGSVGElement;
@@ -172,13 +182,7 @@ export class MapInstance extends Component {
   private overlayLoading: Map<string, Promise<CanvasImageSource | null>> = new Map<string, Promise<CanvasImageSource | null>>();
 
   private cfg: ZoomMapConfig;
-  private store: {
-    getPath(): string;
-    ensureExists(a?: string, b?: { w: number; h: number }): Promise<void>;
-    load(): Promise<MarkerFileData>;
-    save(d: MarkerFileData): Promise<void>;
-    wouldChange(d: MarkerFileData): Promise<boolean>;
-  };
+  private store: MarkerStore | NoteMarkerStore;
   private data: MarkerFileData | undefined;
 
   private imgW = 0;
@@ -321,8 +325,10 @@ export class MapInstance extends Component {
     this.overlaysEl = this.worldEl.createDiv({ cls: "zm-overlays" });
     this.markersEl = this.worldEl.createDiv({ cls: "zm-markers" });
 
+    this.hudMarkersEl = this.viewportEl.createDiv({ cls: "zm-hud-markers" });
+
     this.measureHud = this.viewportEl.createDiv({ cls: "zm-measure-hud" });
-	this.zoomHud = this.viewportEl.createDiv({ cls: "zm-zoom-hud" });
+    this.zoomHud = this.viewportEl.createDiv({ cls: "zm-zoom-hud" });
 
     this.registerDomEvent(this.viewportEl, "wheel", (e: WheelEvent) => {
       const t = e.target;
@@ -780,22 +786,47 @@ export class MapInstance extends Component {
     return px * mpp;
   }
 
-  private formatDistance(m: number): string {
-    const unit = this.data?.measurement?.displayUnit ?? "auto-metric";
-    const round = (v: number, d = 2) => Math.round(v * 10 ** d) / 10 ** d;
+ private formatDistance(m: number): string {
+    const meas = this.data?.measurement;
+    const unit = meas?.displayUnit ?? "auto-metric";
+    const round = (v: number, d = 2) =>
+      Math.round(v * 10 ** d) / 10 ** d;
+
+    if (unit === "custom") {
+      const defs = this.plugin.settings.customUnits ?? [];
+      if (defs.length === 0) {
+        return `${round(m, 2)} u`;
+      }
+      const activeId = meas?.customUnitId;
+      const def =
+        (activeId && defs.find((d) => d.id === activeId)) ??
+        defs[0];
+
+      const val = m / (def.metersPerUnit || 1);
+      const label = def.abbreviation || def.name || "u";
+      return `${round(val, 2)} ${label}`;
+    }
 
     switch (unit) {
-      case "m": return `${Math.round(m)} m`;
-      case "km": return `${round(m / 1000, 3)} km`;
-      case "mi": return `${round(m / 1609.344, 3)} mi`;
-      case "ft": return `${Math.round(m / 0.3048)} ft`;
+      case "m":
+        return `${Math.round(m)} m`;
+      case "km":
+        return `${round(m / 1000, 3)} km`;
+      case "mi":
+        return `${round(m / 1609.344, 3)} mi`;
+      case "ft":
+        return `${Math.round(m / 0.3048)} ft`;
       case "auto-imperial": {
         const mi = m / 1609.344;
-        return mi >= 0.25 ? `${round(mi, 2)} mi` : `${Math.round(m / 0.3048)} ft`;
+        return mi >= 0.25
+          ? `${round(mi, 2)} mi`
+          : `${Math.round(m / 0.3048)} ft`;
       }
       case "auto-metric":
       default:
-        return m >= 1000 ? `${round(m / 1000, 2)} km` : `${Math.round(m)} m`;
+        return m >= 1000
+          ? `${round(m / 1000, 2)} km`
+          : `${Math.round(m)} m`;
     }
   }
 
@@ -824,15 +855,25 @@ export class MapInstance extends Component {
     this.vw = r.width;
     this.vh = r.height;
 
+    // Update HUD pins first, based on new viewport size
+    this.updateHudPinsForResize(r);
+
     if (this.cfg.responsive) {
       this.fitToView();
       if (this.isCanvas()) this.renderCanvas();
+      this.renderMarkersOnly();
       return;
     }
 
     this.applyTransform(this.scale, this.tx, this.ty, true);
+    this.renderMarkersOnly();
 
-    if (this.shouldUseSavedFrame() && this.cfg.resizable && this.cfg.resizeHandle === "native" && !this.userResizing) {
+    if (
+      this.shouldUseSavedFrame() &&
+      this.cfg.resizable &&
+      this.cfg.resizeHandle === "native" &&
+      !this.userResizing
+    ) {
       if (!this.initialLayoutDone) this.initialLayoutDone = true;
       else if (this.isFrameVisibleEnough()) this.requestPersistFrame();
     }
@@ -878,28 +919,61 @@ export class MapInstance extends Component {
   private onPointerMove(e: PointerEvent): void {
     if (!this.ready) return;
 
-    if (this.activePointers.has(e.pointerId)) this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.activePointers.has(e.pointerId)) {
+      this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
 
-    if (this.pinchActive) { this.updatePinch(); return; }
+    if (this.pinchActive) {
+      this.updatePinch();
+      return;
+    }
 
     if (this.draggingMarkerId && this.data) {
       const m = this.data.markers.find((mm) => mm.id === this.draggingMarkerId);
       if (!m) return;
+
       const vpRect = this.viewportEl.getBoundingClientRect();
       const vx = e.clientX - vpRect.left;
       const vy = e.clientY - vpRect.top;
-      const wx = (vx - this.tx) / this.scale;
-      const wy = (vy - this.ty) / this.scale;
-
       const off = this.dragAnchorOffset ?? { dx: 0, dy: 0 };
-      const nx = clamp((wx - off.dx) / this.imgW, 0, 1);
-      const ny = clamp((wy - off.dy) / this.imgH, 0, 1);
 
-      const movedEnough = Math.hypot((nx - m.x) * this.imgW, (ny - m.y) * this.imgH) > 1;
-      if (movedEnough) this.dragMoved = true;
+      if (m.anchorSpace === "viewport") {
+        const vw = vpRect.width || 1;
+        const vh = vpRect.height || 1;
 
-      m.x = nx;
-      m.y = ny;
+        const leftScreen = vx - off.dx;
+        const topScreen = vy - off.dy;
+
+        const prevX = m.hudX ?? leftScreen;
+        const prevY = m.hudY ?? topScreen;
+
+        m.hudX = leftScreen;
+        m.hudY = topScreen;
+        m.hudLastWidth = vw;
+        m.hudLastHeight = vh;
+        m.x = vw > 0 ? leftScreen / vw : 0;
+        m.y = vh > 0 ? topScreen / vh : 0;
+
+        const movedEnough =
+          Math.hypot(leftScreen - prevX, topScreen - prevY) > 1;
+        if (movedEnough) this.dragMoved = true;
+      } else {
+        const wx = (vx - this.tx) / this.scale;
+        const wy = (vy - this.ty) / this.scale;
+
+        const nx = clamp((wx - off.dx) / this.imgW, 0, 1);
+        const ny = clamp((wy - off.dy) / this.imgH, 0, 1);
+
+        const movedEnough = Math.hypot(
+          (nx - m.x) * this.imgW,
+          (ny - m.y) * this.imgH,
+        ) > 1;
+        if (movedEnough) this.dragMoved = true;
+
+        m.x = nx;
+        m.y = ny;
+      }
+
       this.renderMarkersOnly();
       return;
     }
@@ -910,7 +984,10 @@ export class MapInstance extends Component {
       const vy = e.clientY - vpRect.top;
       const wx = (vx - this.tx) / this.scale;
       const wy = (vy - this.ty) / this.scale;
-      this.measurePreview = { x: clamp(wx / this.imgW, 0, 1), y: clamp(wy / this.imgH, 0, 1) };
+      this.measurePreview = {
+        x: clamp(wx / this.imgW, 0, 1),
+        y: clamp(wy / this.imgH, 0, 1),
+      };
       this.renderMeasure();
     }
 
@@ -920,7 +997,10 @@ export class MapInstance extends Component {
       const vy = e.clientY - vpRect.top;
       const wx = (vx - this.tx) / this.scale;
       const wy = (vy - this.ty) / this.scale;
-      this.calibPreview = { x: clamp(wx / this.imgW, 0, 1), y: clamp(wy / this.imgH, 0, 1) };
+      this.calibPreview = {
+        x: clamp(wx / this.imgW, 0, 1),
+        y: clamp(wy / this.imgH, 0, 1),
+      };
       this.renderCalibrate();
     }
 
@@ -935,26 +1015,45 @@ export class MapInstance extends Component {
   }
 
   private onPointerUp(): void {
-    if (this.draggingMarkerId) {
-      if (this.dragMoved) {
-        this.suppressClickMarkerId = this.draggingMarkerId;
-        window.setTimeout(() => { this.suppressClickMarkerId = null; }, 0);
-        void this.saveDataSoon();
-      }
-    }
-    this.draggingMarkerId = null;
-    this.dragAnchorOffset = null;
-    this.dragMoved = false;
-    document.body.classList.remove("zm-cursor-grabbing");
+  if (this.draggingMarkerId) {
+    const draggedId = this.draggingMarkerId;
+    const wasMoved = this.dragMoved;
 
-    this.draggingView = false;
-    this.panAccDx = 0;
-    this.panAccDy = 0;
-    if (this.panRAF != null) {
-      cancelAnimationFrame(this.panRAF);
-      this.panRAF = null;
+    if (wasMoved && this.data) {
+      const m = this.data.markers.find((mm) => mm.id === draggedId);
+      if (m && m.anchorSpace === "viewport") {
+        const vpRect = this.viewportEl.getBoundingClientRect();
+        this.classifyHudMetaFromCurrentPosition(m, vpRect);
+      }
+
+      this.suppressClickMarkerId = draggedId;
+      window.setTimeout(() => {
+        this.suppressClickMarkerId = null;
+      }, 0);
+
+      void this.saveDataSoon();
     }
+
+    // Ensure dragging class is removed even if pointerup happens outside the marker
+    const host =
+      this.markersEl.querySelector<HTMLElement>(`.zm-marker[data-id="${draggedId}"]`) ??
+      this.hudMarkersEl.querySelector<HTMLElement>(`.zm-marker[data-id="${draggedId}"]`);
+    if (host) host.classList.remove("zm-marker--dragging");
   }
+
+  this.draggingMarkerId = null;
+  this.dragAnchorOffset = null;
+  this.dragMoved = false;
+  document.body.classList.remove("zm-cursor-grabbing");
+
+  this.draggingView = false;
+  this.panAccDx = 0;
+  this.panAccDy = 0;
+  if (this.panRAF != null) {
+    cancelAnimationFrame(this.panRAF);
+    this.panRAF = null;
+  }
+}
 
   private startPinch(): void {
     const pts = this.getTwoPointers();
@@ -1028,7 +1127,7 @@ export class MapInstance extends Component {
     this.zoomAt(cx, cy, 1.5);
   }
 
-  private onClickViewport(e: MouseEvent): void {
+    private onClickViewport(e: MouseEvent): void {
     if (!this.ready) return;
 
     if (this.calibrating) {
@@ -1037,23 +1136,71 @@ export class MapInstance extends Component {
       const vy = e.clientY - vpRect.top;
       const wx = (vx - this.tx) / this.scale;
       const wy = (vy - this.ty) / this.scale;
-      const p = { x: clamp(wx / this.imgW, 0, 1), y: clamp(wy / this.imgH, 0, 1) };
+      const p = {
+        x: clamp(wx / this.imgW, 0, 1),
+        y: clamp(wy / this.imgH, 0, 1),
+      };
       this.calibPts.push(p);
+
       if (this.calibPts.length === 2) {
         const pxDist = Math.hypot(
           (this.calibPts[1].x - this.calibPts[0].x) * this.imgW,
           (this.calibPts[1].y - this.calibPts[0].y) * this.imgH,
         );
-        new ScaleCalibrateModal(this.app, pxDist, (result) => {
-          void this.applyScaleCalibration(result.metersPerPixel);
-          new Notice(`Scale set: ${result.metersPerPixel.toFixed(6)} m/px`, 2000);
-          this.calibrating = false;
-          this.calibPts = [];
-          this.calibPreview = null;
-          this.renderCalibrate();
-          this.updateMeasureHud();
-        }).open();
+
+        const meas = this.data?.measurement;
+        let initialUnit: "m" | "km" | "mi" | "ft" | "custom" | undefined;
+        let customLabel: string | undefined;
+        let customAbbr: string | undefined;
+        let customMetersPerUnit: number | undefined;
+
+        if (meas?.displayUnit === "custom") {
+          const defs = this.plugin.settings.customUnits ?? [];
+          const def =
+            (meas.customUnitId &&
+              defs.find((d) => d.id === meas.customUnitId)) ??
+            defs[0];
+          if (def) {
+            initialUnit = "custom";
+            customLabel = def.name;
+            customAbbr = def.abbreviation;
+            customMetersPerUnit = def.metersPerUnit;
+          }
+        } else if (
+          meas?.displayUnit === "m" ||
+          meas?.displayUnit === "km" ||
+          meas?.displayUnit === "mi" ||
+          meas?.displayUnit === "ft"
+        ) {
+          initialUnit = meas.displayUnit;
+        } else {
+          initialUnit = "km";
+        }
+
+        new ScaleCalibrateModal(
+          this.app,
+          pxDist,
+          (result) => {
+            void this.applyScaleCalibration(result.metersPerPixel);
+            new Notice(
+              `Scale set: ${result.metersPerPixel.toFixed(6)} m/px`,
+              2000,
+            );
+            this.calibrating = false;
+            this.calibPts = [];
+            this.calibPreview = null;
+            this.renderCalibrate();
+            this.updateMeasureHud();
+          },
+          {
+            initialUnit,
+            customLabel,
+            customAbbreviation: customAbbr,
+            customMetersPerUnit,
+          },
+        ).open();
       }
+
       this.renderCalibrate();
       return;
     }
@@ -1064,7 +1211,10 @@ export class MapInstance extends Component {
       const vy = e.clientY - vpRect.top;
       const wx = (vx - this.tx) / this.scale;
       const wy = (vy - this.ty) / this.scale;
-      const p = { x: clamp(wx / this.imgW, 0, 1), y: clamp(wy / this.imgH, 0, 1) };
+      const p = {
+        x: clamp(wx / this.imgW, 0, 1),
+        y: clamp(wy / this.imgH, 0, 1),
+      };
       this.measurePts.push(p);
       this.renderMeasure();
       return;
@@ -1073,7 +1223,7 @@ export class MapInstance extends Component {
     if (e.shiftKey) {
       const vpRect = this.viewportEl.getBoundingClientRect();
       const vx = e.clientX - vpRect.left;
-      const vy = e.clientY - vpRect.top; // FIX: was vp.top
+      const vy = e.clientY - vpRect.top;
       const wx = (vx - this.tx) / this.scale;
       const wy = (vy - this.ty) / this.scale;
       const nx = clamp(wx / this.imgW, 0, 1);
@@ -1180,15 +1330,17 @@ export class MapInstance extends Component {
     return { pinsBase, pinsGlobal, favsBase, favsGlobal, stickersBase, stickersGlobal };
   }
 
-  private onContextMenuViewport(e: MouseEvent): void {
+private onContextMenuViewport(e: MouseEvent): void {
     if (!this.ready || !this.data) return;
     this.closeMenu();
 
     const vpRect = this.viewportEl.getBoundingClientRect();
     const vx = e.clientX - vpRect.left;
     const vy = e.clientY - vpRect.top;
+
     const wx = (vx - this.tx) / this.scale;
     const wy = (vy - this.ty) / this.scale;
+
     const nx = clamp(wx / this.imgW, 0, 1);
     const ny = clamp(wy / this.imgH, 0, 1);
 
@@ -1200,7 +1352,8 @@ export class MapInstance extends Component {
         void this.setActiveBase(b.path)
           .then(() => {
             const submenu = rowEl.parentElement;
-            const rows = submenu?.querySelectorAll<HTMLDivElement>(".zm-menu__item");
+            const rows =
+              submenu?.querySelectorAll<HTMLDivElement>(".zm-menu__item");
             rows?.forEach((r) => {
               const c = r.querySelector<HTMLElement>(".zm-menu__check");
               if (c) c.textContent = "";
@@ -1227,90 +1380,125 @@ export class MapInstance extends Component {
       },
     }));
 
-    const unit = this.data.measurement?.displayUnit ?? "auto-metric";
+    const meas = this.data.measurement;
+    const currentUnit = meas?.displayUnit ?? "auto-metric";
+    const currentCustomId = meas?.customUnitId;
+
     const unitItems: ZMMenuItem[] = [
       {
         label: "Auto (m/km)",
-        checked: unit === "auto-metric",
+        checked: currentUnit === "auto-metric",
         action: () => {
           this.ensureMeasurement();
           if (this.data?.measurement) {
             this.data.measurement.displayUnit = "auto-metric";
+            delete this.data.measurement.customUnitId;
             void this.saveDataSoon();
             this.updateMeasureHud();
           }
-		  this.closeMenu();
+          this.closeMenu();
         },
       },
       {
         label: "Auto (mi/ft)",
-        checked: unit === "auto-imperial",
+        checked: currentUnit === "auto-imperial",
         action: () => {
           this.ensureMeasurement();
           if (this.data?.measurement) {
             this.data.measurement.displayUnit = "auto-imperial";
+            delete this.data.measurement.customUnitId;
             void this.saveDataSoon();
             this.updateMeasureHud();
           }
-		  this.closeMenu();
+          this.closeMenu();
         },
       },
       {
         label: "m",
-        checked: unit === "m",
+        checked: currentUnit === "m",
         action: () => {
           this.ensureMeasurement();
           if (this.data?.measurement) {
             this.data.measurement.displayUnit = "m";
+            delete this.data.measurement.customUnitId;
             void this.saveDataSoon();
             this.updateMeasureHud();
           }
-		  this.closeMenu();
+          this.closeMenu();
         },
       },
       {
         label: "km",
-        checked: unit === "km",
+        checked: currentUnit === "km",
         action: () => {
           this.ensureMeasurement();
           if (this.data?.measurement) {
             this.data.measurement.displayUnit = "km";
+            delete this.data.measurement.customUnitId;
             void this.saveDataSoon();
             this.updateMeasureHud();
           }
-		  this.closeMenu();
+          this.closeMenu();
         },
       },
       {
         label: "mi",
-        checked: unit === "mi",
+        checked: currentUnit === "mi",
         action: () => {
           this.ensureMeasurement();
           if (this.data?.measurement) {
             this.data.measurement.displayUnit = "mi";
+            delete this.data.measurement.customUnitId;
             void this.saveDataSoon();
             this.updateMeasureHud();
           }
-		  this.closeMenu();
+          this.closeMenu();
         },
       },
       {
         label: "ft",
-        checked: unit === "ft",
+        checked: currentUnit === "ft",
         action: () => {
           this.ensureMeasurement();
           if (this.data?.measurement) {
             this.data.measurement.displayUnit = "ft";
+            delete this.data.measurement.customUnitId;
             void this.saveDataSoon();
             this.updateMeasureHud();
           }
-		  this.closeMenu();
+          this.closeMenu();
         },
       },
     ];
 
-    // Collections
-    const { pinsBase, pinsGlobal, favsBase, favsGlobal, stickersBase, stickersGlobal } = this.computeCollectionSets();
+    const customDefs = this.plugin.settings.customUnits ?? [];
+    if (customDefs.length > 0) {
+      unitItems.push({ type: "separator" });
+
+      for (const def of customDefs) {
+        const isActive =
+          currentUnit === "custom" && currentCustomId === def.id;
+        unitItems.push({
+          label: def.abbreviation
+            ? `${def.name} (${def.abbreviation})`
+            : def.name,
+          checked: isActive,
+          action: () => {
+            this.ensureMeasurement();
+            if (this.data?.measurement) {
+              this.data.measurement.displayUnit = "custom";
+              this.data.measurement.customUnitId = def.id;
+              void this.saveDataSoon();
+              this.updateMeasureHud();
+            }
+            this.closeMenu();
+          },
+        });
+      }
+    }
+
+    const { pinsBase, pinsGlobal, favsBase, favsGlobal, stickersBase, stickersGlobal } =
+      this.computeCollectionSets();
 
     const pinItemFromKey = (key: string): ZMMenuItem | null => {
       const info = this.getIconInfo(key);
@@ -1324,8 +1512,12 @@ export class MapInstance extends Component {
         },
       };
     };
-    const pinsBaseMenu = pinsBase.map(pinItemFromKey).filter((x): x is ZMMenuItem => !!x);
-    const pinsGlobalMenu = pinsGlobal.map(pinItemFromKey).filter((x): x is ZMMenuItem => !!x);
+    const pinsBaseMenu = pinsBase
+      .map(pinItemFromKey)
+      .filter((x): x is ZMMenuItem => !!x);
+    const pinsGlobalMenu = pinsGlobal
+      .map(pinItemFromKey)
+      .filter((x): x is ZMMenuItem => !!x);
 
     const favItems = (arr: MarkerPreset[]): ZMMenuItem[] =>
       arr.map((p) => {
@@ -1361,7 +1553,7 @@ export class MapInstance extends Component {
         label: "Default (open editor)",
         action: () => {
           this.addMarkerInteractive(nx, ny);
-          this.closeMenu(); // nach dem Platzieren Menü schließen
+          this.closeMenu();
         },
       },
     ];
@@ -1369,19 +1561,47 @@ export class MapInstance extends Component {
       addHereChildren.push({ type: "separator" });
       addHereChildren.push({ label: "Pins (base)", children: pinsBaseMenu });
     }
-    if (pinsGlobalMenu.length) addHereChildren.push({ label: "Pins (global)", children: pinsGlobalMenu });
+    if (pinsGlobalMenu.length) {
+      addHereChildren.push({ label: "Pins (global)", children: pinsGlobalMenu });
+    }
     if (favsBaseMenu.length) {
       addHereChildren.push({ type: "separator" });
       addHereChildren.push({ label: "Favorites (base)", children: favsBaseMenu });
     }
-    if (favsGlobalMenu.length) addHereChildren.push({ label: "Favorites (global)", children: favsGlobalMenu });
+    if (favsGlobalMenu.length) {
+      addHereChildren.push({
+        label: "Favorites (global)",
+        children: favsGlobalMenu,
+      });
+    }
     if (stickersBaseMenu.length) {
       addHereChildren.push({ type: "separator" });
-      addHereChildren.push({ label: "Stickers (base)", children: stickersBaseMenu });
+      addHereChildren.push({
+        label: "Stickers (base)",
+        children: stickersBaseMenu,
+      });
     }
-    if (stickersGlobalMenu.length) addHereChildren.push({ label: "Stickers (global)", children: stickersGlobalMenu });
+    if (stickersGlobalMenu.length) {
+      addHereChildren.push({
+        label: "Stickers (global)",
+        children: stickersGlobalMenu,
+      });
+    }
 
-    const items: ZMMenuItem[] = [{ label: "Add marker here", children: addHereChildren }];
+    addHereChildren.push(
+      { type: "separator" },
+      {
+        label: "Add HUD pin here",
+        action: () => {
+          this.addHudPin(vx, vy);
+          this.closeMenu();
+        },
+      },
+    );
+
+    const items: ZMMenuItem[] = [
+      { label: "Add marker here", children: addHereChildren },
+    ];
 
     const layerChildren: ZMMenuItem[] = this.data.layers.map((layer) => {
       const state = this.getLayerState(layer);
@@ -1408,11 +1628,13 @@ export class MapInstance extends Component {
 
     const labelForBase = (p: string) => {
       const b = bases.find((bb) => bb.path === p);
-      return b ? (b.name ?? basename(b.path)) : basename(p);
+      return b ? b.name ?? basename(b.path) : basename(p);
     };
 
     const bindLayerSubmenus: ZMMenuItem[] = this.data.layers.map((l) => {
-      const suffix = l.boundBase ? ` → ${labelForBase(l.boundBase)}` : " → None";
+      const suffix = l.boundBase
+        ? ` → ${labelForBase(l.boundBase)}`
+        : " → None";
       return {
         label: `Bind "${l.name}" to base${suffix}`,
         children: [
@@ -1423,7 +1645,9 @@ export class MapInstance extends Component {
               l.boundBase = undefined;
               void this.saveDataSoon();
               const menu = rowEl.parentElement;
-              menu?.querySelectorAll<HTMLElement>(".zm-menu__check").forEach((c) => (c.textContent = ""));
+              menu
+                ?.querySelectorAll<HTMLElement>(".zm-menu__check")
+                .forEach((c) => (c.textContent = ""));
               const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
               if (chk) chk.textContent = "✓";
             },
@@ -1437,7 +1661,9 @@ export class MapInstance extends Component {
               void this.applyBoundBaseVisibility();
               void this.saveDataSoon();
               const menu = rowEl.parentElement;
-              menu?.querySelectorAll<HTMLElement>(".zm-menu__check").forEach((c) => (c.textContent = ""));
+              menu
+                ?.querySelectorAll<HTMLElement>(".zm-menu__check")
+                .forEach((c) => (c.textContent = ""));
               const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
               if (chk) chk.textContent = "✓";
             },
@@ -1465,19 +1691,22 @@ export class MapInstance extends Component {
       {
         label: "Measure",
         children: [
-		  {
-			label: this.measuring ? "Stop measuring" : "Start measuring",
-			action: () => {
-			  this.measuring = !this.measuring;
-			  if (!this.measuring) {
-				this.measurePreview = null;
-			  }
-			  this.updateMeasureHud();
-			  this.renderMeasure();
-			  this.closeMenu();
-			},
-		  },
-          { label: "Clear measurement", action: () => this.clearMeasure() },
+          {
+            label: this.measuring ? "Stop measuring" : "Start measuring",
+            action: () => {
+              this.measuring = !this.measuring;
+              if (!this.measuring) {
+                this.measurePreview = null;
+              }
+              this.updateMeasureHud();
+              this.renderMeasure();
+              this.closeMenu();
+            },
+          },
+          {
+            label: "Clear measurement",
+            action: () => this.clearMeasure(),
+          },
           {
             label: "Remove last point",
             action: () => {
@@ -1522,7 +1751,9 @@ export class MapInstance extends Component {
             children: this.data.layers.map((l) => ({
               label: l.name,
               action: () => {
-                new RenameLayerModal(this.app, l, (newName) => { void this.renameMarkerLayer(l, newName); }).open();
+                new RenameLayerModal(this.app, l, (newName) => {
+                  void this.renameMarkerLayer(l, newName);
+                }).open();
               },
             })),
           },
@@ -1532,13 +1763,37 @@ export class MapInstance extends Component {
               label: l.name,
               action: () => {
                 const others = this.data!.layers.filter((x) => x.id !== l.id);
-                if (others.length === 0) { new Notice("Cannot delete the last layer.", 2000); return; }
-                const hasMarkers = this.data!.markers.some((m) => m.layer === l.id);
-                new DeleteLayerModal(this.app, l, others, hasMarkers, (decision) => { void this.deleteMarkerLayer(l, decision); }).open();
+                if (others.length === 0) {
+                  new Notice("Cannot delete the last layer.", 2000);
+                  return;
+                }
+                const hasMarkers = this.data!.markers.some(
+                  (m) => m.layer === l.id,
+                );
+                new DeleteLayerModal(
+                  this.app,
+                  l,
+                  others,
+                  hasMarkers,
+                  (decision) => {
+                    void this.deleteMarkerLayer(l, decision);
+                  },
+                ).open();
               },
             })),
           },
         ],
+      },
+    );
+
+    items.push(
+      { type: "separator" },
+      {
+        label: "Pin sizes for this map…",
+        action: () => {
+          this.openPinSizeEditor();
+          this.closeMenu();
+        },
       },
     );
 
@@ -1550,7 +1805,12 @@ export class MapInstance extends Component {
         { label: "Fit to window", action: () => this.fitToView() },
         {
           label: "Reset view",
-          action: () => this.applyTransform(1, (this.vw - this.imgW) / 2, (this.vh - this.imgH) / 2),
+          action: () =>
+            this.applyTransform(
+              1,
+              (this.vw - this.imgW) / 2,
+              (this.vh - this.imgH) / 2,
+            ),
         },
       );
     }
@@ -1564,7 +1824,9 @@ export class MapInstance extends Component {
       if (t instanceof Node && this.openMenu.contains(t)) return;
       this.closeMenu();
     };
-    const keyClose = (ev: KeyboardEvent) => { if (ev.key === "Escape") this.closeMenu(); };
+    const keyClose = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") this.closeMenu();
+    };
     const rightClickClose = () => this.closeMenu();
 
     document.addEventListener("pointerdown", outside, { capture: true });
@@ -1676,19 +1938,28 @@ export class MapInstance extends Component {
     invs.forEach((el) => { el.style.transform = `scale(${invScale})`; });
   }
 
-  private updateMarkerZoomVisibilityOnly(): void {
+ private updateMarkerZoomVisibilityOnly(): void {
     const s = this.scale;
-    const nodes = this.markersEl.querySelectorAll<HTMLDivElement>(".zm-marker");
-    nodes.forEach((el) => {
-      const minStr = el.dataset.minz;
-      const maxStr = el.dataset.maxz;
-      const hasMin = typeof minStr === "string" && minStr.length > 0;
-      const hasMax = typeof maxStr === "string" && maxStr.length > 0;
-      const min = hasMin ? Number.parseFloat(minStr) : undefined;
-      const max = hasMax ? Number.parseFloat(maxStr) : undefined;
-      const visible = (!hasMin || (Number.isFinite(min!) && s >= (min!))) && (!hasMax || (Number.isFinite(max!) && s <= (max!)));
-      el.style.display = visible ? "" : "none";
-    });
+
+    const updateContainer = (root: HTMLElement | null) => {
+      if (!root) return;
+      const nodes = root.querySelectorAll<HTMLDivElement>(".zm-marker");
+      nodes.forEach((el) => {
+        const minStr = el.dataset.minz;
+        const maxStr = el.dataset.maxz;
+        const hasMin = typeof minStr === "string" && minStr.length > 0;
+        const hasMax = typeof maxStr === "string" && maxStr.length > 0;
+        const min = hasMin ? Number.parseFloat(minStr) : undefined;
+        const max = hasMax ? Number.parseFloat(maxStr) : undefined;
+        const visible =
+          (!hasMin || (Number.isFinite(min!) && s >= min!)) &&
+          (!hasMax || (Number.isFinite(max!) && s <= max!));
+        el.style.display = visible ? "" : "none";
+      });
+    };
+
+    updateContainer(this.markersEl);
+    updateContainer(this.hudMarkersEl);
   }
 
   private getBasesNormalized(): BaseImage[] {
@@ -1759,6 +2030,54 @@ export class MapInstance extends Component {
       void this.saveDataSoon();
       this.renderMarkersOnly();
       new Notice("Marker added.", 900);
+    }
+  }
+  
+  private addHudPin(hx: number, hy: number): void {
+    if (!this.data) return;
+
+    const defaultLayer =
+      this.data.layers.find((l) => l.visible) ?? this.data.layers[0];
+
+    const vpRect = this.viewportEl.getBoundingClientRect();
+
+    const draft: Marker = {
+      id: generateId("marker"),
+      x: 0,
+      y: 0,
+      layer: defaultLayer.id,
+      link: "",
+      iconKey: this.plugin.settings.defaultIconKey,
+      tooltip: "",
+      anchorSpace: "viewport",
+    };
+
+    draft.hudX = hx;
+    draft.hudY = hy;
+    this.classifyHudMetaFromCurrentPosition(draft, vpRect);
+
+    const openEditor = !!this.plugin.settings.pinPlaceOpensEditor;
+    if (openEditor) {
+      const modal = new MarkerEditorModal(
+        this.app,
+        this.plugin,
+        this.data,
+        draft,
+        (res) => {
+          if (res.action === "save" && res.marker && this.data) {
+            this.data.markers.push(res.marker);
+            void this.saveDataSoon();
+            this.renderMarkersOnly();
+            new Notice("Hud pin added.", 900);
+          }
+        },
+      );
+      modal.open();
+    } else {
+      this.data.markers.push(draft);
+      void this.saveDataSoon();
+      this.renderMarkersOnly();
+      new Notice("Hud pin added.", 900);
     }
   }
 
@@ -1858,6 +2177,72 @@ export class MapInstance extends Component {
     this.renderMarkersOnly();
     new Notice("Marker deleted.", 900);
   }
+  
+  private openPinSizeEditor(focusIconKey?: string | null): void {
+    if (!this.data) return;
+
+    // Collect all icon keys used by non-sticker markers on this map
+    const usedKeys = new Set<string>();
+    for (const m of this.data.markers) {
+      if (m.type === "sticker") continue;
+      const key = m.iconKey ?? this.plugin.settings.defaultIconKey;
+      usedKeys.add(key);
+    }
+
+    if (usedKeys.size === 0) {
+      new Notice("No pins on this map yet.", 2000);
+      return;
+    }
+
+    const rows: PinSizeEditorRow[] = [];
+
+    for (const key of usedKeys) {
+      const profile =
+        this.plugin.settings.icons.find((i) => i.key === key) ?? this.plugin.builtinIcon();
+      const baseSize = profile.size;
+      const override = this.data.pinSizeOverrides?.[key];
+      const imgUrl = this.resolveResourceUrl(profile.pathOrDataUrl);
+
+      rows.push({
+        iconKey: key,
+        baseSize,
+        override,
+        imgUrl,
+      });
+    }
+
+    rows.sort((a, b) => a.iconKey.localeCompare(b.iconKey));
+
+    const modal = new PinSizeEditorModal(
+      this.app,
+      rows,
+      (updated) => {
+        if (!this.data) return;
+        this.data.pinSizeOverrides ??= {};
+        const existing = this.data.pinSizeOverrides;
+
+        // Merge updates; keep unknown keys as they are
+        for (const key of Object.keys(updated)) {
+          const val = updated[key];
+          if (typeof val === "number" && Number.isFinite(val) && val > 0) {
+            existing[key] = val;
+          } else {
+            delete existing[key];
+          }
+        }
+
+        if (Object.keys(existing).length === 0) {
+          delete this.data.pinSizeOverrides;
+        }
+
+        void this.saveDataSoon();
+        this.renderMarkersOnly();
+      },
+      focusIconKey ?? undefined,
+    );
+
+    modal.open();
+  }
 
   private renderAll(): void {
     this.worldEl.style.width = `${this.imgW}px`;
@@ -1885,30 +2270,59 @@ export class MapInstance extends Component {
   private renderMarkersOnly(): void {
     if (!this.data) return;
     const s = this.scale;
+
     this.markersEl.empty();
-    const visibleLayers = new Set(this.data.layers.filter((l) => l.visible).map((l) => l.id));
+    if (this.hudMarkersEl) this.hudMarkersEl.empty();
+
+    const visibleLayers = new Set(
+      this.data.layers.filter((l) => l.visible).map((l) => l.id),
+    );
 
     const rank = (m: Marker) => (m.type === "sticker" ? 0 : 1);
-    const toRender = this.data.markers.filter((m) => visibleLayers.has(m.layer)).sort((a, b) => rank(a) - rank(b));
+    const toRender = this.data.markers
+      .filter((m) => visibleLayers.has(m.layer))
+      .sort((a, b) => rank(a) - rank(b));
+
+    const vpRect = this.viewportEl.getBoundingClientRect();
+    const vw = vpRect.width || 1;
+    const vh = vpRect.height || 1;
 
     for (const m of toRender) {
-      const L = m.x * this.imgW;
-      const T = m.y * this.imgH;
+      const isHud = m.anchorSpace === "viewport";
+      const container = isHud ? this.hudMarkersEl : this.markersEl;
+      if (!container) continue;
 
-      const host = this.markersEl.createDiv({ cls: "zm-marker" });
+      let leftScreen: number;
+      let topScreen: number;
+
+      if (isHud) {
+        const hx = m.hudX ?? (m.x ?? 0.5) * vw;
+        const hy = m.hudY ?? (m.y ?? 0.5) * vh;
+        leftScreen = hx;
+        topScreen = hy;
+      } else {
+        leftScreen = m.x * this.imgW;
+        topScreen = m.y * this.imgH;
+      }
+
+      const hostClasses = ["zm-marker"];
+      if (isHud) hostClasses.push("zm-hud-marker");
+
+      const host = container.createDiv({ cls: hostClasses.join(" ") });
       host.dataset.id = m.id;
-      host.style.left = `${L}px`;
-      host.style.top = `${T}px`;
+      host.style.left = `${leftScreen}px`;
+      host.style.top = `${topScreen}px`;
       host.style.zIndex = m.type === "sticker" ? "5" : "10";
       host.ondragstart = (ev) => ev.preventDefault();
 
-      // Zoom-visibility data on pins
       if (m.type !== "sticker") {
         const minZ = getMinZoom(m);
         const maxZ = getMaxZoom(m);
         if (typeof minZ === "number") host.dataset.minz = String(minZ);
         if (typeof maxZ === "number") host.dataset.maxz = String(maxZ);
-        const visibleByZoom = (minZ === undefined || s >= minZ) && (maxZ === undefined || s <= maxZ);
+        const visibleByZoom =
+          (minZ === undefined || (Number.isFinite(minZ) && s >= minZ)) &&
+          (maxZ === undefined || (Number.isFinite(maxZ) && s <= maxZ));
         if (!visibleByZoom) host.style.display = "none";
       }
 
@@ -1920,7 +2334,7 @@ export class MapInstance extends Component {
         const size = Math.max(1, Math.round(m.stickerSize ?? 64));
         const anch = host.createDiv({ cls: "zm-marker-anchor" });
         anch.style.transform = `translate(${-size / 2}px, ${-size / 2}px)`;
-        icon = createEl("img", { cls: "zm-marker-icon" });
+        icon = anch.createEl("img", { cls: "zm-marker-icon" });
         icon.src = this.resolveResourceUrl(m.stickerPath ?? "");
         icon.style.width = `${size}px`;
         icon.style.height = `${size}px`;
@@ -1928,34 +2342,45 @@ export class MapInstance extends Component {
         anch.appendChild(icon);
       } else {
         const scaleLike = isScaleLikeSticker(m);
-        const { imgUrl, size, anchorX, anchorY } = this.getIconInfo(m.iconKey);
+        const info = this.getIconInfo(m.iconKey);
 
-        if (scaleLike) {
+        if (isHud) {
           const anch = host.createDiv({ cls: "zm-marker-anchor" });
-          anch.style.transform = `translate(${-anchorX}px, ${-anchorY}px)`;
-          icon = createEl("img", { cls: "zm-marker-icon" });
-          icon.src = imgUrl;
-          icon.style.width = `${size}px`;
-          icon.style.height = `${size}px`;
+          anch.style.transform = `translate(${-info.anchorX}px, ${-info.anchorY}px)`;
+          icon = anch.createEl("img", { cls: "zm-marker-icon" });
+          icon.src = info.imgUrl;
+          icon.style.width = `${info.size}px`;
+          icon.style.height = `${info.size}px`;
+          icon.draggable = false;
+          anch.appendChild(icon);
+        } else if (scaleLike) {
+          const anch = host.createDiv({ cls: "zm-marker-anchor" });
+          anch.style.transform = `translate(${-info.anchorX}px, ${-info.anchorY}px)`;
+          icon = anch.createEl("img", { cls: "zm-marker-icon" });
+          icon.src = info.imgUrl;
+          icon.style.width = `${info.size}px`;
+          icon.style.height = `${info.size}px`;
           icon.draggable = false;
           anch.appendChild(icon);
         } else {
           const inv = host.createDiv({ cls: "zm-marker-inv" });
-          const invScale = this.cfg.responsive ? 1 : (1 / s);
+          const invScale = this.cfg.responsive ? 1 : 1 / s;
           inv.style.transform = `scale(${invScale})`;
           const anch = inv.createDiv({ cls: "zm-marker-anchor" });
-          anch.style.transform = `translate(${-anchorX}px, ${-anchorY}px)`;
-          icon = createEl("img", { cls: "zm-marker-icon" });
-          icon.src = imgUrl;
-          icon.style.width = `${size}px`;
-          icon.style.height = `${size}px`;
+          anch.style.transform = `translate(${-info.anchorX}px, ${-info.anchorY}px)`;
+          icon = anch.createEl("img", { cls: "zm-marker-icon" });
+          icon.src = info.imgUrl;
+          icon.style.width = `${info.size}px`;
+          icon.style.height = `${info.size}px`;
           icon.draggable = false;
           anch.appendChild(icon);
         }
       }
 
       if (m.type !== "sticker") {
-        host.addEventListener("mouseenter", (ev) => this.onMarkerEnter(ev, m, host));
+        host.addEventListener("mouseenter", (ev) =>
+          this.onMarkerEnter(ev, m, host),
+        );
         host.addEventListener("mouseleave", () => this.hideTooltipSoon());
       }
 
@@ -1977,12 +2402,28 @@ export class MapInstance extends Component {
         this.draggingMarkerId = m.id;
         this.dragMoved = false;
 
-        const vpRect = this.viewportEl.getBoundingClientRect();
-        const vx = e.clientX - vpRect.left;
-        const vy = e.clientY - vpRect.top;
-        const wx = (vx - this.tx) / this.scale;
-        const wy = (vy - this.ty) / this.scale;
-        this.dragAnchorOffset = { dx: wx - L, dy: wy - T };
+        const vpRectNow = this.viewportEl.getBoundingClientRect();
+        const vx = e.clientX - vpRectNow.left;
+        const vy = e.clientY - vpRectNow.top;
+
+        if (isHud) {
+          // HUD pins: keep offset in viewport pixels
+          this.dragAnchorOffset = {
+            dx: vx - leftScreen,
+            dy: vy - topScreen,
+          };
+        } else {
+          // World pins/stickers: compute offset in image (world) coordinates
+          const wxPointer = (vx - this.tx) / this.scale;
+          const wyPointer = (vy - this.ty) / this.scale;
+          const markerWx = m.x * this.imgW;
+          const markerWy = m.y * this.imgH;
+
+          this.dragAnchorOffset = {
+            dx: wxPointer - markerWx,
+            dy: wyPointer - markerWy,
+          };
+        }
 
         host.classList.add("zm-marker--dragging");
         document.body.classList.add("zm-cursor-grabbing");
@@ -1991,34 +2432,42 @@ export class MapInstance extends Component {
       });
 
       host.addEventListener("pointerup", () => {
-        if (this.draggingMarkerId === m.id) {
-          this.draggingMarkerId = null;
-          this.dragAnchorOffset = null;
-          host.classList.remove("zm-marker--dragging");
-          document.body.classList.remove("zm-cursor-grabbing");
-          if (this.dragMoved) void this.saveDataSoon();
-        }
-      });
+	    if (this.draggingMarkerId === m.id) {
+		// Visual cleanup; logical finalization (classification + save)
+		// is handled centrally in onPointerUp() on the window.
+		  host.classList.remove("zm-marker--dragging");
+		  document.body.classList.remove("zm-cursor-grabbing");
+	    }
+	  });
 
       host.addEventListener("contextmenu", (ev: MouseEvent) => {
         ev.preventDefault();
         ev.stopPropagation();
         this.closeMenu();
+
         const items: ZMMenuItem[] = [
           {
             label: m.type === "sticker" ? "Edit sticker" : "Edit marker",
             action: () => {
               if (!this.data) return;
-              const modal = new MarkerEditorModal(this.app, this.plugin, this.data, m, (res) => {
-                if (res.action === "save" && res.marker && this.data) {
-                  const idx = this.data.markers.findIndex((mm) => mm.id === m.id);
-                  if (idx >= 0) this.data.markers[idx] = res.marker;
-                  void this.saveDataSoon();
-                  this.renderMarkersOnly();
-                } else if (res.action === "delete") {
-                  this.deleteMarker(m);
-                }
-              });
+              const modal = new MarkerEditorModal(
+                this.app,
+                this.plugin,
+                this.data,
+                m,
+                (res) => {
+                  if (res.action === "save" && res.marker && this.data) {
+                    const idx = this.data.markers.findIndex(
+                      (mm) => mm.id === m.id,
+                    );
+                    if (idx >= 0) this.data.markers[idx] = res.marker;
+                    void this.saveDataSoon();
+                    this.renderMarkersOnly();
+                  } else if (res.action === "delete") {
+                    this.deleteMarker(m);
+                  }
+                },
+              );
               this.closeMenu();
               modal.open();
             },
@@ -2031,6 +2480,18 @@ export class MapInstance extends Component {
             },
           },
         ];
+
+        if (m.type !== "sticker") {
+          items.push({
+            label: "Pin sizes for this map…",
+            action: () => {
+              const key = m.iconKey ?? this.plugin.settings.defaultIconKey;
+              this.openPinSizeEditor(key);
+              this.closeMenu();
+            },
+          });
+        }
+
         this.openMenu = new ZMMenu();
         this.openMenu.open(ev.clientX, ev.clientY, items);
 
@@ -2040,11 +2501,15 @@ export class MapInstance extends Component {
           if (t instanceof HTMLElement && this.openMenu.contains(t)) return;
           this.closeMenu();
         };
-        const keyClose = (event: KeyboardEvent) => { if (event.key === "Escape") this.closeMenu(); };
+        const keyClose = (event: KeyboardEvent) => {
+          if (event.key === "Escape") this.closeMenu();
+        };
         const rightClickClose = () => this.closeMenu();
 
         document.addEventListener("pointerdown", outside, { capture: true });
-        document.addEventListener("contextmenu", rightClickClose, { capture: true });
+        document.addEventListener("contextmenu", rightClickClose, {
+          capture: true,
+        });
         document.addEventListener("keydown", keyClose, { capture: true });
 
         this.register(() => {
@@ -2140,15 +2605,135 @@ export class MapInstance extends Component {
 
   private getIconInfo(iconKey?: string): { imgUrl: string; size: number; anchorX: number; anchorY: number } {
     const key = iconKey ?? this.plugin.settings.defaultIconKey;
-    const profile = this.plugin.settings.icons.find((i) => i.key === key) ?? this.plugin.builtinIcon();
-    const imgUrl = profile.pathOrDataUrl;
-    const f = this.resolveTFile(imgUrl, this.cfg.sourcePath);
-    if (f) {
-      return { imgUrl: this.app.vault.getResourcePath(f), size: profile.size, anchorX: profile.anchorX, anchorY: profile.anchorY };
-    }
-    return { imgUrl, size: profile.size, anchorX: profile.anchorX, anchorY: profile.anchorY };
-  }
+    const profile =
+      this.plugin.settings.icons.find((i) => i.key === key) ?? this.plugin.builtinIcon();
 
+    const baseSize = profile.size;
+    const overrideSize = this.data?.pinSizeOverrides?.[key];
+    const size =
+      overrideSize && Number.isFinite(overrideSize) && overrideSize > 0
+        ? overrideSize
+        : baseSize;
+
+    const imgUrl = this.resolveResourceUrl(profile.pathOrDataUrl);
+    return {
+      imgUrl,
+      size,
+      anchorX: profile.anchorX,
+      anchorY: profile.anchorY,
+    };
+  }
+  
+  private classifyHudMetaFromCurrentPosition(m: Marker, vpRect: DOMRect): void {
+    const W = vpRect.width || 1;
+    const H = vpRect.height || 1;
+    const centerX = W / 2;
+    const centerY = H / 2;
+    const eps = 1;
+
+    let hudX = m.hudX ?? 0;
+    let hudY = m.hudY ?? 0;
+
+    let modeX: "left" | "right" | "center";
+    if (Math.abs(hudX - centerX) <= eps) {
+      modeX = "center";
+      hudX = centerX;
+    } else if (hudX > centerX) {
+      modeX = "right";
+    } else {
+      modeX = "left";
+    }
+
+    let modeY: "top" | "bottom" | "center";
+    if (Math.abs(hudY - centerY) <= eps) {
+      modeY = "center";
+      hudY = centerY;
+    } else if (hudY > centerY) {
+      modeY = "bottom";
+    } else {
+      modeY = "top";
+    }
+
+    m.anchorSpace = "viewport";
+    m.hudX = hudX;
+    m.hudY = hudY;
+    m.hudModeX = modeX;
+    m.hudModeY = modeY;
+    m.hudLastWidth = W;
+    m.hudLastHeight = H;
+    m.x = W > 0 ? hudX / W : 0;
+    m.y = H > 0 ? hudY / H : 0;
+  }
+  
+  private updateHudPinsForResize(vpRect: DOMRect): void {
+    if (!this.data) return;
+
+    const W = vpRect.width || 1;
+    const H = vpRect.height || 1;
+    const centerX = W / 2;
+    const centerY = H / 2;
+
+    for (const m of this.data.markers) {
+      if (m.anchorSpace !== "viewport") continue;
+
+      // Initialize HUD metadata for pins from older dev builds
+      if (
+        !Number.isFinite(m.hudLastWidth ?? NaN) ||
+        !Number.isFinite(m.hudLastHeight ?? NaN)
+      ) {
+        if (typeof m.hudX !== "number" || typeof m.hudY !== "number") {
+          const approxX = (m.x ?? 0.5) * W;
+          const approxY = (m.y ?? 0.5) * H;
+          m.hudX = approxX;
+          m.hudY = approxY;
+        }
+        this.classifyHudMetaFromCurrentPosition(m, vpRect);
+        continue;
+      }
+
+      const lastW = m.hudLastWidth ?? W;
+      const lastH = m.hudLastHeight ?? H;
+      const dW = W - lastW;
+      const dH = H - lastH;
+
+      let hudX = m.hudX ?? (m.x ?? 0.5) * W;
+      let hudY = m.hudY ?? (m.y ?? 0.5) * H;
+
+      const modeX = m.hudModeX ?? "center";
+      if (modeX === "left") {
+        // stick to left edge, do not follow right edge
+      } else if (modeX === "right") {
+        hudX += dW;
+        if (hudX <= centerX) {
+          hudX = centerX;
+          m.hudModeX = "center";
+        }
+      } else {
+        hudX = centerX;
+      }
+
+      const modeY = m.hudModeY ?? "center";
+      if (modeY === "top") {
+        // stick to top edge
+      } else if (modeY === "bottom") {
+        hudY += dH;
+        if (hudY <= centerY) {
+          hudY = centerY;
+          m.hudModeY = "center";
+        }
+      } else {
+        hudY = centerY;
+      }
+
+      m.hudX = hudX;
+      m.hudY = hudY;
+      m.hudLastWidth = W;
+      m.hudLastHeight = H;
+      m.x = W > 0 ? hudX / W : 0;
+      m.y = H > 0 ? hudY / H : 0;
+    }
+  }
+  
   private openMarkerLink(m: Marker): void {
     if (!m.link) return;
     void this.app.workspace.openLinkText(m.link, this.cfg.sourcePath);
@@ -2561,9 +3146,8 @@ export class MapInstance extends Component {
     if (!(af instanceof TFile)) return false;
 
     let foundBlock = false;
-    let changedText = false;
 
-  await this.app.vault.process(af, (text) => {
+    await this.app.vault.process(af, (text) => {
     const lines = text.split("\n");
     const blk = this.findZoommapBlock(lines, this.cfg.sectionStart);
     if (!blk) return text;
@@ -2574,7 +3158,6 @@ export class MapInstance extends Component {
     const patched = this.patchYamlList(content, key, newPath, opts);
     if (!patched.changed) return text;
 
-    changedText = true;
     if (af.path === this.store.getPath()) {
       this.ignoreNextModify = true;
     }
@@ -2721,6 +3304,8 @@ export class MapInstance extends Component {
 interface ZMMenuItem {
   type?: "item" | "separator";
   label?: string;
+  // Menu item handler; receives the clicked row and the menu instance.
+/* eslint-disable-next-line no-unused-vars */
   action?: (rowEl: HTMLDivElement, menu: ZMMenu) => void | Promise<void>;
   iconUrl?: string;
   checked?: boolean;

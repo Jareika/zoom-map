@@ -1,12 +1,15 @@
 import { Modal, Setting } from "obsidian";
 import type { App } from "obsidian";
 
+/* eslint-disable-next-line no-unused-vars */
+type NamePromptCallback = (value: string) => void;
+
 export class NamePromptModal extends Modal {
   private titleStr: string;
   private value: string;
-  private onOk: (name: string) => void;
+  private onOk: NamePromptCallback;
 
-  constructor(app: App, title: string, defaultName: string, onOk: (name: string) => void) {
+  constructor(app: App, title: string, defaultName: string, onOk: NamePromptCallback) {
     super(app);
     this.titleStr = title;
     this.value = defaultName;

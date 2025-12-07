@@ -4,8 +4,8 @@ import type { Marker, MarkerFileData } from "./markerStore";
 import type ZoomMapPlugin from "./main";
 
 interface LinkSuggestion {
-  label: string; // Anzeige im Dropdown (z.B. "Note › Heading")
-  value: string; // tatsächlicher Linktext (z.B. "Note#Heading")
+  label: string;
+  value: string;
 }
 
 export interface MarkerEditorResult {
@@ -14,11 +14,14 @@ export interface MarkerEditorResult {
   dataChanged?: boolean;
 }
 
+/* eslint-disable-next-line no-unused-vars */
+type MarkerEditorCallback = (result: MarkerEditorResult) => void;
+
 export class MarkerEditorModal extends Modal {
   private plugin: ZoomMapPlugin;
   private data: MarkerFileData;
   private marker: Marker;
-  private onResult: (res: MarkerEditorResult) => void;
+  private onResult: MarkerEditorCallback;
 
   private linkInput?: TextComponent;
 
@@ -32,7 +35,7 @@ export class MarkerEditorModal extends Modal {
     plugin: ZoomMapPlugin,
     data: MarkerFileData,
     marker: Marker,
-    onResult: (res: MarkerEditorResult) => void,
+    onResult: MarkerEditorCallback,
   ) {
     super(app);
     this.plugin = plugin;
@@ -159,6 +162,51 @@ export class MarkerEditorModal extends Modal {
     const len = s.value.length;
     this.linkInput.inputEl.setSelectionRange(len, len);
   }
+  
+  private zoomFactorToPercentString(f?: number): string {
+    if (typeof f !== "number" || !Number.isFinite(f) || f <= 0) return "";
+    return String(Math.round(f * 100));
+  }
+
+  private parseZoomPercentInput(input: string): number | undefined {
+    let s = input.trim();
+    if (!s) return undefined;
+    if (s.endsWith("%")) s = s.slice(0, -1).trim();
+    s = s.replace(",", ".");
+    const n = Number(s);
+    if (!Number.isFinite(n) || n <= 0) return undefined;
+    return n / 100;
+  }
+
+  private normalizeZoomRange(): void {
+    let min = this.marker.minZoom;
+    let max = this.marker.maxZoom;
+
+    if (typeof min !== "number" || !Number.isFinite(min) || min <= 0) {
+      min = undefined;
+    }
+    if (typeof max !== "number" || !Number.isFinite(max) || max <= 0) {
+      max = undefined;
+    }
+
+    if (min === undefined && max === undefined) {
+      delete this.marker.minZoom;
+      delete this.marker.maxZoom;
+      return;
+    }
+
+    if (min !== undefined && max !== undefined && min > max) {
+      const tmp = min;
+      min = max;
+      max = tmp;
+    }
+
+    if (min !== undefined) this.marker.minZoom = min;
+    else delete this.marker.minZoom;
+
+    if (max !== undefined) this.marker.maxZoom = max;
+    else delete this.marker.maxZoom;
+  }
 
   onOpen(): void {
     const { contentEl } = this;
@@ -172,7 +220,7 @@ export class MarkerEditorModal extends Modal {
 
       linkSetting.addText((t) => {
         this.linkInput = t;
-        t.setPlaceholder("Folder/Note or Note#Heading")
+        t.setPlaceholder("Folder/note or note#heading")
           .setValue(this.marker.link ?? "")
           .onChange((v) => {
             this.marker.link = v.trim();
@@ -222,23 +270,27 @@ export class MarkerEditorModal extends Modal {
         });
 
       // Zoom range (optional)
-      const zoomRow = new Setting(contentEl).setName("Zoom range (optional)");
+      const zoomRow = new Setting(contentEl)
+        .setName("Zoom range (optional)")
+        .setDesc("(in %)");
+
       zoomRow.addText((t) => {
-        t.setPlaceholder("Min (e.g. 0.5)");
-        t.setValue(typeof this.marker.minZoom === "number" ? String(this.marker.minZoom) : "");
+        t.setPlaceholder("Min (%)");
+        t.setValue(this.zoomFactorToPercentString(this.marker.minZoom));
         t.onChange((v) => {
-          const n = Number(v);
-          if (!Number.isFinite(n)) delete this.marker.minZoom;
-          else this.marker.minZoom = n;
+          const factor = this.parseZoomPercentInput(v);
+          if (typeof factor === "number") this.marker.minZoom = factor;
+          else delete this.marker.minZoom;
         });
       });
+
       zoomRow.addText((t) => {
-        t.setPlaceholder("Max (e.g. 3)");
-        t.setValue(typeof this.marker.maxZoom === "number" ? String(this.marker.maxZoom) : "");
+        t.setPlaceholder("Max (%)");
+        t.setValue(this.zoomFactorToPercentString(this.marker.maxZoom));
         t.onChange((v) => {
-          const n = Number(v);
-          if (!Number.isFinite(n)) delete this.marker.maxZoom;
-          else this.marker.maxZoom = n;
+          const factor = this.parseZoomPercentInput(v);
+          if (typeof factor === "number") this.marker.maxZoom = factor;
+          else delete this.marker.maxZoom;
         });
       });
 
@@ -348,8 +400,9 @@ export class MarkerEditorModal extends Modal {
         }
       }
 
-      // JSON schlank halten
       if (this.marker.type !== "sticker") {
+        this.normalizeZoomRange();
+
         if (typeof this.marker.minZoom !== "number") delete this.marker.minZoom;
         if (typeof this.marker.maxZoom !== "number") delete this.marker.maxZoom;
         if (!this.marker.scaleLikeSticker) delete this.marker.scaleLikeSticker;

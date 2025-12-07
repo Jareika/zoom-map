@@ -1,49 +1,77 @@
+// eslint.config.mjs
+import { defineConfig } from "eslint/config";
 import js from "@eslint/js";
-import tseslint from "typescript-eslint";
 import globals from "globals";
+import tsparser from "@typescript-eslint/parser";
+import obsidianmd from "eslint-plugin-obsidianmd";
 
-export default tseslint.config(
-// Globale Ignores (ersetzt .eslintignore)
-{
-ignores: [
-"node_modules/",
-"dist/",
-"build/**",
-"main.js",
-"manifest.json",
-"versions.json",
-"esbuild.config.mjs"
-],
-},
+export default defineConfig([
+  // Global ignores
+  {
+    ignores: [
+      "main.js",
+      "node_modules/**",
+      "dist/**",
+      ".obsidian/**",
+      "versions.json",
+      "eslint.config.mjs",
+    ],
+  },
 
-// Basis-Empfehlungen von ESLint für JS (unschädlich, auch wenn du nur TS hast)
-js.configs.recommended,
+  // Hauptkonfiguration für deinen Plugin-Code (TypeScript)
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+      parser: tsparser,
+      parserOptions: {
+        // typed linting, nutzt dein tsconfig.json
+        project: "./tsconfig.json",
+      },
+    },
+    plugins: {
+      obsidianmd,
+    },
+    rules: {
+      // Basis-JavaScript-Regeln
+      ...js.configs.recommended.rules,
 
-// TypeScript-Empfehlungen (mit Type-Checking)
-...tseslint.configs.recommendedTypeChecked,
-...tseslint.configs.stylisticTypeChecked,
+      // Optional: Konsolen-Logging erlauben
+      "no-console": "off",
 
-// Projekt-spezifische Einstellungen + Regeln
-{
-files: ["src/**/*.ts"],
-languageOptions: {
-ecmaVersion: 2022,
-sourceType: "module",
-globals: { ...globals.browser, ...globals.node },
-parserOptions: {
-// Type-aware Linting (schnell und stabil)
-projectService: true,
-tsconfigRootDir: import.meta.dirname,
-// Alternative (klassisch, falls gewünscht):
-// project: ["./tsconfig.json"],
-},
-},
-rules: {
-"@typescript-eslint/no-explicit-any": "off",
-"@typescript-eslint/no-misused-promises": ["warn", { checksVoidReturn: false }],
-"@typescript-eslint/consistent-type-imports": "warn",
-"@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^", varsIgnorePattern: "^" }],
-"no-console": "off",
-},
-},
-);
+      // Obsidian-spezifische Regeln (minimaler sinnvoller Satz)
+      "obsidianmd/commands/no-command-in-command-id": "error",
+      "obsidianmd/commands/no-command-in-command-name": "error",
+      "obsidianmd/commands/no-default-hotkeys": "warn",
+      "obsidianmd/commands/no-plugin-id-in-command-id": "error",
+      "obsidianmd/commands/no-plugin-name-in-command-name": "error",
+
+      "obsidianmd/prefer-file-manager-trash-file": "error",
+      "obsidianmd/no-view-references-in-plugin": "error",
+      "obsidianmd/no-sample-code": "error",
+      "obsidianmd/validate-manifest": "error",
+
+      "obsidianmd/settings-tab/no-manual-html-headings": "warn",
+      "obsidianmd/ui/sentence-case": "warn",
+    },
+  },
+
+  // Node-only: esbuild config
+  {
+    files: ["esbuild.config.mjs"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: globals.node,
+    },
+    rules: {
+      ...js.configs.recommended.rules,
+      "no-console": "off",
+    },
+  },
+]);
