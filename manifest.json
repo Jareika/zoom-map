@@ -1,7 +1,7 @@
 {
   "id": "zoom-map",
   "name": "Zoom Map",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "minAppVersion": "1.9.0",
   "description": "Zoomable image map with markers, layers, ruler and stickers.",
   "author": "Jareika",
