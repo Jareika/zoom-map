@@ -105,9 +105,9 @@ export interface MarkerFileData {
 
   // Saved frame (viewport) size in pixels
   frame?: { w: number; h: number };
-
-  // Per-map pin size overrides (iconKey → size in px on this map)
+  
   pinSizeOverrides?: Record<string, number>;
+  panClamp?: boolean;
 }
 
 export function generateId(prefix = "m"): string {
@@ -153,6 +153,7 @@ export class MarkerStore {
       },
       frame: undefined,
       pinSizeOverrides: {},
+      panClamp: true,
     };
 
     await this.create(JSON.stringify(data, null, 2));
@@ -207,6 +208,9 @@ export class MarkerStore {
 
     // Per-map pin size overrides
     parsed.pinSizeOverrides ??= {};
+    if (typeof parsed.panClamp !== "boolean") {
+      parsed.panClamp = true;
+    }
 
     return parsed;
   }

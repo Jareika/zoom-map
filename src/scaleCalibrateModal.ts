@@ -7,7 +7,6 @@ export interface ScaleCalibrateResult {
   metersPerPixel: number;
 }
 
-/* eslint-disable-next-line no-unused-vars */
 type ScaleCalibrateCallback = (result: ScaleCalibrateResult) => void;
 
 export interface ScaleCalibrateOptions {

@@ -17,7 +17,6 @@ interface CollectionEditorResult {
 
 // Callback signature for the editor result.
 // The parameter name is only used at call sites, not inside this type.
-/* eslint-disable-next-line no-unused-vars */
 type CollectionEditorCallback = (result: CollectionEditorResult) => void;
 
 export class CollectionEditorModal extends Modal {

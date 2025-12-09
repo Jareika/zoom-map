@@ -2,7 +2,6 @@ import { FuzzySuggestModal } from "obsidian";
 import type { App, TFile } from "obsidian";
 
 // Callback used when an image file has been chosen.
-/* eslint-disable-next-line no-unused-vars */
 type ImageFileChosenCallback = (file: TFile) => void;
 
 export class ImageFileSuggestModal extends FuzzySuggestModal<TFile> {

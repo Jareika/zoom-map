@@ -86,6 +86,7 @@ export class NoteMarkerStore {
       },
       frame: undefined,
       pinSizeOverrides: {},
+      panClamp: true,
     };
 
 	const payload = JSON.stringify(data, null, 2);

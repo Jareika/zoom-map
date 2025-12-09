@@ -14,7 +14,6 @@ export interface MarkerEditorResult {
   dataChanged?: boolean;
 }
 
-/* eslint-disable-next-line no-unused-vars */
 type MarkerEditorCallback = (result: MarkerEditorResult) => void;
 
 function tintSvgMarkup(svg: string, color: string): string {

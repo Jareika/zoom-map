@@ -2,7 +2,6 @@ import { FuzzySuggestModal } from "obsidian";
 import type { App, TFile } from "obsidian";
 
 // Callback used when a JSON file has been chosen.
-/* eslint-disable-next-line no-unused-vars */
 type JsonFileChosenCallback = (file: TFile) => void;
 
 export class JsonFileSuggestModal extends FuzzySuggestModal<TFile> {

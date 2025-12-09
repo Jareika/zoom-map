@@ -1,7 +1,6 @@
 import { Modal, Setting } from "obsidian";
 import type { App } from "obsidian";
 
-/* eslint-disable-next-line no-unused-vars */
 type NamePromptCallback = (value: string) => void;
 
 export class NamePromptModal extends Modal {

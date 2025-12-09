@@ -1,7 +1,6 @@
 import { Modal } from "obsidian";
 import type { App } from "obsidian";
 
-/* eslint-disable-next-line no-unused-vars */
 type PinSizeEditorSaveCallback = (overrides: Record<string, number | undefined>) => void;
 
 export interface PinSizeEditorRow {

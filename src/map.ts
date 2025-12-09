@@ -88,6 +88,7 @@ export interface IconProfile {
   size: number;
   anchorX: number;
   anchorY: number;
+  defaultLink?: string;
 }
 
 export interface CustomUnitDef {
@@ -117,6 +118,7 @@ export interface ZoomMapSettings {
   baseCollections?: BaseCollection[];
   pinPlaceOpensEditor?: boolean;
   customUnits?: CustomUnitDef[];
+  defaultScaleLikeSticker?: boolean;
 }
 
 interface Point { x: number; y: number; }
@@ -1812,11 +1814,27 @@ private onContextMenuViewport(e: MouseEvent): void {
     items.push(
       { type: "separator" },
       {
-        label: "Pin sizes for this map…",
-        action: () => {
-          this.openPinSizeEditor();
-          this.closeMenu();
-        },
+        label: "Options",
+        children: [
+          {
+            label: "Pin sizes for this map…",
+            action: () => {
+              this.openPinSizeEditor();
+              this.closeMenu();
+            },
+          },
+          {
+            label: "Allow panning beyond image",
+            checked: !(this.data?.panClamp ?? true),
+            action: async () => {
+              if (!this.data) return;
+              const current = this.data.panClamp ?? true;
+              this.data.panClamp = !current;
+              await this.saveDataSoon();
+              this.applyTransform(this.scale, this.tx, this.ty);
+            },
+          },
+        ],
       },
     );
 
@@ -1891,21 +1909,25 @@ private onContextMenuViewport(e: MouseEvent): void {
     const scaledW = this.imgW * s;
     const scaledH = this.imgH * s;
 
-    const minTx = this.vw - scaledW;
-    const maxTx = 0;
-    const minTy = this.vh - scaledH;
-    const maxTy = 0;
+    const clampPan = this.data?.panClamp ?? true;
 
-    if (scaledW <= this.vw) {
-      tx = (this.vw - scaledW) / 2;
-    } else {
-      tx = clamp(tx, minTx, maxTx);
-    }
+    if (clampPan) {
+      const minTx = this.vw - scaledW;
+      const maxTx = 0;
+      const minTy = this.vh - scaledH;
+      const maxTy = 0;
 
-    if (scaledH <= this.vh) {
-      ty = (this.vh - scaledH) / 2;
-    } else {
-      ty = clamp(ty, minTy, maxTy);
+      if (scaledW <= this.vw) {
+        tx = (this.vw - scaledW) / 2;
+      } else {
+        tx = clamp(tx, minTx, maxTx);
+      }
+
+      if (scaledH <= this.vh) {
+        ty = (this.vh - scaledH) / 2;
+      } else {
+        ty = clamp(ty, minTy, maxTy);
+      }
     }
 
     const txr = Math.round(tx);
@@ -1915,7 +1937,8 @@ private onContextMenuViewport(e: MouseEvent): void {
     this.tx = txr;
     this.ty = tyr;
 
-    this.worldEl.style.transform = `translate3d(${this.tx}px, ${this.ty}px, 0) scale3d(${this.scale}, ${this.scale}, 1)`;
+    this.worldEl.style.transform =
+      `translate3d(${this.tx}px, ${this.ty}px, 0) scale3d(${this.scale}, ${this.scale}, 1)`;
 
     if (render) {
       if (prevScale !== s) {
@@ -2002,14 +2025,18 @@ private onContextMenuViewport(e: MouseEvent): void {
   private addMarkerInteractive(nx: number, ny: number): void {
     if (!this.data) return;
     const defaultLayer = this.data.layers.find((l) => l.visible) ?? this.data.layers[0];
+    const iconKey = this.plugin.settings.defaultIconKey;
+    const defaultLink = this.getIconDefaultLink(iconKey);
+
     const draft: Marker = {
       id: generateId("marker"),
       x: nx,
       y: ny,
       layer: defaultLayer.id,
-      link: "",
-      iconKey: this.plugin.settings.defaultIconKey,
+      link: defaultLink ?? "",
+      iconKey,
       tooltip: "",
+      scaleLikeSticker: this.plugin.settings.defaultScaleLikeSticker ? true : undefined,
     };
 
     const modal = new MarkerEditorModal(this.app, this.plugin, this.data, draft, (res) => {
@@ -2027,12 +2054,14 @@ private onContextMenuViewport(e: MouseEvent): void {
     if (!this.data) return;
     const defaultLayer = this.data.layers.find((l) => l.visible) ?? this.data.layers[0];
 
+    const defaultLink = this.getIconDefaultLink(iconKey);
+
     const draft: Marker = {
       id: generateId("marker"),
       x: nx,
       y: ny,
       layer: defaultLayer.id,
-      link: "",
+      link: defaultLink ?? "",
       iconKey,
       tooltip: "",
     };
@@ -2064,13 +2093,16 @@ private onContextMenuViewport(e: MouseEvent): void {
 
     const vpRect = this.viewportEl.getBoundingClientRect();
 
+    const iconKey = this.plugin.settings.defaultIconKey;
+    const defaultLink = this.getIconDefaultLink(iconKey);
+
     const draft: Marker = {
       id: generateId("marker"),
       x: 0,
       y: 0,
       layer: defaultLayer.id,
-      link: "",
-      iconKey: this.plugin.settings.defaultIconKey,
+      link: defaultLink ?? "",
+      iconKey,
       tooltip: "",
       anchorSpace: "viewport",
     };
@@ -2132,6 +2164,7 @@ private onContextMenuViewport(e: MouseEvent): void {
       link: p.linkTemplate ?? "",
       iconKey: p.iconKey ?? this.plugin.settings.defaultIconKey,
       tooltip: p.tooltip ?? "",
+      scaleLikeSticker: this.plugin.settings.defaultScaleLikeSticker ? true : undefined,
     };
 
     if (p.openEditor) {
@@ -2681,6 +2714,15 @@ private onContextMenuViewport(e: MouseEvent): void {
       anchorX: profile.anchorX,
       anchorY: profile.anchorY,
     };
+  }
+  
+  private getIconDefaultLink(iconKey?: string): string | undefined {
+    const key = iconKey ?? this.plugin.settings.defaultIconKey;
+    const icon = this.plugin.settings.icons.find((i) => i.key === key);
+    const raw = icon?.defaultLink;
+    if (!raw) return undefined;
+    const trimmed = raw.trim();
+    return trimmed.length ? trimmed : undefined;
   }
   
   private classifyHudMetaFromCurrentPosition(m: Marker, vpRect: DOMRect): void {
@@ -3364,7 +3406,6 @@ interface ZMMenuItem {
   type?: "item" | "separator";
   label?: string;
   // Menu item handler; receives the clicked row and the menu instance.
-/* eslint-disable-next-line no-unused-vars */
   action?: (rowEl: HTMLDivElement, menu: ZMMenu) => void | Promise<void>;
   iconUrl?: string;
   checked?: boolean;

@@ -23,7 +23,7 @@ __export(main_exports, {
   default: () => ZoomMapPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian13 = require("obsidian");
+var import_obsidian14 = require("obsidian");
 
 // src/map.ts
 var import_obsidian9 = require("obsidian");
@@ -61,7 +61,8 @@ var MarkerStore = class {
         customUnitId: void 0
       },
       frame: void 0,
-      pinSizeOverrides: {}
+      pinSizeOverrides: {},
+      panClamp: true
     };
     await this.create(JSON.stringify(data, null, 2));
     new import_obsidian.Notice(`Created marker file: ${this.markersFilePath}`, 2500);
@@ -101,6 +102,9 @@ var MarkerStore = class {
     (_f = (_e = parsed.measurement).scales) != null ? _f : _e.scales = {};
     (_h = (_g = parsed.measurement).displayUnit) != null ? _h : _g.displayUnit = "auto-metric";
     (_i = parsed.pinSizeOverrides) != null ? _i : parsed.pinSizeOverrides = {};
+    if (typeof parsed.panClamp !== "boolean") {
+      parsed.panClamp = true;
+    }
     return parsed;
   }
   async save(data) {
@@ -720,7 +724,8 @@ var NoteMarkerStore = class {
         customUnitId: void 0
       },
       frame: void 0,
-      pinSizeOverrides: {}
+      pinSizeOverrides: {},
+      panClamp: true
     };
     const payload = JSON.stringify(data, null, 2);
     const header = this.headerLine();
@@ -2088,7 +2093,7 @@ var MapInstance = class extends import_obsidian9.Component {
     return { pinsBase, pinsGlobal, favsBase, favsGlobal, stickersBase, stickersGlobal };
   }
   onContextMenuViewport(e) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e;
     if (!this.ready || !this.data) return;
     this.closeMenu();
     const vpRect = this.viewportEl.getBoundingClientRect();
@@ -2521,11 +2526,28 @@ var MapInstance = class extends import_obsidian9.Component {
     items.push(
       { type: "separator" },
       {
-        label: "Pin sizes for this map\u2026",
-        action: () => {
-          this.openPinSizeEditor();
-          this.closeMenu();
-        }
+        label: "Options",
+        children: [
+          {
+            label: "Pin sizes for this map\u2026",
+            action: () => {
+              this.openPinSizeEditor();
+              this.closeMenu();
+            }
+          },
+          {
+            label: "Allow panning beyond image",
+            checked: !((_e = (_d = this.data) == null ? void 0 : _d.panClamp) != null ? _e : true),
+            action: async () => {
+              var _a2;
+              if (!this.data) return;
+              const current = (_a2 = this.data.panClamp) != null ? _a2 : true;
+              this.data.panClamp = !current;
+              await this.saveDataSoon();
+              this.applyTransform(this.scale, this.tx, this.ty);
+            }
+          }
+        ]
       }
     );
     if (!this.cfg.responsive) {
@@ -2587,23 +2609,27 @@ var MapInstance = class extends import_obsidian9.Component {
     }
   }
   applyTransform(scale, tx, ty, render = true) {
+    var _a, _b;
     const prevScale = this.scale;
     const s = clamp(scale, this.cfg.minZoom, this.cfg.maxZoom);
     const scaledW = this.imgW * s;
     const scaledH = this.imgH * s;
-    const minTx = this.vw - scaledW;
-    const maxTx = 0;
-    const minTy = this.vh - scaledH;
-    const maxTy = 0;
-    if (scaledW <= this.vw) {
-      tx = (this.vw - scaledW) / 2;
-    } else {
-      tx = clamp(tx, minTx, maxTx);
-    }
-    if (scaledH <= this.vh) {
-      ty = (this.vh - scaledH) / 2;
-    } else {
-      ty = clamp(ty, minTy, maxTy);
+    const clampPan = (_b = (_a = this.data) == null ? void 0 : _a.panClamp) != null ? _b : true;
+    if (clampPan) {
+      const minTx = this.vw - scaledW;
+      const maxTx = 0;
+      const minTy = this.vh - scaledH;
+      const maxTy = 0;
+      if (scaledW <= this.vw) {
+        tx = (this.vw - scaledW) / 2;
+      } else {
+        tx = clamp(tx, minTx, maxTx);
+      }
+      if (scaledH <= this.vh) {
+        ty = (this.vh - scaledH) / 2;
+      } else {
+        ty = clamp(ty, minTy, maxTy);
+      }
     }
     const txr = Math.round(tx);
     const tyr = Math.round(ty);
@@ -2689,14 +2715,17 @@ var MapInstance = class extends import_obsidian9.Component {
     var _a;
     if (!this.data) return;
     const defaultLayer = (_a = this.data.layers.find((l) => l.visible)) != null ? _a : this.data.layers[0];
+    const iconKey = this.plugin.settings.defaultIconKey;
+    const defaultLink = this.getIconDefaultLink(iconKey);
     const draft = {
       id: generateId("marker"),
       x: nx,
       y: ny,
       layer: defaultLayer.id,
-      link: "",
-      iconKey: this.plugin.settings.defaultIconKey,
-      tooltip: ""
+      link: defaultLink != null ? defaultLink : "",
+      iconKey,
+      tooltip: "",
+      scaleLikeSticker: this.plugin.settings.defaultScaleLikeSticker ? true : void 0
     };
     const modal = new MarkerEditorModal(this.app, this.plugin, this.data, draft, (res) => {
       if (res.action === "save" && res.marker && this.data) {
@@ -2712,12 +2741,13 @@ var MapInstance = class extends import_obsidian9.Component {
     var _a;
     if (!this.data) return;
     const defaultLayer = (_a = this.data.layers.find((l) => l.visible)) != null ? _a : this.data.layers[0];
+    const defaultLink = this.getIconDefaultLink(iconKey);
     const draft = {
       id: generateId("marker"),
       x: nx,
       y: ny,
       layer: defaultLayer.id,
-      link: "",
+      link: defaultLink != null ? defaultLink : "",
       iconKey,
       tooltip: ""
     };
@@ -2744,13 +2774,15 @@ var MapInstance = class extends import_obsidian9.Component {
     if (!this.data) return;
     const defaultLayer = (_a = this.data.layers.find((l) => l.visible)) != null ? _a : this.data.layers[0];
     const vpRect = this.viewportEl.getBoundingClientRect();
+    const iconKey = this.plugin.settings.defaultIconKey;
+    const defaultLink = this.getIconDefaultLink(iconKey);
     const draft = {
       id: generateId("marker"),
       x: 0,
       y: 0,
       layer: defaultLayer.id,
-      link: "",
-      iconKey: this.plugin.settings.defaultIconKey,
+      link: defaultLink != null ? defaultLink : "",
+      iconKey,
       tooltip: "",
       anchorSpace: "viewport"
     };
@@ -2806,7 +2838,8 @@ var MapInstance = class extends import_obsidian9.Component {
       layer: layerId,
       link: (_a = p.linkTemplate) != null ? _a : "",
       iconKey: (_b = p.iconKey) != null ? _b : this.plugin.settings.defaultIconKey,
-      tooltip: (_c = p.tooltip) != null ? _c : ""
+      tooltip: (_c = p.tooltip) != null ? _c : "",
+      scaleLikeSticker: this.plugin.settings.defaultScaleLikeSticker ? true : void 0
     };
     if (p.openEditor) {
       const modal = new MarkerEditorModal(this.app, this.plugin, this.data, draft, (res) => {
@@ -3276,6 +3309,14 @@ var MapInstance = class extends import_obsidian9.Component {
       anchorX: profile.anchorX,
       anchorY: profile.anchorY
     };
+  }
+  getIconDefaultLink(iconKey) {
+    const key = iconKey != null ? iconKey : this.plugin.settings.defaultIconKey;
+    const icon = this.plugin.settings.icons.find((i) => i.key === key);
+    const raw = icon == null ? void 0 : icon.defaultLink;
+    if (!raw) return void 0;
+    const trimmed = raw.trim();
+    return trimmed.length ? trimmed : void 0;
   }
   classifyHudMetaFromCurrentPosition(m, vpRect) {
     var _a, _b;
@@ -4239,18 +4280,46 @@ var JsonFileSuggestModal = class extends import_obsidian11.FuzzySuggestModal {
 // src/faIconPickerModal.ts
 var import_obsidian12 = require("obsidian");
 var FaIconPickerModal = class extends import_obsidian12.Modal {
-  constructor(app, files, onChoose) {
+  constructor(app, folder, onChoose) {
     super(app);
+    this.files = [];
     this.listEl = null;
     this.searchInput = null;
     this.selected = null;
     this.selectedEl = null;
     this.addButton = null;
-    this.files = files;
+    this.folder = (0, import_obsidian12.normalizePath)(folder);
     this.onChoose = onChoose;
+  }
+  collectFiles() {
+    var _a;
+    const result = [];
+    const root = this.app.vault.getAbstractFileByPath(this.folder);
+    if (!(root instanceof import_obsidian12.TFolder)) {
+      console.warn(`Zoom Map: SVG icon folder not found: ${this.folder}`);
+      this.files = [];
+      return;
+    }
+    const stack = [root];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      for (const child of current.children) {
+        if (child instanceof import_obsidian12.TFolder) {
+          stack.push(child);
+        } else if (child instanceof import_obsidian12.TFile) {
+          if (((_a = child.extension) == null ? void 0 : _a.toLowerCase()) === "svg") {
+            result.push(child);
+          }
+        }
+      }
+    }
+    result.sort((a, b) => a.path.localeCompare(b.path));
+    this.files = result;
   }
   renderList(filter) {
     if (!this.listEl) return;
+    const files = Array.isArray(this.files) ? this.files : [];
+    this.files = files;
     this.listEl.empty();
     this.selected = null;
     if (this.selectedEl) {
@@ -4259,7 +4328,7 @@ var FaIconPickerModal = class extends import_obsidian12.Modal {
     }
     if (this.addButton) this.addButton.disabled = true;
     const q = filter.trim().toLowerCase();
-    const matches = this.files.filter((f) => {
+    const matches = files.filter((f) => {
       if (!q) return true;
       const name = f.name.toLowerCase();
       const path = f.path.toLowerCase();
@@ -4295,10 +4364,11 @@ var FaIconPickerModal = class extends import_obsidian12.Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("zoommap-fa-picker");
-    contentEl.createEl("h2", { text: "Pick font awesome icon" });
-    if (this.files.length === 0) {
+    this.collectFiles();
+    contentEl.createEl("h2", { text: "Pick SVG icon" });
+    if (!Array.isArray(this.files) || this.files.length === 0) {
       contentEl.createEl("div", {
-        text: "No SVG icons found."
+        text: "No SVG icons found in the configured folder."
       });
       return;
     }
@@ -4314,9 +4384,8 @@ var FaIconPickerModal = class extends import_obsidian12.Modal {
     this.addButton = footer.createEl("button", { text: "Add" });
     this.addButton.disabled = true;
     this.addButton.onclick = () => {
-      if (this.selected) {
-        this.onChoose(this.selected);
-      }
+      if (!this.selected) return;
+      this.onChoose(this.selected);
     };
     const backButton = footer.createEl("button", { text: "Back" });
     backButton.onclick = () => this.close();
@@ -4334,6 +4403,32 @@ var FaIconPickerModal = class extends import_obsidian12.Modal {
     this.selected = null;
     this.selectedEl = null;
     this.addButton = null;
+  }
+};
+
+// src/preferencesModal.ts
+var import_obsidian13 = require("obsidian");
+var PreferencesModal = class extends import_obsidian13.Modal {
+  constructor(app, plugin) {
+    super(app);
+    this.plugin = plugin;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h2", { text: "Preferences" });
+    new import_obsidian13.Setting(contentEl).setName('Pins: "scale like sticker" by default').setDesc('When enabled, new pins will have "scale like sticker" enabled in the marker editor.').addToggle((toggle) => {
+      toggle.setValue(!!this.plugin.settings.defaultScaleLikeSticker).onChange(async (value) => {
+        this.plugin.settings.defaultScaleLikeSticker = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });
+    const closeBtn = footer.createEl("button", { text: "Close" });
+    closeBtn.onclick = () => this.close();
+  }
+  onClose() {
+    this.contentEl.empty();
   }
 };
 
@@ -4355,6 +4450,7 @@ function folderOf(path) {
   return i >= 0 ? path.slice(0, i) : "";
 }
 var DEFAULT_FA_ZIP_URL = "https://use.fontawesome.com/releases/v6.4.0/fontawesome-free-6.4.0-web.zip";
+var DEFAULT_RPG_ZIP_URL = "https://github.com/nagoshiashumari/rpg-awesome-raw/archive/refs/heads/master.zip";
 function isPlainObject(val) {
   return typeof val === "object" && val !== null && !Array.isArray(val);
 }
@@ -4382,8 +4478,9 @@ var DEFAULT_SETTINGS = {
   baseCollections: [],
   pinPlaceOpensEditor: false,
   libraryFilePath: "ZoomMap/library.json",
-  faFolderPath: "ZoomMap/FontAwesome",
-  customUnits: []
+  faFolderPath: "ZoomMap/SVGs",
+  customUnits: [],
+  defaultScaleLikeSticker: false
 };
 function parseBasesYaml(v) {
   if (!Array.isArray(v)) return [];
@@ -4448,8 +4545,8 @@ function parseResizeHandle(v) {
 }
 async function readSavedFrame(app, markersPath) {
   try {
-    const file = app.vault.getAbstractFileByPath((0, import_obsidian13.normalizePath)(markersPath));
-    if (!(file instanceof import_obsidian13.TFile)) return null;
+    const file = app.vault.getAbstractFileByPath((0, import_obsidian14.normalizePath)(markersPath));
+    if (!(file instanceof import_obsidian14.TFile)) return null;
     const raw = await app.vault.read(file);
     const parsed = JSON.parse(raw);
     let fw = NaN;
@@ -4469,12 +4566,11 @@ async function readSavedFrame(app, markersPath) {
   }
   return null;
 }
-var ZoomMapPlugin = class extends import_obsidian13.Plugin {
+var ZoomMapPlugin = class extends import_obsidian14.Plugin {
   constructor() {
     super(...arguments);
     this.settings = DEFAULT_SETTINGS;
     this.activeMap = null;
-    this.faSvgCache = null;
   }
   setActiveMap(inst) {
     this.activeMap = inst;
@@ -4497,7 +4593,7 @@ var ZoomMapPlugin = class extends import_obsidian13.Plugin {
         var _a, _b, _c, _d;
         let opts = {};
         try {
-          const parsed = (0, import_obsidian13.parseYaml)(src);
+          const parsed = (0, import_obsidian14.parseYaml)(src);
           if (parsed && typeof parsed === "object") {
             opts = parsed;
           }
@@ -4524,7 +4620,7 @@ var ZoomMapPlugin = class extends import_obsidian13.Plugin {
         const markersPathRaw = typeof opts.markers === "string" ? opts.markers : void 0;
         const minZoom = responsive ? 1e-6 : parseZoomYaml(opts.minZoom, 0.25);
         const maxZoom = responsive ? 1e6 : parseZoomYaml(opts.maxZoom, 8);
-        const markersPath = (0, import_obsidian13.normalizePath)(markersPathRaw != null ? markersPathRaw : `${image}.markers.json`);
+        const markersPath = (0, import_obsidian14.normalizePath)(markersPathRaw != null ? markersPathRaw : `${image}.markers.json`);
         const align = parseAlign(opts.align);
         const wrap = !!opts.wrap;
         const classesValue = opts.classes;
@@ -4599,7 +4695,7 @@ var ZoomMapPlugin = class extends import_obsidian13.Plugin {
     (_b = (_a = this.settings).baseCollections) != null ? _b : _a.baseCollections = [];
     (_c = ext.defaultWidthWrapped) != null ? _c : ext.defaultWidthWrapped = "50%";
     (_d = ext.libraryFilePath) != null ? _d : ext.libraryFilePath = "ZoomMap/library.json";
-    (_e = ext.faFolderPath) != null ? _e : ext.faFolderPath = "ZoomMap/FontAwesome";
+    (_e = ext.faFolderPath) != null ? _e : ext.faFolderPath = "ZoomMap/SVGs";
     (_g = (_f = this.settings).customUnits) != null ? _g : _f.customUnits = [];
   }
   async saveSettings() {
@@ -4613,44 +4709,9 @@ var ZoomMapPlugin = class extends import_obsidian13.Plugin {
       await this.app.vault.createFolder(folder);
     }
   }
-  getFaSvgFiles(forceRescan = false) {
-    var _a, _b;
-    const ext = this.settings;
-    const folderPath = (0, import_obsidian13.normalizePath)(
-      ((_a = ext.faFolderPath) == null ? void 0 : _a.trim()) || "ZoomMap/FontAwesome"
-    );
-    if (!forceRescan && this.faSvgCache && this.faSvgCache.folder === folderPath) {
-      return this.faSvgCache.files;
-    }
-    const root = this.app.vault.getAbstractFileByPath(folderPath);
-    if (!(root instanceof import_obsidian13.TFolder)) {
-      this.faSvgCache = { folder: folderPath, files: [] };
-      return [];
-    }
-    const out = [];
-    const stack = [root];
-    while (stack.length > 0) {
-      const current = stack.pop();
-      for (const child of current.children) {
-        if (child instanceof import_obsidian13.TFolder) {
-          stack.push(child);
-        } else if (child instanceof import_obsidian13.TFile) {
-          if (((_b = child.extension) == null ? void 0 : _b.toLowerCase()) === "svg") {
-            out.push(child);
-          }
-        }
-      }
-    }
-    out.sort((a, b) => a.path.localeCompare(b.path));
-    this.faSvgCache = { folder: folderPath, files: out };
-    return out;
-  }
-  clearFaSvgCache() {
-    this.faSvgCache = null;
-  }
   async saveLibraryToPath(path) {
     var _a, _b;
-    const p = (0, import_obsidian13.normalizePath)(path);
+    const p = (0, import_obsidian14.normalizePath)(path);
     const ext = this.settings;
     const payload = {
       version: 1,
@@ -4662,17 +4723,17 @@ var ZoomMapPlugin = class extends import_obsidian13.Plugin {
       await this.ensureFolder(p);
       const existing = this.app.vault.getAbstractFileByPath(p);
       const json = JSON.stringify(payload, null, 2);
-      if (existing instanceof import_obsidian13.TFile) {
+      if (existing instanceof import_obsidian14.TFile) {
         await this.app.vault.modify(existing, json);
       } else {
         await this.app.vault.create(p, json);
       }
       ext.libraryFilePath = p;
       await this.saveSettings();
-      new import_obsidian13.Notice(`Library saved to ${p}`, 2e3);
+      new import_obsidian14.Notice(`Library saved to ${p}`, 2e3);
     } catch (e) {
       console.error("Save library failed", e);
-      new import_obsidian13.Notice("Failed to save library.", 2500);
+      new import_obsidian14.Notice("Failed to save library.", 2500);
     }
   }
   async loadLibraryFromFile(file) {
@@ -4680,7 +4741,7 @@ var ZoomMapPlugin = class extends import_obsidian13.Plugin {
       const raw = await this.app.vault.read(file);
       const obj = JSON.parse(raw);
       if (!isPlainObject(obj)) {
-        new import_obsidian13.Notice("Invalid library file.", 2500);
+        new import_obsidian14.Notice("Invalid library file.", 2500);
         return;
       }
       const hasIcons = (x) => isPlainObject(x) && "icons" in x;
@@ -4697,39 +4758,76 @@ var ZoomMapPlugin = class extends import_obsidian13.Plugin {
       this.settings.baseCollections = cols;
       this.settings.libraryFilePath = file.path;
       await this.saveSettings();
-      new import_obsidian13.Notice(`Library loaded from ${file.path}`, 2e3);
+      new import_obsidian14.Notice(`Library loaded from ${file.path}`, 2e3);
     } catch (e) {
       console.error("Load library failed", e);
-      new import_obsidian13.Notice("Failed to load library.", 2500);
+      new import_obsidian14.Notice("Failed to load library.", 2500);
     }
   }
   async downloadFontAwesomeZip() {
     var _a;
     const ext = this.settings;
-    const folder = (0, import_obsidian13.normalizePath)(
-      ((_a = ext.faFolderPath) == null ? void 0 : _a.trim()) || "ZoomMap/FontAwesome"
-    );
-    const zipPath = (0, import_obsidian13.normalizePath)(`${folder}/fontawesome-free.zip`);
+    const folder = (0, import_obsidian14.normalizePath)(((_a = ext.faFolderPath) == null ? void 0 : _a.trim()) || "ZoomMap/SVGs");
+    const zipPath = (0, import_obsidian14.normalizePath)(`${folder}/fontawesome-free.zip`);
     try {
       if (!this.app.vault.getAbstractFileByPath(folder)) {
         await this.app.vault.createFolder(folder);
       }
-      new import_obsidian13.Notice("Downloading font awesome free zip\u2026", 2500);
-      const res = await (0, import_obsidian13.requestUrl)({
+      new import_obsidian14.Notice("Downloading font awesome free zip\u2026", 2500);
+      const res = await (0, import_obsidian14.requestUrl)({
         url: DEFAULT_FA_ZIP_URL,
         method: "GET"
       });
-      const data = res.arrayBuffer;
-      await this.app.vault.adapter.writeBinary(zipPath, data);
-      this.clearFaSvgCache();
-      new import_obsidian13.Notice(
+      await this.app.vault.adapter.writeBinary(zipPath, res.arrayBuffer);
+      new import_obsidian14.Notice(
         `Downloaded Font Awesome ZIP to ${zipPath}. Please unzip it so that SVG files are available in this folder.`,
         6e3
       );
     } catch (e) {
       console.error("Download Font Awesome ZIP failed", e);
-      new import_obsidian13.Notice("Failed to download font awesome zip.", 4e3);
+      new import_obsidian14.Notice("Failed to download font awesome zip.", 4e3);
     }
+  }
+  async downloadRpgAwesomeZip() {
+    var _a;
+    const ext = this.settings;
+    const folder = (0, import_obsidian14.normalizePath)(((_a = ext.faFolderPath) == null ? void 0 : _a.trim()) || "ZoomMap/SVGs");
+    const zipPath = (0, import_obsidian14.normalizePath)(`${folder}/rpg-awesome.zip`);
+    try {
+      if (!this.app.vault.getAbstractFileByPath(folder)) {
+        await this.app.vault.createFolder(folder);
+      }
+      new import_obsidian14.Notice("Downloading rpg awesome SVG pack\u2026", 2500);
+      const res = await (0, import_obsidian14.requestUrl)({
+        url: DEFAULT_RPG_ZIP_URL,
+        method: "GET"
+      });
+      await this.app.vault.adapter.writeBinary(zipPath, res.arrayBuffer);
+      new import_obsidian14.Notice(
+        `Downloaded RPG Awesome ZIP to ${zipPath}. Please unzip it so that the SVG files are available in this folder.`,
+        6e3
+      );
+    } catch (e) {
+      console.error("Download RPG Awesome ZIP failed", e);
+      new import_obsidian14.Notice("Failed to download rpg awesome zip.", 4e3);
+    }
+  }
+  async rescanSvgFolder() {
+    var _a;
+    const ext = this.settings;
+    const folder = (0, import_obsidian14.normalizePath)(((_a = ext.faFolderPath) == null ? void 0 : _a.trim()) || "ZoomMap/SVGs");
+    const files = this.app.vault.getFiles();
+    const prefix = folder.endsWith("/") ? folder : folder + "/";
+    const count = files.filter((f) => {
+      var _a2;
+      if (((_a2 = f.extension) == null ? void 0 : _a2.toLowerCase()) !== "svg") return false;
+      return f.path === folder || f.path.startsWith(prefix);
+    }).length;
+    new import_obsidian14.Notice(
+      `Found ${count} SVG files under ${folder}. They will be available in the \u201CAdd SVG icon\u201D picker.`,
+      4e3
+    );
+    return count;
   }
 };
 function tintSvgMarkup2(svg, color) {
@@ -4743,7 +4841,7 @@ function tintSvgMarkup2(svg, color) {
   }
   return s;
 }
-var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
+var ZoomMapSettingTab = class extends import_obsidian14.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.svgFileCache = /* @__PURE__ */ new Map();
@@ -4769,14 +4867,15 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
         pathOrDataUrl: dataUrl,
         size: 24,
         anchorX: 12,
-        anchorY: 12
+        anchorY: 12,
+        defaultLink: ""
       });
       this.plugin.settings.icons = icons;
       await this.plugin.saveSettings();
       this.display();
     } catch (e) {
       console.error("Zoom Map: failed to add Font Awesome icon", e);
-      new import_obsidian13.Notice("Failed to add font awesome icon.", 2500);
+      new import_obsidian14.Notice("Failed to add font awesome icon.", 2500);
     }
   }
   async recolorIconSvg(icon, color) {
@@ -4801,7 +4900,7 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
         svg = cached;
       } else {
         const f = this.app.vault.getAbstractFileByPath(src);
-        if (f instanceof import_obsidian13.TFile) {
+        if (f instanceof import_obsidian14.TFile) {
           try {
             const text = await this.app.vault.read(f);
             this.svgFileCache.set(src, text);
@@ -4840,8 +4939,8 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("zoommap-settings");
-    new import_obsidian13.Setting(containerEl).setName("Storage").setHeading();
-    new import_obsidian13.Setting(containerEl).setName("Storage location by default").setDesc(
+    new import_obsidian14.Setting(containerEl).setName("Storage").setHeading();
+    new import_obsidian14.Setting(containerEl).setName("Storage location by default").setDesc(
       "Store marker data in JSON beside image, or inline in the note."
     ).addDropdown((d) => {
       var _a2;
@@ -4853,8 +4952,8 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
         void this.plugin.saveSettings();
       });
     });
-    new import_obsidian13.Setting(containerEl).setName("Layout").setHeading();
-    new import_obsidian13.Setting(containerEl).setName("Default width when wrapped").setDesc(
+    new import_obsidian14.Setting(containerEl).setName("Layout").setHeading();
+    new import_obsidian14.Setting(containerEl).setName("Default width when wrapped").setDesc(
       "Initial width if wrap: true and no width is set in the code block."
     ).addText((t) => {
       var _a2;
@@ -4866,8 +4965,8 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
         void this.plugin.saveSettings();
       });
     });
-    new import_obsidian13.Setting(containerEl).setName("Interaction").setHeading();
-    new import_obsidian13.Setting(containerEl).setName("Mouse wheel zoom factor").setDesc("Multiplier per step. 1.1 = 10% per tick.").addText(
+    new import_obsidian14.Setting(containerEl).setName("Interaction").setHeading();
+    new import_obsidian14.Setting(containerEl).setName("Mouse wheel zoom factor").setDesc("Multiplier per step. 1.1 = 10% per tick.").addText(
       (t) => t.setPlaceholder("1.1").setValue(String(this.plugin.settings.wheelZoomFactor)).onChange((v) => {
         const n = Number(v);
         if (!Number.isNaN(n) && n > 1.001 && n < 2.5) {
@@ -4876,7 +4975,7 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
         }
       })
     );
-    new import_obsidian13.Setting(containerEl).setName("Panning mouse button").setDesc("Which mouse button pans the map?").addDropdown((d) => {
+    new import_obsidian14.Setting(containerEl).setName("Panning mouse button").setDesc("Which mouse button pans the map?").addDropdown((d) => {
       var _a2;
       d.addOption("left", "Left");
       d.addOption("middle", "Middle");
@@ -4886,7 +4985,7 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
         void this.plugin.saveSettings();
       });
     });
-    new import_obsidian13.Setting(containerEl).setName("Hover popover size").setDesc("Max width and height in pixels.").addText(
+    new import_obsidian14.Setting(containerEl).setName("Hover popover size").setDesc("Max width and height in pixels.").addText(
       (t) => t.setPlaceholder("360").setValue(String(this.plugin.settings.hoverMaxWidth)).onChange((v) => {
         const n = Number(v);
         if (!Number.isNaN(n) && n >= 200) {
@@ -4903,13 +5002,13 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
         }
       })
     );
-    new import_obsidian13.Setting(containerEl).setName("Force popovers without ctrl").setDesc("Opens preview popovers on simple hover.").addToggle(
+    new import_obsidian14.Setting(containerEl).setName("Force popovers without ctrl").setDesc("Opens preview popovers on simple hover.").addToggle(
       (t) => t.setValue(!!this.plugin.settings.forcePopoverWithoutModKey).onChange((v) => {
         this.plugin.settings.forcePopoverWithoutModKey = v;
         void this.plugin.saveSettings();
       })
     );
-    new import_obsidian13.Setting(containerEl).setName("Open editor when placing pin from menu").setDesc(
+    new import_obsidian14.Setting(containerEl).setName("Open editor when placing pin from menu").setDesc(
       "When enabled, placing a pin from the pins menu opens the marker editor."
     ).addToggle(
       (t) => t.setValue(!!this.plugin.settings.pinPlaceOpensEditor).onChange((v) => {
@@ -4917,7 +5016,12 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
         void this.plugin.saveSettings();
       })
     );
-    new import_obsidian13.Setting(containerEl).setName("Ruler").setHeading();
+    new import_obsidian14.Setting(containerEl).setName("Preferences").setDesc("Global defaults for marker creation and behavior.").addButton(
+      (b) => b.setButtonText("Open\u2026").onClick(() => {
+        new PreferencesModal(this.app, this.plugin).open();
+      })
+    );
+    new import_obsidian14.Setting(containerEl).setName("Ruler").setHeading();
     const applyStyleToAll = () => {
       var _a2, _b;
       const color = ((_a2 = this.plugin.settings.measureLineColor) != null ? _a2 : "var(--text-accent)").trim();
@@ -4932,7 +5036,7 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
         }
       });
     };
-    const colorRow = new import_obsidian13.Setting(containerEl).setName("Line color").setDesc("CSS color, e.g. #ff0055.");
+    const colorRow = new import_obsidian14.Setting(containerEl).setName("Line color").setDesc("CSS color, e.g. #ff0055.");
     colorRow.addText(
       (t) => {
         var _a2;
@@ -4964,7 +5068,7 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
       void this.plugin.saveSettings();
       applyStyleToAll();
     };
-    new import_obsidian13.Setting(containerEl).setName("Line width").setDesc("Stroke width in pixels.").addText(
+    new import_obsidian14.Setting(containerEl).setName("Line width").setDesc("Stroke width in pixels.").addText(
       (t) => {
         var _a2;
         return t.setPlaceholder("2").setValue(String((_a2 = this.plugin.settings.measureLineWidth) != null ? _a2 : 2)).onChange((v) => {
@@ -4977,7 +5081,7 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
         });
       }
     );
-    new import_obsidian13.Setting(containerEl).setName("Custom units").setHeading();
+    new import_obsidian14.Setting(containerEl).setName("Custom units").setHeading();
     const customUnitsWrap = containerEl.createDiv();
     const renderCustomUnits = () => {
       var _a2;
@@ -5050,7 +5154,7 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
       };
     };
     renderCustomUnits();
-    new import_obsidian13.Setting(containerEl).setName("Collections (base-bound)").setHeading();
+    new import_obsidian14.Setting(containerEl).setName("Collections (base-bound)").setHeading();
     const collectionsWrap = containerEl.createDiv();
     const renderCollections = () => {
       var _a2;
@@ -5140,8 +5244,8 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
       };
     };
     renderCollections();
-    new import_obsidian13.Setting(containerEl).setName("Marker icons (library)").setHeading();
-    const libRow = new import_obsidian13.Setting(containerEl).setName("Library file (icons + collections)").setDesc(
+    new import_obsidian14.Setting(containerEl).setName("Marker icons (library)").setHeading();
+    const libRow = new import_obsidian14.Setting(containerEl).setName("Library file (icons + collections)").setDesc(
       "Choose a JSON file in the vault to save/load your icon library and collections."
     );
     libRow.addText((t) => {
@@ -5179,105 +5283,226 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
         }).open();
       })
     );
-    new import_obsidian13.Setting(containerEl).setName("Font awesome free").setHeading();
-    const faRow = new import_obsidian13.Setting(containerEl).setName("SVG folder in vault").setDesc(
-      "Place SVG files here or download the free font awesome zip."
+    new import_obsidian14.Setting(containerEl).setName("SVG icons").setHeading();
+    const svgFolderRow = new import_obsidian14.Setting(containerEl).setName("SVG icon folder in vault").setDesc(
+      "Folder that contains SVG packs."
     );
-    faRow.addText((t) => {
+    svgFolderRow.addText((t) => {
       var _a2;
       const ext = this.plugin.settings;
-      t.setPlaceholder("ZoomMap/FontAwesome");
-      t.setValue((_a2 = ext.faFolderPath) != null ? _a2 : "ZoomMap/FontAwesome");
+      t.setPlaceholder("ZoomMap/SVGs");
+      t.setValue((_a2 = ext.faFolderPath) != null ? _a2 : "ZoomMap/SVGs");
       t.onChange((v) => {
-        ext.faFolderPath = (v || "ZoomMap/FontAwesome").trim();
+        ext.faFolderPath = (v || "ZoomMap/SVGs").trim();
         void this.plugin.saveSettings();
-        this.plugin.clearFaSvgCache();
       });
     });
-    faRow.addButton(
+    svgFolderRow.addButton(
       (b) => b.setButtonText("Ensure folder").onClick(async () => {
         var _a2;
         const ext = this.plugin.settings;
-        const folder = (0, import_obsidian13.normalizePath)(
-          ((_a2 = ext.faFolderPath) == null ? void 0 : _a2.trim()) || "ZoomMap/FontAwesome"
+        const folder = (0, import_obsidian14.normalizePath)(
+          ((_a2 = ext.faFolderPath) == null ? void 0 : _a2.trim()) || "ZoomMap/SVGs"
         );
         if (!this.app.vault.getAbstractFileByPath(folder)) {
           await this.app.vault.createFolder(folder);
-          new import_obsidian13.Notice(`Created folder: ${folder}`, 2e3);
+          new import_obsidian14.Notice(`Created folder: ${folder}`, 2e3);
         } else {
-          new import_obsidian13.Notice("Folder already exists.", 1500);
+          new import_obsidian14.Notice("Folder already exists.", 1500);
         }
       })
     );
-    faRow.addButton(
-      (b) => b.setButtonText("Download zip").onClick(async () => {
+    svgFolderRow.addButton(
+      (b) => b.setButtonText("Rescan icons").onClick(async () => {
+        await this.plugin.rescanSvgFolder();
+      })
+    );
+    const svgDownloadRow = new import_obsidian14.Setting(containerEl).setName("Download icon packs").setDesc("Download common SVG packs into the configured folder.");
+    svgDownloadRow.addButton(
+      (b) => b.setButtonText("Dl font awesome free").onClick(async () => {
         await this.plugin.downloadFontAwesomeZip();
       })
     );
-    faRow.addButton(
-      (b) => b.setButtonText("Rescan icons").onClick(() => {
-        this.plugin.clearFaSvgCache();
-        this.plugin.getFaSvgFiles(true);
-        new import_obsidian13.Notice("SVG list refreshed.", 2e3);
+    svgDownloadRow.addButton(
+      (b) => b.setButtonText("Dl rpg awesome").onClick(async () => {
+        await this.plugin.downloadRpgAwesomeZip();
       })
     );
-    const iconsHead = containerEl.createDiv({
+    const buildLinkSuggestions = () => {
+      var _a2, _b, _c, _d;
+      const files = this.app.vault.getFiles().filter((f) => {
+        var _a3;
+        return ((_a3 = f.extension) == null ? void 0 : _a3.toLowerCase()) === "md";
+      });
+      const suggestions = [];
+      const active = this.app.workspace.getActiveFile();
+      const fromPath = (_c = (_b = active == null ? void 0 : active.path) != null ? _b : (_a2 = files[0]) == null ? void 0 : _a2.path) != null ? _c : "";
+      for (const file of files) {
+        const baseLink = this.app.metadataCache.fileToLinktext(file, fromPath);
+        suggestions.push({
+          label: baseLink,
+          value: baseLink
+        });
+        const cache = this.app.metadataCache.getCache(file.path);
+        const headings = (_d = cache == null ? void 0 : cache.headings) != null ? _d : [];
+        for (const h of headings) {
+          const headingName = h.heading;
+          const full = `${baseLink}#${headingName}`;
+          suggestions.push({
+            label: `${baseLink} \u203A ${headingName}`,
+            value: full
+          });
+        }
+      }
+      return suggestions;
+    };
+    const allLinkSuggestions = buildLinkSuggestions();
+    const attachLinkAutocomplete = (input, getValue, setValue) => {
+      const wrapper = input.parentElement;
+      if (!(wrapper instanceof HTMLElement)) return;
+      wrapper.classList.add("zoommap-link-input-wrapper");
+      const listEl = wrapper.createDiv({
+        cls: "zoommap-link-suggestions"
+      });
+      listEl.style.display = "none";
+      const updateList = (query) => {
+        const q = query.trim().toLowerCase();
+        listEl.empty();
+        if (!q) {
+          listEl.style.display = "none";
+          return;
+        }
+        const maxItems = 20;
+        const matches = allLinkSuggestions.filter(
+          (s) => s.value.toLowerCase().includes(q) || s.label.toLowerCase().includes(q)
+        ).slice(0, maxItems);
+        if (matches.length === 0) {
+          listEl.style.display = "none";
+          return;
+        }
+        listEl.style.display = "";
+        matches.forEach((s) => {
+          const row = listEl.createDiv({
+            cls: "zoommap-link-suggestion-item"
+          });
+          row.setText(s.label);
+          row.addEventListener("mousedown", (ev) => {
+            ev.preventDefault();
+            setValue(s.value);
+            listEl.style.display = "none";
+          });
+        });
+      };
+      input.addEventListener("input", () => {
+        updateList(input.value);
+      });
+      input.addEventListener("blur", () => {
+        window.setTimeout(() => {
+          listEl.style.display = "none";
+        }, 150);
+      });
+    };
+    const isSvgIcon = (icon) => {
+      var _a2;
+      const src = (_a2 = icon.pathOrDataUrl) != null ? _a2 : "";
+      if (typeof src !== "string") return false;
+      const lower = src.toLowerCase();
+      return lower.startsWith("data:image/svg+xml") || lower.endsWith(".svg");
+    };
+    const svgIconsHead = containerEl.createDiv({
       cls: "zm-icons-grid-head zm-grid"
     });
-    iconsHead.createSpan({ text: "Name" });
-    iconsHead.createSpan({ text: "Path / data:URL" });
-    iconsHead.createSpan({ text: "Size" });
-    const headAX = iconsHead.createSpan({ cls: "zm-icohead" });
-    const axIco = headAX.createSpan();
-    (0, import_obsidian13.setIcon)(axIco, "anchor");
-    headAX.appendText(" X");
-    const headAY = iconsHead.createSpan({ cls: "zm-icohead" });
-    const ayIco = headAY.createSpan();
-    (0, import_obsidian13.setIcon)(ayIco, "anchor");
-    headAY.appendText(" Y");
-    const headTrash = iconsHead.createSpan();
-    (0, import_obsidian13.setIcon)(headTrash, "trash");
-    const iconsGrid = containerEl.createDiv({ cls: "zm-icons-grid zm-grid" });
+    svgIconsHead.createSpan({ text: "Name" });
+    svgIconsHead.createSpan({ text: "Preview / color / link" });
+    svgIconsHead.createSpan({ text: "Size" });
+    const headSvgAX = svgIconsHead.createSpan({ cls: "zm-icohead" });
+    const svgAxIco = headSvgAX.createSpan();
+    (0, import_obsidian14.setIcon)(svgAxIco, "anchor");
+    headSvgAX.appendText(" X");
+    const headSvgAY = svgIconsHead.createSpan({ cls: "zm-icohead" });
+    const svgAyIco = headSvgAY.createSpan();
+    (0, import_obsidian14.setIcon)(svgAyIco, "anchor");
+    headSvgAY.appendText(" Y");
+    const headSvgTrash = svgIconsHead.createSpan();
+    (0, import_obsidian14.setIcon)(headSvgTrash, "trash");
+    const svgIconsGrid = containerEl.createDiv({
+      cls: "zm-icons-grid zm-grid"
+    });
+    new import_obsidian14.Setting(containerEl).setName("Add SVG icon").setDesc("Create a pin icon from an SVG file in the configured folder.").addButton(
+      (b) => b.setButtonText("Add SVG icon").onClick(() => {
+        var _a2;
+        const ext = this.plugin.settings;
+        const folder = ((_a2 = ext.faFolderPath) == null ? void 0 : _a2.trim()) || "ZoomMap/SVGs";
+        new FaIconPickerModal(this.app, folder, (file) => {
+          void this.addFontAwesomeIcon(file);
+        }).open();
+      })
+    );
+    new import_obsidian14.Setting(containerEl).setName("Image icons").setHeading();
+    const imgIconsHead = containerEl.createDiv({
+      cls: "zm-icons-grid-head zm-grid"
+    });
+    imgIconsHead.createSpan({ text: "Name" });
+    imgIconsHead.createSpan({ text: "Path / data:URL + default link" });
+    imgIconsHead.createSpan({ text: "Size" });
+    const headImgAX = imgIconsHead.createSpan({ cls: "zm-icohead" });
+    const axIco = headImgAX.createSpan();
+    (0, import_obsidian14.setIcon)(axIco, "anchor");
+    headImgAX.appendText(" X");
+    const headImgAY = imgIconsHead.createSpan({ cls: "zm-icohead" });
+    const ayIco = headImgAY.createSpan();
+    (0, import_obsidian14.setIcon)(ayIco, "anchor");
+    headImgAY.appendText(" Y");
+    const headImgTrash = imgIconsHead.createSpan();
+    (0, import_obsidian14.setIcon)(headImgTrash, "trash");
+    const imgIconsGrid = containerEl.createDiv({
+      cls: "zm-icons-grid zm-grid"
+    });
     const renderIcons = () => {
-      var _a2, _b, _c;
-      iconsGrid.empty();
+      var _a2, _b, _c, _d, _e;
+      svgIconsGrid.empty();
+      imgIconsGrid.empty();
       for (const icon of this.plugin.settings.icons) {
-        const row = iconsGrid.createDiv({ cls: "zm-row" });
-        const name = row.createEl("input", { type: "text" });
-        name.classList.add("zm-name");
-        name.value = icon.key;
-        name.oninput = () => {
-          icon.key = name.value.trim();
-          void this.plugin.saveSettings();
-        };
-        const pathWrap = row.createDiv({ cls: "zm-path-wrap" });
-        const path = pathWrap.createEl("input", { type: "text" });
-        path.value = (_a2 = icon.pathOrDataUrl) != null ? _a2 : "";
-        path.oninput = () => {
-          icon.pathOrDataUrl = path.value.trim();
-          void this.plugin.saveSettings();
-        };
-        const pick = pathWrap.createEl("button", {
-          attr: { title: "Choose file\u2026" }
-        });
-        pick.classList.add("zm-icon-btn");
-        (0, import_obsidian13.setIcon)(pick, "folder-open");
-        pick.onclick = () => {
-          new ImageFileSuggestModal(this.app, (file) => {
-            icon.pathOrDataUrl = file.path;
+        if (isSvgIcon(icon)) {
+          const row = svgIconsGrid.createDiv({ cls: "zm-row" });
+          const name = row.createEl("input", { type: "text" });
+          name.classList.add("zm-name");
+          name.value = icon.key;
+          name.oninput = () => {
+            icon.key = name.value.trim();
             void this.plugin.saveSettings();
-            renderIcons();
-          }).open();
-        };
-        const src = (_b = icon.pathOrDataUrl) != null ? _b : "";
-        const isSvgCandidate = typeof src === "string" && (src.startsWith("data:image/svg+xml") || src.toLowerCase().endsWith(".svg"));
-        if (isSvgCandidate) {
-          const currentColor = typeof src === "string" && src.startsWith("data:image/svg+xml") ? (_c = this.getSvgColorFromDataUrl(src)) != null ? _c : "" : "";
-          const colorInput = pathWrap.createEl("input", { type: "text" });
+          };
+          const previewCell = row.createDiv();
+          previewCell.style.display = "flex";
+          previewCell.style.alignItems = "center";
+          previewCell.style.gap = "6px";
+          previewCell.style.flexWrap = "wrap";
+          const img = previewCell.createEl("img", {
+            cls: "zoommap-fa-picker-icon"
+          });
+          let src = (_a2 = icon.pathOrDataUrl) != null ? _a2 : "";
+          if (typeof src === "string" && !src.startsWith("data:") && src) {
+            const f = this.app.vault.getAbstractFileByPath(src);
+            if (f instanceof import_obsidian14.TFile) {
+              src = this.app.vault.getResourcePath(f);
+            }
+          }
+          img.src = typeof src === "string" ? src : "";
+          img.style.width = "24px";
+          img.style.height = "24px";
+          img.style.objectFit = "contain";
+          const rawSrc = (_b = icon.pathOrDataUrl) != null ? _b : "";
+          const isSvgData = typeof rawSrc === "string" && rawSrc.startsWith("data:image/svg+xml");
+          let currentColor = "";
+          if (isSvgData) {
+            const c = this.getSvgColorFromDataUrl(rawSrc);
+            if (c) currentColor = c;
+          }
+          const colorInput = previewCell.createEl("input", { type: "text" });
           colorInput.placeholder = "Color";
-          colorInput.style.width = "10ch";
+          colorInput.style.width = "9ch";
           colorInput.value = currentColor;
-          const colorPicker = pathWrap.createEl("input", {
+          const colorPicker = previewCell.createEl("input", {
             type: "color"
           });
           colorPicker.style.width = "32px";
@@ -5295,7 +5520,18 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
           const applyColor = (val) => {
             const c = val.trim();
             if (!c) return;
-            void this.recolorIconSvg(icon, c);
+            void this.recolorIconSvg(icon, c).then(() => {
+              var _a3;
+              const updated = (_a3 = icon.pathOrDataUrl) != null ? _a3 : "";
+              let out = updated;
+              if (typeof out === "string" && !out.startsWith("data:") && out) {
+                const f = this.app.vault.getAbstractFileByPath(out);
+                if (f instanceof import_obsidian14.TFile) {
+                  out = this.app.vault.getResourcePath(f);
+                }
+              }
+              img.src = typeof out === "string" ? out : "";
+            });
           };
           colorInput.addEventListener("change", () => {
             const val = colorInput.value;
@@ -5316,51 +5552,161 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
             colorInput.value = hex;
             applyColor(hex);
           });
-        }
-        const size = row.createEl("input", { type: "number" });
-        size.classList.add("zm-num");
-        size.value = String(icon.size);
-        size.oninput = () => {
-          const n = Number(size.value);
-          if (!Number.isNaN(n) && n > 0) {
-            icon.size = n;
+          const linkInput = previewCell.createEl("input", { type: "text" });
+          linkInput.placeholder = "Default link (optional)";
+          linkInput.style.flex = "1 1 45%";
+          linkInput.style.minWidth = "140px";
+          linkInput.style.maxWidth = "260px";
+          linkInput.value = (_c = icon.defaultLink) != null ? _c : "";
+          linkInput.oninput = () => {
+            icon.defaultLink = linkInput.value.trim() || void 0;
             void this.plugin.saveSettings();
-          }
-        };
-        const ax = row.createEl("input", { type: "number" });
-        ax.classList.add("zm-num");
-        ax.value = String(icon.anchorX);
-        ax.oninput = () => {
-          const n = Number(ax.value);
-          if (!Number.isNaN(n)) {
-            icon.anchorX = n;
-            void this.plugin.saveSettings();
-          }
-        };
-        const ay = row.createEl("input", { type: "number" });
-        ay.classList.add("zm-num");
-        ay.value = String(icon.anchorY);
-        ay.oninput = () => {
-          const n = Number(ay.value);
-          if (!Number.isNaN(n)) {
-            icon.anchorY = n;
-            void this.plugin.saveSettings();
-          }
-        };
-        const del = row.createEl("button", { attr: { title: "Delete" } });
-        del.classList.add("zm-icon-btn");
-        (0, import_obsidian13.setIcon)(del, "trash");
-        del.onclick = () => {
-          this.plugin.settings.icons = this.plugin.settings.icons.filter(
-            (i) => i !== icon
+          };
+          attachLinkAutocomplete(
+            linkInput,
+            () => {
+              var _a3;
+              return (_a3 = icon.defaultLink) != null ? _a3 : "";
+            },
+            (val) => {
+              icon.defaultLink = val;
+              linkInput.value = val;
+              void this.plugin.saveSettings();
+            }
           );
-          void this.plugin.saveSettings();
-          renderIcons();
-        };
+          const size = row.createEl("input", { type: "number" });
+          size.classList.add("zm-num");
+          size.value = String(icon.size);
+          size.oninput = () => {
+            const n = Number(size.value);
+            if (!Number.isNaN(n) && n > 0) {
+              icon.size = n;
+              void this.plugin.saveSettings();
+            }
+          };
+          const ax = row.createEl("input", { type: "number" });
+          ax.classList.add("zm-num");
+          ax.value = String(icon.anchorX);
+          ax.oninput = () => {
+            const n = Number(ax.value);
+            if (!Number.isNaN(n)) {
+              icon.anchorX = n;
+              void this.plugin.saveSettings();
+            }
+          };
+          const ay = row.createEl("input", { type: "number" });
+          ay.classList.add("zm-num");
+          ay.value = String(icon.anchorY);
+          ay.oninput = () => {
+            const n = Number(ay.value);
+            if (!Number.isNaN(n)) {
+              icon.anchorY = n;
+              void this.plugin.saveSettings();
+            }
+          };
+          const del = row.createEl("button", { attr: { title: "Delete" } });
+          del.classList.add("zm-icon-btn");
+          (0, import_obsidian14.setIcon)(del, "trash");
+          del.onclick = () => {
+            this.plugin.settings.icons = this.plugin.settings.icons.filter(
+              (i) => i !== icon
+            );
+            void this.plugin.saveSettings();
+            renderIcons();
+          };
+        } else {
+          const row = imgIconsGrid.createDiv({ cls: "zm-row" });
+          const name = row.createEl("input", { type: "text" });
+          name.classList.add("zm-name");
+          name.value = icon.key;
+          name.oninput = () => {
+            icon.key = name.value.trim();
+            void this.plugin.saveSettings();
+          };
+          const pathWrap = row.createDiv({ cls: "zm-path-wrap" });
+          const path = pathWrap.createEl("input", { type: "text" });
+          path.value = (_d = icon.pathOrDataUrl) != null ? _d : "";
+          path.style.width = "50%";
+          path.oninput = () => {
+            icon.pathOrDataUrl = path.value.trim();
+            void this.plugin.saveSettings();
+          };
+          const pick = pathWrap.createEl("button", {
+            attr: { title: "Choose file\u2026" }
+          });
+          pick.classList.add("zm-icon-btn");
+          (0, import_obsidian14.setIcon)(pick, "folder-open");
+          pick.onclick = () => {
+            new ImageFileSuggestModal(this.app, (file) => {
+              icon.pathOrDataUrl = file.path;
+              void this.plugin.saveSettings();
+              renderIcons();
+            }).open();
+          };
+          const linkInput = pathWrap.createEl("input", { type: "text" });
+          linkInput.placeholder = "Default link (optional)";
+          linkInput.value = (_e = icon.defaultLink) != null ? _e : "";
+          linkInput.oninput = () => {
+            icon.defaultLink = linkInput.value.trim() || void 0;
+            void this.plugin.saveSettings();
+          };
+          attachLinkAutocomplete(
+            linkInput,
+            () => {
+              var _a3;
+              return (_a3 = icon.defaultLink) != null ? _a3 : "";
+            },
+            (val) => {
+              icon.defaultLink = val;
+              linkInput.value = val;
+              void this.plugin.saveSettings();
+            }
+          );
+          const size = row.createEl("input", { type: "number" });
+          size.classList.add("zm-num");
+          size.value = String(icon.size);
+          size.oninput = () => {
+            const n = Number(size.value);
+            if (!Number.isNaN(n) && n > 0) {
+              icon.size = n;
+              void this.plugin.saveSettings();
+            }
+          };
+          const ax = row.createEl("input", { type: "number" });
+          ax.classList.add("zm-num");
+          ax.value = String(icon.anchorX);
+          ax.oninput = () => {
+            const n = Number(ax.value);
+            if (!Number.isNaN(n)) {
+              icon.anchorX = n;
+              void this.plugin.saveSettings();
+            }
+          };
+          const ay = row.createEl("input", { type: "number" });
+          ay.classList.add("zm-num");
+          ay.value = String(icon.anchorY);
+          ay.oninput = () => {
+            const n = Number(ay.value);
+            if (!Number.isNaN(n)) {
+              icon.anchorY = n;
+              void this.plugin.saveSettings();
+            }
+          };
+          const del = row.createEl("button", { attr: { title: "Delete" } });
+          del.classList.add("zm-icon-btn");
+          (0, import_obsidian14.setIcon)(del, "trash");
+          del.onclick = () => {
+            this.plugin.settings.icons = this.plugin.settings.icons.filter(
+              (i) => i !== icon
+            );
+            void this.plugin.saveSettings();
+            renderIcons();
+          };
+        }
       }
     };
     renderIcons();
-    new import_obsidian13.Setting(containerEl).setName("Add new icon").setDesc("Create an empty icon entry or import one from font awesome.").addButton(
+    new import_obsidian14.Setting(containerEl).setName("Add new icon").setDesc("Create a new image-based icon entry.").addButton(
       (b) => b.setButtonText("Add").onClick(() => {
         const idx = this.plugin.settings.icons.length + 1;
         this.plugin.settings.icons.push({
@@ -5372,20 +5718,6 @@ var ZoomMapSettingTab = class extends import_obsidian13.PluginSettingTab {
         });
         void this.plugin.saveSettings();
         this.display();
-      })
-    ).addButton(
-      (b) => b.setButtonText("Add from font awesome\u2026").onClick(() => {
-        const files = this.plugin.getFaSvgFiles();
-        if (!files.length) {
-          new import_obsidian13.Notice(
-            "No SVG icons found.",
-            2500
-          );
-          return;
-        }
-        new FaIconPickerModal(this.app, files, (file) => {
-          void this.addFontAwesomeIcon(file);
-        }).open();
       })
     );
   }

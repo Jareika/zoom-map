@@ -7,11 +7,9 @@ export type DeleteLayerDecision =
   | { mode: "delete-markers" };
   
 // Callback when a layer has been renamed.
-/* eslint-disable-next-line no-unused-vars */
 type RenameLayerCallback = (newName: string) => void;
 
 // Callback when the user confirmed how to delete a layer.
-/* eslint-disable-next-line no-unused-vars */
 type DeleteLayerCallback = (decision: DeleteLayerDecision) => void;
 
 export class RenameLayerModal extends Modal {
