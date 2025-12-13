@@ -1,6 +1,6 @@
 import { Modal, Setting } from "obsidian";
 import type { App } from "obsidian";
-import type { Drawing, FillPatternKind } from "./markerStore";
+import type { Drawing, DrawingStyle, FillPatternKind } from "./markerStore";
 
 export interface DrawingEditorResult {
   action: "save" | "cancel" | "delete";
@@ -17,11 +17,18 @@ export class DrawingEditorModal extends Modal {
   constructor(app: App, drawing: Drawing, onResult: DrawingEditorCallback) {
     super(app);
     this.original = drawing;
-    // Deep clone, damit wir unabhängig vom Original arbeiten
+
+    // Deep clone so we can edit without mutating the original object.
     this.working = JSON.parse(JSON.stringify(drawing)) as Drawing;
+
     this.onResult = onResult;
 
-    const s = (this.working.style ||= {} as any);
+    this.working.style ??= {
+      strokeColor: "#ff0000",
+      strokeWidth: 2,
+    } as DrawingStyle;
+
+    const s = this.working.style;
 
     // Defaults
     if (!s.strokeColor) s.strokeColor = "#ff0000";
@@ -54,28 +61,21 @@ export class DrawingEditorModal extends Modal {
 
     const style = this.working.style;
 
-    // --- Label ---
-
-    new Setting(contentEl)
-      .setName("Label")
-      .addText((t) => {
-        t.setPlaceholder("Label");
-        t.setValue(style.label ?? "");
-        t.inputEl.style.width = "100%";
-        t.onChange((v) => {
-          style.label = v.trim() || undefined;
-        });
+    // Label
+    new Setting(contentEl).setName("Label").addText((t) => {
+      t.setPlaceholder("Label");
+      t.setValue(style.label ?? "");
+      t.inputEl.classList.add("zoommap-drawing-editor__label-input");
+      t.onChange((v) => {
+        style.label = v.trim() || undefined;
       });
+    });
 
-    // --- Stroke heading ---
-
-    const strokeHeading = contentEl.createDiv();
+    // Stroke heading
+    const strokeHeading = contentEl.createDiv({
+      cls: "zoommap-drawing-editor__section-heading",
+    });
     strokeHeading.textContent = "Stroke";
-    strokeHeading.style.marginTop = "12px";
-    strokeHeading.style.fontWeight = "600";
-    strokeHeading.style.borderBottom =
-      "1px solid var(--background-modifier-border)";
-    strokeHeading.style.paddingBottom = "2px";
 
     // Stroke pattern (solid / dashed / dotted)
     const strokePatternSetting = new Setting(contentEl).setName("Pattern");
@@ -107,18 +107,14 @@ export class DrawingEditorModal extends Modal {
     const strokeColorText = strokeColorSetting.controlEl.createEl("input", {
       type: "text",
     });
+    strokeColorText.classList.add("zoommap-drawing-editor__color-text");
     strokeColorText.value = style.strokeColor ?? "#ff0000";
-    strokeColorText.style.width = "10ch";
 
     const strokeColorPicker = strokeColorSetting.controlEl.createEl("input", {
       type: "color",
     });
-    strokeColorPicker.style.width = "32px";
-    strokeColorPicker.style.height = "24px";
-    strokeColorPicker.style.marginLeft = "6px";
-    strokeColorPicker.value = this.normalizeHex(
-      style.strokeColor ?? "#ff0000",
-    );
+    strokeColorPicker.classList.add("zoommap-drawing-editor__color-picker");
+    strokeColorPicker.value = this.normalizeHex(style.strokeColor ?? "#ff0000");
 
     strokeColorText.oninput = () => {
       const val = strokeColorText.value.trim() || "#ff0000";
@@ -134,48 +130,40 @@ export class DrawingEditorModal extends Modal {
     };
 
     // Stroke width
-    new Setting(contentEl)
-      .setName("Width")
-      .addText((t) => {
-        t.inputEl.type = "number";
-        t.inputEl.style.width = "8ch";
-        t.setValue(String(style.strokeWidth ?? 2));
-        t.onChange((v) => {
-          const n = Number(v);
-          if (Number.isFinite(n) && n > 0) {
-            style.strokeWidth = n;
-          }
-        });
+    new Setting(contentEl).setName("Width").addText((t) => {
+      t.inputEl.type = "number";
+      t.inputEl.classList.add("zoommap-drawing-editor__num-input");
+      t.setValue(String(style.strokeWidth ?? 2));
+      t.onChange((v) => {
+        const n = Number(v);
+        if (Number.isFinite(n) && n > 0) {
+          style.strokeWidth = n;
+        }
       });
+    });
 
     // Stroke opacity (0–100)
-    new Setting(contentEl)
-      .setName("Opacity")
-      .addText((t) => {
-        t.inputEl.type = "number";
-        t.inputEl.style.width = "8ch";
-        t.setPlaceholder("100");
-        t.setValue(this.toPercent(style.strokeOpacity, 100));
-        t.onChange((v) => {
-          const n = Number(v);
-          if (!Number.isFinite(n)) {
-            style.strokeOpacity = undefined;
-            return;
-          }
-          const clamped = this.clamp(n, 0, 100);
-          style.strokeOpacity = clamped / 100;
-        });
+    new Setting(contentEl).setName("Opacity").addText((t) => {
+      t.inputEl.type = "number";
+      t.inputEl.classList.add("zoommap-drawing-editor__num-input");
+      t.setPlaceholder("100");
+      t.setValue(this.toPercent(style.strokeOpacity, 100));
+      t.onChange((v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n)) {
+          style.strokeOpacity = undefined;
+          return;
+        }
+        const clamped = this.clamp(n, 0, 100);
+        style.strokeOpacity = clamped / 100;
       });
+    });
 
-    // --- Fill heading ---
-
-    const fillHeading = contentEl.createDiv();
+    // Fill heading
+    const fillHeading = contentEl.createDiv({
+      cls: "zoommap-drawing-editor__section-heading",
+    });
     fillHeading.textContent = "Fill";
-    fillHeading.style.marginTop = "12px";
-    fillHeading.style.fontWeight = "600";
-    fillHeading.style.borderBottom =
-      "1px solid var(--background-modifier-border)";
-    fillHeading.style.paddingBottom = "2px";
 
     // Fill pattern (none / solid / striped / cross / wavy)
     const fillPatternSetting = new Setting(contentEl).setName("Pattern");
@@ -201,15 +189,13 @@ export class DrawingEditorModal extends Modal {
     const fillColorText = fillColorSetting.controlEl.createEl("input", {
       type: "text",
     });
-    fillColorText.style.width = "10ch";
+    fillColorText.classList.add("zoommap-drawing-editor__color-text");
     fillColorText.value = style.fillColor ?? "#ff0000";
 
     const fillColorPicker = fillColorSetting.controlEl.createEl("input", {
       type: "color",
     });
-    fillColorPicker.style.width = "32px";
-    fillColorPicker.style.height = "24px";
-    fillColorPicker.style.marginLeft = "6px";
+    fillColorPicker.classList.add("zoommap-drawing-editor__color-picker");
     fillColorPicker.value = this.normalizeHex(style.fillColor ?? "#ff0000");
 
     fillColorText.oninput = () => {
@@ -230,96 +216,86 @@ export class DrawingEditorModal extends Modal {
     };
 
     // Base opacity (0–100)
-    new Setting(contentEl)
-      .setName("Base opacity")
-      .addText((t) => {
-        t.inputEl.type = "number";
-        t.inputEl.style.width = "8ch";
-        t.setPlaceholder("15");
-        t.setValue(this.toPercent(style.fillOpacity, ""));
-        t.onChange((v) => {
-          const n = Number(v);
-          if (!Number.isFinite(n)) {
-            style.fillOpacity = undefined;
-            return;
-          }
-          const clamped = this.clamp(n, 0, 100);
-          style.fillOpacity = clamped / 100;
-        });
+    new Setting(contentEl).setName("Base opacity").addText((t) => {
+      t.inputEl.type = "number";
+      t.inputEl.classList.add("zoommap-drawing-editor__num-input");
+      t.setPlaceholder("15");
+      t.setValue(this.toPercent(style.fillOpacity, ""));
+      t.onChange((v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n)) {
+          style.fillOpacity = undefined;
+          return;
+        }
+        const clamped = this.clamp(n, 0, 100);
+        style.fillOpacity = clamped / 100;
       });
+    });
 
     // Pattern spacing
-    new Setting(contentEl)
-      .setName("Spacing")
-      .addText((t) => {
-        t.inputEl.type = "number";
-        t.inputEl.style.width = "8ch";
-        t.setPlaceholder("8");
-        t.setValue(String(style.fillPatternSpacing ?? 8));
-        t.onChange((v) => {
-          const n = Number(v);
-          if (!Number.isFinite(n) || n <= 0) {
-            style.fillPatternSpacing = undefined;
-            return;
-          }
-          style.fillPatternSpacing = n;
-        });
+    new Setting(contentEl).setName("Spacing").addText((t) => {
+      t.inputEl.type = "number";
+      t.inputEl.classList.add("zoommap-drawing-editor__num-input");
+      t.setPlaceholder("8");
+      t.setValue(String(style.fillPatternSpacing ?? 8));
+      t.onChange((v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n) || n <= 0) {
+          style.fillPatternSpacing = undefined;
+          return;
+        }
+        style.fillPatternSpacing = n;
       });
+    });
 
     // Pattern angle
-    new Setting(contentEl)
-      .setName("Angle")
-      .addText((t) => {
-        t.inputEl.type = "number";
-        t.inputEl.style.width = "8ch";
-        t.setPlaceholder("45");
-        t.setValue(String(style.fillPatternAngle ?? 45));
-        t.onChange((v) => {
-          const n = Number(v);
-          if (!Number.isFinite(n)) {
-            style.fillPatternAngle = undefined;
-            return;
-          }
-          style.fillPatternAngle = n;
-        });
+    new Setting(contentEl).setName("Angle").addText((t) => {
+      t.inputEl.type = "number";
+      t.inputEl.classList.add("zoommap-drawing-editor__num-input");
+      t.setPlaceholder("45");
+      t.setValue(String(style.fillPatternAngle ?? 45));
+      t.onChange((v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n)) {
+          style.fillPatternAngle = undefined;
+          return;
+        }
+        style.fillPatternAngle = n;
       });
+    });
 
     // Pattern stroke width
-    new Setting(contentEl)
-      .setName("Line width")
-      .addText((t) => {
-        t.inputEl.type = "number";
-        t.inputEl.style.width = "8ch";
-        t.setPlaceholder("1");
-        t.setValue(String(style.fillPatternStrokeWidth ?? 1));
-        t.onChange((v) => {
-          const n = Number(v);
-          if (!Number.isFinite(n) || n <= 0) {
-            style.fillPatternStrokeWidth = undefined;
-            return;
-          }
-          style.fillPatternStrokeWidth = n;
-        });
+    new Setting(contentEl).setName("Line width").addText((t) => {
+      t.inputEl.type = "number";
+      t.inputEl.classList.add("zoommap-drawing-editor__num-input");
+      t.setPlaceholder("1");
+      t.setValue(String(style.fillPatternStrokeWidth ?? 1));
+      t.onChange((v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n) || n <= 0) {
+          style.fillPatternStrokeWidth = undefined;
+          return;
+        }
+        style.fillPatternStrokeWidth = n;
       });
+    });
 
     // Pattern opacity (0–100)
-    new Setting(contentEl)
-      .setName("Pattern opacity")
-      .addText((t) => {
-        t.inputEl.type = "number";
-        t.inputEl.style.width = "8ch";
-        t.setPlaceholder("15");
-        t.setValue(this.toPercent(style.fillPatternOpacity, ""));
-        t.onChange((v) => {
-          const n = Number(v);
-          if (!Number.isFinite(n)) {
-            style.fillPatternOpacity = undefined;
-            return;
-          }
-          const clamped = this.clamp(n, 0, 100);
-          style.fillPatternOpacity = clamped / 100;
-        });
+    new Setting(contentEl).setName("Pattern opacity").addText((t) => {
+      t.inputEl.type = "number";
+      t.inputEl.classList.add("zoommap-drawing-editor__num-input");
+      t.setPlaceholder("15");
+      t.setValue(this.toPercent(style.fillPatternOpacity, ""));
+      t.onChange((v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n)) {
+          style.fillPatternOpacity = undefined;
+          return;
+        }
+        const clamped = this.clamp(n, 0, 100);
+        style.fillPatternOpacity = clamped / 100;
       });
+    });
 
     // Footer
     const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });
@@ -329,7 +305,8 @@ export class DrawingEditorModal extends Modal {
 
     saveBtn.onclick = () => {
       this.normalizeStyle(this.working.style);
-      // Geometrie-Metadaten vom Original beibehalten
+
+      // Preserve geometry metadata from the original
       this.working.id = this.original.id;
       this.working.layerId = this.original.layerId;
       this.working.kind = this.original.kind;
@@ -371,10 +348,7 @@ export class DrawingEditorModal extends Modal {
     return Math.min(max, Math.max(min, v));
   }
 
-  private toPercent(
-    value: number | undefined,
-    fallback: string | number,
-  ): string {
+  private toPercent(value: number | undefined, fallback: string | number): string {
     if (typeof value !== "number" || !Number.isFinite(value)) {
       return String(fallback);
     }
@@ -397,7 +371,7 @@ export class DrawingEditorModal extends Modal {
     style.fillPattern = pattern;
 
     if (pattern === "none") {
-      // kein Fill, Werte können bleiben
+      // No fill; keep values as-is.
     } else if (pattern === "solid") {
       if (!style.fillColor) style.fillColor = "#ff0000";
       if (!Number.isFinite(style.fillOpacity)) style.fillOpacity = 0.15;

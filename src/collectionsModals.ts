@@ -15,8 +15,6 @@ interface CollectionEditorResult {
   deleted: boolean;
 }
 
-// Callback signature for the editor result.
-// The parameter name is only used at call sites, not inside this type.
 type CollectionEditorCallback = (result: CollectionEditorResult) => void;
 
 export class CollectionEditorModal extends Modal {
@@ -35,13 +33,19 @@ export class CollectionEditorModal extends Modal {
     this.plugin = plugin;
     this.original = collection;
     this.working = deepClone(collection);
-    // normalize
+
+    // Normalize shape
     this.working.bindings = this.working.bindings ?? { basePaths: [] };
     this.working.bindings.basePaths = this.working.bindings.basePaths ?? [];
-    this.working.include = this.working.include ?? { pinKeys: [], favorites: [], stickers: [] };
+    this.working.include = this.working.include ?? {
+      pinKeys: [],
+      favorites: [],
+      stickers: [],
+    };
     this.working.include.pinKeys = this.working.include.pinKeys ?? [];
     this.working.include.favorites = this.working.include.favorites ?? [];
     this.working.include.stickers = this.working.include.stickers ?? [];
+
     this.onDone = onDone;
   }
 
@@ -51,14 +55,12 @@ export class CollectionEditorModal extends Modal {
 
     contentEl.createEl("h2", { text: "Edit collection" });
 
-    new Setting(contentEl)
-      .setName("Name")
-      .addText((t) => {
-        t.setValue(this.working.name ?? "");
-        t.onChange((v) => (this.working.name = v.trim()));
-      });
+    new Setting(contentEl).setName("Name").addText((t) => {
+      t.setValue(this.working.name ?? "");
+      t.onChange((v) => (this.working.name = v.trim()));
+    });
 
-    // Bindings (Base paths only)
+    // Bindings (base paths only)
     contentEl.createEl("h3", { text: "Bindings (base images)" });
 
     const pathsWrap = contentEl.createDiv();
@@ -68,10 +70,13 @@ export class CollectionEditorModal extends Modal {
         pathsWrap.createEl("div", { text: "No base images bound." });
       } else {
         this.working.bindings.basePaths.forEach((p, idx) => {
-          const row = pathsWrap.createDiv({ cls: "zoommap-collection-base-row" });
+          const row = pathsWrap.createDiv({
+            cls: "zoommap-collection-base-row",
+          });
+
           const code = row.createEl("code", { text: p });
-          code.style.whiteSpace = "pre-wrap";
-          code.style.wordBreak = "break-word";
+          code.addClass("zoommap-collection-base-path");
+
           const rm = row.createEl("button", { text: "Remove" });
           rm.onclick = () => {
             this.working.bindings.basePaths.splice(idx, 1);
@@ -79,10 +84,10 @@ export class CollectionEditorModal extends Modal {
           };
         });
       }
+
       const addBtn = pathsWrap.createEl("button", { text: "Add base image…" });
       addBtn.onclick = () => {
         new ImageFileSuggestModal(this.app, (file: TFile) => {
-          if (!file) return;
           const path = file.path;
           if (!this.working.bindings.basePaths.includes(path)) {
             this.working.bindings.basePaths.push(path);
@@ -100,23 +105,22 @@ export class CollectionEditorModal extends Modal {
     const renderPins = () => {
       pinWrap.empty();
 
-      pinWrap.createEl("div", {
+      pinWrap.createDiv({
+        cls: "zoommap-collection-pin-hint",
         text: "Select pins from the icon library:",
-        attr: { style: "margin-bottom:6px; font-weight:600;" },
       });
 
       const lib = this.plugin.settings.icons ?? [];
       if (lib.length === 0) {
-        pinWrap.createEl("div", {
-        text: "No icons in library yet.",
-          attr: { style: "color: var(--text-muted);" },
+        const none = pinWrap.createEl("div", {
+          text: "No icons in library yet.",
         });
+        none.addClass("zoommap-muted");
       } else {
         const list = pinWrap.createDiv({ cls: "zoommap-collection-pin-grid" });
         lib.forEach((ico) => {
           const cell = list.createDiv({ cls: "zoommap-collection-pin-cell" });
 
-          // Checkbox
           const cb = cell.createEl("input", { type: "checkbox" });
           cb.checked = this.working.include.pinKeys.includes(ico.key);
           cb.onchange = () => {
@@ -129,10 +133,8 @@ export class CollectionEditorModal extends Modal {
             }
           };
 
-          // Icon image (defensiv, ohne Exceptions)
-          const img = cell.createEl("img", {
-            attr: { style: "width:18px;height:18px;object-fit:contain;flex:0 0 auto;" },
-          });
+          const img = cell.createEl("img");
+          img.addClass("zoommap-collection-pin-icon");
 
           const src = ico.pathOrDataUrl ?? "";
           if (typeof src === "string") {
@@ -146,13 +148,8 @@ export class CollectionEditorModal extends Modal {
             }
           }
 
-          // Label
           const label = cell.createEl("span", { text: ico.key });
-          label.style.flex = "1 1 auto";
-          label.style.minWidth = "0";
-          label.style.whiteSpace = "normal";
-          label.style.wordBreak = "break-word";
-          label.style.overflowWrap = "anywhere";
+          label.addClass("zoommap-collection-pin-label");
         });
       }
     };
@@ -165,20 +162,21 @@ export class CollectionEditorModal extends Modal {
     const renderFavs = () => {
       favWrap.empty();
       const list = this.working.include.favorites;
+
       if (list.length === 0) {
-        favWrap.createEl("div", {
+        const none = favWrap.createEl("div", {
           text: "No favorites in this collection.",
-          attr: { style: "color: var(--text-muted);" },
         });
+        none.addClass("zoommap-muted");
       }
+
       list.forEach((p, idx) => {
         const row = favWrap.createDiv({ cls: "zoommap-collection-fav-row" });
-        // Name
+
         const name = row.createEl("input", { type: "text" });
         name.value = p.name ?? "";
         name.oninput = () => (p.name = name.value.trim());
 
-        // Icon key from library
         const iconSel = row.createEl("select");
         const addOpt = (val: string, labelText: string) => {
           const o = document.createElement("option");
@@ -186,23 +184,24 @@ export class CollectionEditorModal extends Modal {
           o.textContent = labelText;
           iconSel.appendChild(o);
         };
+
         addOpt("", "(default)");
-        (this.plugin.settings.icons ?? []).forEach((ico) => addOpt(ico.key, ico.key));
+        (this.plugin.settings.icons ?? []).forEach((ico) =>
+          addOpt(ico.key, ico.key),
+        );
+
         iconSel.value = p.iconKey ?? "";
         iconSel.onchange = () => (p.iconKey = iconSel.value || undefined);
 
-        // Layer name
         const layer = row.createEl("input", { type: "text" });
         layer.placeholder = "Layer (optional)";
         layer.value = p.layerName ?? "";
         layer.oninput = () => (p.layerName = layer.value.trim() || undefined);
 
-        // Open editor toggle
         const ed = row.createEl("input", { type: "checkbox" });
         ed.checked = !!p.openEditor;
         ed.onchange = () => (p.openEditor = ed.checked);
 
-        // Link template
         const link = row.createEl("input", { type: "text" });
         link.placeholder = "Link template (optional)";
         link.value = p.linkTemplate ?? "";
@@ -217,7 +216,10 @@ export class CollectionEditorModal extends Modal {
 
       const add = favWrap.createEl("button", { text: "Add favorite" });
       add.onclick = () => {
-        const p: MarkerPreset = { name: `Favorite ${this.working.include.favorites.length + 1}`, openEditor: false };
+        const p: MarkerPreset = {
+          name: `Favorite ${this.working.include.favorites.length + 1}`,
+          openEditor: false,
+        };
         this.working.include.favorites.push(p);
         renderFavs();
       };
@@ -231,14 +233,19 @@ export class CollectionEditorModal extends Modal {
     const renderStickers = () => {
       stickerWrap.empty();
       const list = this.working.include.stickers;
+
       if (list.length === 0) {
-        stickerWrap.createEl("div", {
+        const none = stickerWrap.createEl("div", {
           text: "No stickers in this collection.",
-          attr: { style: "color: var(--text-muted);" },
         });
+        none.addClass("zoommap-muted");
       }
+
       list.forEach((s, idx) => {
-        const row = stickerWrap.createDiv({ cls: "zoommap-collection-sticker-row" });
+        const row = stickerWrap.createDiv({
+          cls: "zoommap-collection-sticker-row",
+        });
+
         const name = row.createEl("input", { type: "text" });
         name.value = s.name ?? "";
         name.oninput = () => (s.name = name.value.trim());
@@ -263,10 +270,8 @@ export class CollectionEditorModal extends Modal {
         const pick = row.createEl("button", { text: "Pick…" });
         pick.onclick = () => {
           new ImageFileSuggestModal(this.app, (file: TFile) => {
-            if (file) {
-              s.imagePath = file.path;
-              renderStickers();
-            }
+            s.imagePath = file.path;
+            renderStickers();
           }).open();
         };
 
@@ -279,7 +284,12 @@ export class CollectionEditorModal extends Modal {
 
       const add = stickerWrap.createEl("button", { text: "Add sticker" });
       add.onclick = () => {
-        const s: StickerPreset = { name: `Sticker ${this.working.include.stickers.length + 1}`, imagePath: "", size: 64, openEditor: false };
+        const s: StickerPreset = {
+          name: `Sticker ${this.working.include.stickers.length + 1}`,
+          imagePath: "",
+          size: 64,
+          openEditor: false,
+        };
         this.working.include.stickers.push(s);
         renderStickers();
       };
@@ -291,7 +301,6 @@ export class CollectionEditorModal extends Modal {
 
     const save = footer.createEl("button", { text: "Save" });
     save.onclick = async () => {
-      // copy working back to original
       this.original.name = this.working.name;
       this.original.bindings = deepClone(this.working.bindings);
       this.original.include = deepClone(this.working.include);

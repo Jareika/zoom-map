@@ -1,4 +1,4 @@
-import { Component, Notice, TFile } from "obsidian";
+import { Component, Modal, Notice, TFile } from "obsidian";
 import type { App } from "obsidian";
 import { generateId, MarkerStore } from "./markerStore";
 import type {
@@ -126,6 +126,7 @@ export interface ZoomMapSettings {
   customUnits?: CustomUnitDef[];
   defaultScaleLikeSticker?: boolean;
   enableDrawing?: boolean;
+  preferActiveLayerInEditor?: boolean;
 }
 
 interface Point { x: number; y: number; }
@@ -385,8 +386,10 @@ export class MapInstance extends Component {
     if (this.cfg.responsive) this.el.classList.add("zm-root--responsive");
 
     if (this.cfg.responsive) {
-      this.el.style.setProperty("width", "100%");
-      this.el.style.setProperty("height", "auto");
+      setCssProps(this.el, {
+        width: "100%",
+        height: "auto",
+      });
     } else {
       setCssProps(this.el, {
         width: this.cfg.width ?? null,
@@ -1392,6 +1395,26 @@ export class MapInstance extends Component {
   private getLayerById(id: string): MarkerLayer | undefined {
     return this.data?.layers.find((l) => l.id === id);
   }
+  
+  private getPreferredNewMarkerLayerId(): string {
+    if (!this.data || !this.data.layers || this.data.layers.length === 0) {
+      return "default";
+    }
+
+    const prefer = !!this.plugin.settings.preferActiveLayerInEditor;
+
+    // "Active" here means: visible, and ideally not locked.
+    if (prefer) {
+      return (
+        this.data.layers.find((l) => l.visible && !l.locked)?.id ??
+        this.data.layers.find((l) => l.visible)?.id ??
+        this.data.layers[0].id
+      );
+    }
+
+    // Keep old behavior when preference is off: first visible layer (or fallback).
+    return this.data.layers.find((l) => l.visible)?.id ?? this.data.layers[0].id;
+  }
 
   private getLayerState(layer: MarkerLayer): LayerTriState {
     if (!layer.visible) return "hidden";
@@ -1872,31 +1895,37 @@ private onContextMenuViewport(e: MouseEvent): void {
           })),
         },
         {
-          label: "Delete draw layer…",
-          children: drawLayers.map((dl) => ({
-            label: dl.name,
-            action: () => {
-              if (!this.data) return;
-              const count = (this.data.drawings ?? []).filter(
-                (d) => d.layerId === dl.id,
-              ).length;
-              const ok = window.confirm(
-                count > 0
-                  ? `Delete draw layer "${dl.name}" and ${count} drawings on it?`
-                  : `Delete draw layer "${dl.name}"?`,
-              );
-              if (!ok) return;
-              this.data.drawLayers = (this.data.drawLayers ?? []).filter(
-                (l) => l.id !== dl.id,
-              );
-              this.data.drawings = (this.data.drawings ?? []).filter(
-                (d) => d.layerId !== dl.id,
-              );
-              void this.saveDataSoon();
-              this.renderDrawings();
-            },
-          })),
-        },
+		  label: "Delete draw layer…",
+		  children: drawLayers.map((dl) => ({
+			label: dl.name,
+			action: () => {
+			  if (!this.data) return;
+
+			  const count = (this.data.drawings ?? []).filter(
+				(d) => d.layerId === dl.id,
+			  ).length;
+
+			  const msg =
+				count > 0
+				  ? `Delete draw layer "${dl.name}" and ${count} drawings on it?`
+				  : `Delete draw layer "${dl.name}"?`;
+
+			  new ConfirmModal(this.app, "Delete draw layer", msg, () => {
+				if (!this.data) return;
+
+				this.data.drawLayers = (this.data.drawLayers ?? []).filter(
+				  (l) => l.id !== dl.id,
+				);
+				this.data.drawings = (this.data.drawings ?? []).filter(
+				  (d) => d.layerId !== dl.id,
+				);
+
+				void this.saveDataSoon();
+				this.renderDrawings();
+			  }).open();
+			},
+		  })),
+		},
         {
           label: "Add draw layer…",
           action: () => {
@@ -1927,27 +1956,58 @@ private onContextMenuViewport(e: MouseEvent): void {
     }
 
     const imageLayersChildren: ZMMenuItem[] = [
-      { label: "Base", children: baseItems },
-      { label: "Overlays", children: overlayItems },
-    ];
+	  { label: "Base", children: baseItems },
+	  { label: "Overlays", children: overlayItems },
+	];
 
-    if (this.plugin.settings.enableDrawing) {
-      imageLayersChildren.push({
-        label: "Draw layers",
-        children: drawLayerChildren,
-      });
-    }
+	if (this.plugin.settings.enableDrawing) {
+	  imageLayersChildren.push({
+		label: "Draw layers",
+		children: drawLayerChildren,
+	  });
+	}
 
-    imageLayersChildren.push(
-      { type: "separator" },
-      {
-        label: "Add layer",
-        children: [
-          { label: "Base…", action: () => this.promptAddLayer("base") },
-          { label: "Overlay…", action: () => this.promptAddLayer("overlay") },
-        ],
-      },
-    );
+	imageLayersChildren.push(
+	  { type: "separator" },
+	  {
+		label: "Delete base…",
+		children: bases.map<ZMMenuItem>((b) => ({
+		  label: b.name ?? basename(b.path),
+		  action: () => {
+			this.closeMenu();
+			this.confirmDeleteBase(b.path);
+		  },
+		})),
+	  },
+	  {
+		label: "Delete overlay…",
+		children:
+		  (this.data.overlays ?? []).length > 0
+			? (this.data.overlays ?? []).map<ZMMenuItem>((o) => ({
+				label: o.name ?? basename(o.path),
+				action: () => {
+				  this.closeMenu();
+				  this.confirmDeleteOverlay(o.path);
+				},
+			  }))
+			: [
+				{
+				  label: "(No overlays)",
+				  action: () => {
+					this.closeMenu();
+				  },
+				},
+			  ],
+	  },
+	  { type: "separator" },
+	  {
+		label: "Add layer",
+		children: [
+		  { label: "Base…", action: () => this.promptAddLayer("base") },
+		  { label: "Overlay…", action: () => this.promptAddLayer("overlay") },
+		],
+	  },
+	);
 
     items.push(
       { type: "separator" },
@@ -2274,7 +2334,8 @@ private onContextMenuViewport(e: MouseEvent): void {
         const visible =
           (!hasMin || (Number.isFinite(min!) && s >= min!)) &&
           (!hasMax || (Number.isFinite(max!) && s <= max!));
-        el.style.display = visible ? "" : "none";
+        if (visible) el.classList.remove("zm-hidden");
+        else el.classList.add("zm-hidden");
       });
     };
 
@@ -2298,7 +2359,7 @@ private onContextMenuViewport(e: MouseEvent): void {
 
   private addMarkerInteractive(nx: number, ny: number): void {
     if (!this.data) return;
-    const defaultLayer = this.data.layers.find((l) => l.visible) ?? this.data.layers[0];
+    const layerId = this.getPreferredNewMarkerLayerId();
     const iconKey = this.plugin.settings.defaultIconKey;
     const defaultLink = this.getIconDefaultLink(iconKey);
 
@@ -2306,7 +2367,7 @@ private onContextMenuViewport(e: MouseEvent): void {
       id: generateId("marker"),
       x: nx,
       y: ny,
-      layer: defaultLayer.id,
+      layer: layerId,
       link: defaultLink ?? "",
       iconKey,
       tooltip: "",
@@ -2326,7 +2387,7 @@ private onContextMenuViewport(e: MouseEvent): void {
 
   private placePinAt(iconKey: string, nx: number, ny: number): void {
     if (!this.data) return;
-    const defaultLayer = this.data.layers.find((l) => l.visible) ?? this.data.layers[0];
+    const layerId = this.getPreferredNewMarkerLayerId();
 
     const defaultLink = this.getIconDefaultLink(iconKey);
 
@@ -2334,7 +2395,7 @@ private onContextMenuViewport(e: MouseEvent): void {
       id: generateId("marker"),
       x: nx,
       y: ny,
-      layer: defaultLayer.id,
+      layer: layerId,
       link: defaultLink ?? "",
       iconKey,
       tooltip: "",
@@ -2362,8 +2423,7 @@ private onContextMenuViewport(e: MouseEvent): void {
   private addHudPin(hx: number, hy: number): void {
     if (!this.data) return;
 
-    const defaultLayer =
-      this.data.layers.find((l) => l.visible) ?? this.data.layers[0];
+    const layerId = this.getPreferredNewMarkerLayerId();
 
     const vpRect = this.viewportEl.getBoundingClientRect();
 
@@ -2374,7 +2434,7 @@ private onContextMenuViewport(e: MouseEvent): void {
       id: generateId("marker"),
       x: 0,
       y: 0,
-      layer: defaultLayer.id,
+      layer: layerId,
       link: defaultLink ?? "",
       iconKey,
       tooltip: "",
@@ -2426,8 +2486,7 @@ private onContextMenuViewport(e: MouseEvent): void {
         layerId = id;
       }
     } else {
-      const vis = this.data.layers.find((l) => l.visible);
-      if (vis) layerId = vis.id;
+      layerId = this.getPreferredNewMarkerLayerId();
     }
 
     const draft: Marker = {
@@ -2461,7 +2520,7 @@ private onContextMenuViewport(e: MouseEvent): void {
 
   private placeStickerPresetAt(p: StickerPreset, nx: number, ny: number): void {
     if (!this.data) return;
-    let layerId = this.data.layers[0].id;
+    let layerId = this.getPreferredNewMarkerLayerId();
     if (p.layerName) {
       const found = this.data.layers.find((l) => l.name === p.layerName);
       if (found) layerId = found.id;
@@ -2753,11 +2812,6 @@ private onContextMenuViewport(e: MouseEvent): void {
           if (af instanceof TFile) {
             const url = this.app.vault.getResourcePath(af);
             patternHref = url;
-            console.log("ZoomMap: using baked SVG file", {
-              id: d.id,
-              bakedPath: d.bakedPath,
-              url,
-            });
           } else {
             console.warn("ZoomMap: baked SVG file not found", {
               id: d.id,
@@ -3470,7 +3524,7 @@ private onContextMenuViewport(e: MouseEvent): void {
         const visibleByZoom =
           (minZ === undefined || (Number.isFinite(minZ) && s >= minZ)) &&
           (maxZ === undefined || (Number.isFinite(maxZ) && s <= maxZ));
-        if (!visibleByZoom) host.style.display = "none";
+        if (!visibleByZoom) host.classList.add("zm-hidden");
       }
 
       if (this.isLayerLocked(m.layer)) host.classList.add("zm-marker--locked");
@@ -3484,7 +3538,6 @@ private onContextMenuViewport(e: MouseEvent): void {
         icon = anch.createEl("img", { cls: "zm-marker-icon" });
         icon.src = this.resolveResourceUrl(m.stickerPath ?? "");
         icon.style.width = `${size}px`;
-        icon.style.height = "auto";
         icon.draggable = false;
         anch.appendChild(icon);
       } else {
@@ -3503,12 +3556,10 @@ private onContextMenuViewport(e: MouseEvent): void {
           icon = anch.createEl("img", { cls: "zm-marker-icon" });
           icon.src = imgUrl;
           icon.style.width = `${info.size}px`;
-          icon.style.height = "auto";
           icon.draggable = false;
 		  
 		  if (info.rotationDeg) {
 		    icon.style.transform = `rotate(${info.rotationDeg}deg)`;
-		    icon.style.transformOrigin = "50% 50%";
 		  }
 		  
           anch.appendChild(icon);
@@ -3518,12 +3569,10 @@ private onContextMenuViewport(e: MouseEvent): void {
           icon = anch.createEl("img", { cls: "zm-marker-icon" });
           icon.src = imgUrl;
           icon.style.width = `${info.size}px`;
-          icon.style.height = "auto";
           icon.draggable = false;
 		  
 		  if (info.rotationDeg) {
 		    icon.style.transform = `rotate(${info.rotationDeg}deg)`;
-		    icon.style.transformOrigin = "50% 50%";
 		  }
 		  
           anch.appendChild(icon);
@@ -3536,12 +3585,10 @@ private onContextMenuViewport(e: MouseEvent): void {
           icon = anch.createEl("img", { cls: "zm-marker-icon" });
           icon.src = imgUrl;
           icon.style.width = `${info.size}px`;
-          icon.style.height = "auto";
           icon.draggable = false;
 		  
 		  if (info.rotationDeg) {
 		    icon.style.transform = `rotate(${info.rotationDeg}deg)`;
-		    icon.style.transformOrigin = "50% 50%";
 		  }
 		  
           anch.appendChild(icon);
@@ -4228,6 +4275,71 @@ private onContextMenuViewport(e: MouseEvent): void {
       return false;
     }
   }
+  
+  private async replaceYamlScalarIfEquals(
+  key: "image",
+  oldValue: string,
+  newValue: string,
+): Promise<boolean> {
+  if (typeof this.cfg.sectionStart !== "number" || typeof this.cfg.sectionEnd !== "number") {
+    return false;
+  }
+
+  const af = this.app.vault.getAbstractFileByPath(this.cfg.sourcePath);
+  if (!(af instanceof TFile)) return false;
+
+  let foundBlock = false;
+
+  const stripQuotes = (s: string) => {
+    const t = s.trim();
+    if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
+      return t.slice(1, -1);
+    }
+    return t;
+  };
+
+  await this.app.vault.process(af, (text) => {
+    const lines = text.split("\n");
+    const blk = this.findZoommapBlock(lines, this.cfg.sectionStart);
+    if (!blk) return text;
+
+    foundBlock = true;
+
+    const content = lines.slice(blk.start + 1, blk.end);
+    let changed = false;
+
+    const keyRe = /^(\s*)image\s*:\s*(.*)$/i;
+
+    const out = content.map((ln) => {
+      const m = keyRe.exec(ln);
+      if (!m) return ln;
+
+      const indent = m[1] ?? "";
+      const rhs = m[2] ?? "";
+      const val = stripQuotes(rhs);
+
+      if (val === oldValue) {
+        changed = true;
+        return `${indent}image: ${JSON.stringify(newValue)}`;
+      }
+      return ln;
+    });
+
+    if (!changed) return text;
+
+    if (af.path === this.store.getPath()) {
+      this.ignoreNextModify = true;
+    }
+
+    return [
+      ...lines.slice(0, blk.start + 1),
+      ...out,
+      ...lines.slice(blk.end),
+    ].join("\n");
+  });
+
+  return foundBlock;
+}
 
   private syncYamlLayers(
     yamlBases: { path: string; name?: string }[],
@@ -4321,6 +4433,125 @@ private onContextMenuViewport(e: MouseEvent): void {
     void this.appendLayerToYaml("overlay", path, name ?? "");
     new Notice("Overlay added.", 1200);
   }
+  
+  private confirmDeleteBase(path: string): void {
+  if (!this.data) return;
+
+  const bases = this.getBasesNormalized();
+  if (bases.length <= 1) {
+    new Notice("Cannot delete the last base image.", 2500);
+    return;
+  }
+
+  const label = bases.find((b) => b.path === path)?.name ?? basename(path);
+  new ConfirmModal(
+    this.app,
+    "Delete base image",
+    `Remove base "${label}" from this map?`,
+    () => {
+      void this.deleteBaseByPath(path);
+    },
+  ).open();
+}
+
+private async deleteBaseByPath(path: string): Promise<void> {
+  if (!this.data) return;
+
+  const basesBefore = this.getBasesNormalized();
+  if (basesBefore.length <= 1) {
+    new Notice("Cannot delete the last base image.", 2500);
+    return;
+  }
+
+  const idx = basesBefore.findIndex((b) => b.path === path);
+  if (idx < 0) return;
+
+  const wasActive = this.getActiveBasePath() === path;
+
+  // Remove base from data.bases (string or object form)
+  this.data.bases = (this.data.bases ?? []).filter((it) => {
+    if (typeof it === "string") return it !== path;
+    if (it && typeof it === "object" && "path" in it) {
+      const p = (it as { path?: unknown }).path;
+      return typeof p !== "string" || p !== path;
+    }
+    return true;
+  });
+
+  // Remove per-base scale if present
+  if (this.data.measurement?.scales) {
+    delete this.data.measurement.scales[path];
+  }
+
+  // Unbind marker layers that referenced this base
+  for (const l of this.data.layers) {
+    if (l.boundBase === path) l.boundBase = undefined;
+  }
+
+  let newActive: string | null = null;
+
+  if (wasActive) {
+    const basesAfter = this.getBasesNormalized();
+    const pick = Math.min(idx, basesAfter.length - 1);
+    newActive = basesAfter[pick]?.path ?? basesAfter[0]?.path ?? null;
+
+    if (newActive) {
+      await this.setActiveBase(newActive);
+    }
+  } else {
+    await this.saveDataSoon();
+  }
+
+  // Update YAML: remove from imageBases
+  await this.removeFromYamlList("imageBases", path);
+
+  // Update YAML: if the zoommap block has image: <deleted>, replace it
+  if (newActive) {
+    await this.replaceYamlScalarIfEquals("image", path, newActive);
+  }
+
+  new Notice("Base removed.", 1200);
+}
+
+private confirmDeleteOverlay(path: string): void {
+  if (!this.data) return;
+
+  const o = (this.data.overlays ?? []).find((x) => x.path === path);
+  const label = o?.name ?? basename(path);
+
+  new ConfirmModal(
+    this.app,
+    "Delete overlay",
+    `Remove overlay "${label}" from this map?`,
+    () => {
+      void this.deleteOverlayByPath(path);
+    },
+  ).open();
+}
+
+private async deleteOverlayByPath(path: string): Promise<void> {
+  if (!this.data) return;
+
+  const prevCount = (this.data.overlays ?? []).length;
+  this.data.overlays = (this.data.overlays ?? []).filter((o) => o.path !== path);
+
+  if ((this.data.overlays ?? []).length === prevCount) return;
+
+  await this.saveDataSoon();
+
+  if (this.isCanvas()) {
+    await this.ensureVisibleOverlaysLoaded();
+    this.renderCanvas();
+  } else {
+    this.buildOverlayElements();
+    this.updateOverlaySizes();
+    await this.updateOverlayVisibility();
+  }
+
+  await this.removeFromYamlList("imageOverlays", path);
+
+  new Notice("Overlay removed.", 1200);
+}
 
   private async appendLayerToYaml(kind: "base" | "overlay", path: string, name: string): Promise<void> {
     try {
@@ -4370,6 +4601,153 @@ private onContextMenuViewport(e: MouseEvent): void {
   // true = Block gefunden (auch wenn nichts geändert wurde)
   // false = Block nicht gefunden
   return foundBlock;
+}
+
+  private async removeFromYamlList(
+  key: "imageBases" | "imageOverlays",
+  removePath: string,
+): Promise<boolean> {
+  if (typeof this.cfg.sectionStart !== "number" || typeof this.cfg.sectionEnd !== "number") {
+    return false;
+  }
+
+  const af = this.app.vault.getAbstractFileByPath(this.cfg.sourcePath);
+  if (!(af instanceof TFile)) return false;
+
+  let foundBlock = false;
+
+  await this.app.vault.process(af, (text) => {
+    const lines = text.split("\n");
+    const blk = this.findZoommapBlock(lines, this.cfg.sectionStart);
+    if (!blk) return text;
+
+    foundBlock = true;
+
+    const content = lines.slice(blk.start + 1, blk.end);
+    const patched = this.patchYamlListRemove(content, key, removePath);
+    if (!patched.changed) return text;
+
+    if (af.path === this.store.getPath()) {
+      this.ignoreNextModify = true;
+    }
+
+    return [
+      ...lines.slice(0, blk.start + 1),
+      ...patched.out,
+      ...lines.slice(blk.end),
+    ].join("\n");
+  });
+
+  return foundBlock;
+}
+
+private patchYamlListRemove(
+  contentLines: string[],
+  key: "imageBases" | "imageOverlays",
+  removePath: string,
+): { changed: boolean; out: string[] } {
+  const out = contentLines.slice();
+  const keyRe = new RegExp(`^(\\s*)${key}\\s*:(.*)$`);
+  let keyIdx = -1;
+  let keyIndent = "";
+
+  for (let i = 0; i < out.length; i++) {
+    const m = keyRe.exec(out[i]);
+    if (m) {
+      keyIdx = i;
+      keyIndent = m[1] ?? "";
+      break;
+    }
+  }
+  if (keyIdx < 0) return { changed: false, out };
+
+  const isNextTopLevelKey = (ln: string) => {
+    const trimmed = ln.trim();
+    if (!trimmed) return false;
+    if (trimmed.startsWith("#")) return false;
+    const spaces = (/^\s*/.exec(ln))?.[0].length ?? 0;
+    return spaces <= keyIndent.length && /^[A-Za-z0-9_-]+\s*:/.exec(trimmed) !== null;
+  };
+
+  let regionEnd = keyIdx + 1;
+  while (regionEnd < out.length && !isNextTopLevelKey(out[regionEnd])) regionEnd++;
+
+  const region = out.slice(keyIdx + 1, regionEnd);
+
+  const stripQuotes = (s: string) => {
+    const t = s.trim();
+    if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
+      return t.slice(1, -1);
+    }
+    return t;
+  };
+
+  const removed: string[] = [];
+  let changed = false;
+
+  for (let i = 0; i < region.length; i++) {
+    const line = region[i];
+    const trimmed = line.trimStart();
+
+    if (!trimmed.startsWith("-")) {
+      removed.push(line);
+      continue;
+    }
+
+    const afterDash = trimmed.slice(1).trimStart();
+
+    // Object form: - path: ...
+    const objMatch = /^path\s*:\s*(.+)$/.exec(afterDash);
+    if (objMatch) {
+      const rawVal = stripQuotes(objMatch[1] ?? "");
+      if (rawVal === removePath) {
+        changed = true;
+
+        const baseIndent = (/^\s*/.exec(line))?.[0].length ?? 0;
+        let j = i + 1;
+        while (j < region.length) {
+          const next = region[j];
+          const nextIndent = (/^\s*/.exec(next))?.[0].length ?? 0;
+          const nextTrim = next.trimStart();
+
+          if (nextTrim.startsWith("-") && nextIndent === baseIndent) break;
+          if (nextTrim && nextIndent <= baseIndent) break;
+
+          j++;
+        }
+        i = j - 1;
+        continue;
+      }
+
+      removed.push(line);
+      continue;
+    }
+
+    // String form: - "path"  or - path
+    const rawVal = stripQuotes(afterDash);
+    if (rawVal === removePath) {
+      changed = true;
+      continue;
+    }
+
+    removed.push(line);
+  }
+
+  // Rebuild output
+  const nextOut: string[] = [
+    ...out.slice(0, keyIdx + 1),
+    ...removed,
+    ...out.slice(regionEnd),
+  ];
+
+  // If empty list, normalize to key: []
+  const remainingItems = removed.some((ln) => ln.trimStart().startsWith("-"));
+  if (!remainingItems) {
+    nextOut[keyIdx] = `${keyIndent}${key}: []`;
+    // remove any leftover empty lines directly after key line (optional)
+  }
+
+  return { changed, out: nextOut };
 }
 
   private findZoommapBlock(
@@ -4494,6 +4872,51 @@ private onContextMenuViewport(e: MouseEvent): void {
     await this.saveDataSoon();
     this.renderMarkersOnly();
     new Notice("Layer deleted.", 1000);
+  }
+}
+
+class ConfirmModal extends Modal {
+  private titleText: string;
+  private messageText: string;
+  private confirmText: string;
+  private cancelText: string;
+  private onConfirm: () => void;
+
+  constructor(
+    app: App,
+    titleText: string,
+    messageText: string,
+    onConfirm: () => void,
+    opts?: { confirmText?: string; cancelText?: string },
+  ) {
+    super(app);
+    this.titleText = titleText;
+    this.messageText = messageText;
+    this.onConfirm = onConfirm;
+    this.confirmText = opts?.confirmText ?? "Confirm";
+    this.cancelText = opts?.cancelText ?? "Cancel";
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.empty();
+
+    contentEl.createEl("h2", { text: this.titleText });
+    contentEl.createEl("div", { text: this.messageText });
+
+    const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });
+    const confirm = footer.createEl("button", { text: this.confirmText });
+    const cancel = footer.createEl("button", { text: this.cancelText });
+
+    confirm.onclick = () => {
+      this.close();
+      this.onConfirm();
+    };
+    cancel.onclick = () => this.close();
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
   }
 }
 

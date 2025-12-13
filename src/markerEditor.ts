@@ -63,18 +63,15 @@ export class MarkerEditorModal extends Modal {
     const files = this.app.vault
       .getFiles()
       .filter((f) => f.extension?.toLowerCase() === "md");
-    const suggestions: LinkSuggestion[] = [];
 
+    const suggestions: LinkSuggestion[] = [];
     const active = this.app.workspace.getActiveFile();
     const fromPath = active?.path ?? files[0]?.path ?? "";
 
     for (const file of files) {
       const baseLink = this.app.metadataCache.fileToLinktext(file, fromPath);
 
-      suggestions.push({
-        label: baseLink,
-        value: baseLink,
-      });
+      suggestions.push({ label: baseLink, value: baseLink });
 
       const cache = this.app.metadataCache.getCache(file.path);
       const headings = cache?.headings ?? [];
@@ -91,6 +88,19 @@ export class MarkerEditorModal extends Modal {
     this.allSuggestions = suggestions;
   }
 
+  private showLinkSuggestions(): void {
+    if (!this.suggestionsEl) return;
+    this.suggestionsEl.classList.remove("is-hidden");
+  }
+
+  private hideLinkSuggestions(): void {
+    if (!this.suggestionsEl) return;
+    this.suggestionsEl.classList.add("is-hidden");
+    this.suggestionsEl.empty();
+    this.filteredSuggestions = [];
+    this.selectedSuggestionIndex = -1;
+  }
+
   private updateLinkSuggestions(input: string): void {
     if (!this.suggestionsEl) return;
 
@@ -100,7 +110,7 @@ export class MarkerEditorModal extends Modal {
     this.selectedSuggestionIndex = -1;
 
     if (!query) {
-      this.suggestionsEl.style.display = "none";
+      this.hideLinkSuggestions();
       return;
     }
 
@@ -114,12 +124,12 @@ export class MarkerEditorModal extends Modal {
       .slice(0, maxItems);
 
     if (matches.length === 0) {
-      this.suggestionsEl.style.display = "none";
+      this.hideLinkSuggestions();
       return;
     }
 
     this.filteredSuggestions = matches;
-    this.suggestionsEl.style.display = "";
+    this.showLinkSuggestions();
 
     matches.forEach((s, i) => {
       const row = this.suggestionsEl!.createDiv({
@@ -135,14 +145,6 @@ export class MarkerEditorModal extends Modal {
         this.applyLinkSuggestion(i);
       });
     });
-  }
-
-  private hideLinkSuggestions(): void {
-    if (!this.suggestionsEl) return;
-    this.suggestionsEl.style.display = "none";
-    this.suggestionsEl.empty();
-    this.filteredSuggestions = [];
-    this.selectedSuggestionIndex = -1;
   }
 
   private moveLinkSuggestionSelection(delta: number): void {
@@ -175,6 +177,7 @@ export class MarkerEditorModal extends Modal {
     const s = this.filteredSuggestions[index];
     this.linkInput.setValue(s.value);
     this.marker.link = s.value;
+
     this.hideLinkSuggestions();
 
     this.linkInput.inputEl.focus();
@@ -208,10 +211,7 @@ export class MarkerEditorModal extends Modal {
       max = undefined;
     }
 
-    if (
-      min === undefined &&
-      max === undefined
-    ) {
+    if (min === undefined && max === undefined) {
       delete this.marker.minZoom;
       delete this.marker.maxZoom;
       return;
@@ -234,19 +234,17 @@ export class MarkerEditorModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", {
-      text:
-        this.marker.type === "sticker" ? "Edit sticker" : "Edit marker",
+      text: this.marker.type === "sticker" ? "Edit sticker" : "Edit marker",
     });
 
     if (this.marker.type !== "sticker") {
       const linkSetting = new Setting(contentEl)
         .setName("Link")
-        .setDesc(
-          "Wiki link (without [[ ]]). Supports note and note#heading.",
-        );
+        .setDesc("Wiki link (without [[ ]]). Supports note and note#heading.");
 
       linkSetting.addText((t) => {
         this.linkInput = t;
+
         t.setPlaceholder("Folder/note or note#heading")
           .setValue(this.marker.link ?? "")
           .onChange((v) => {
@@ -258,19 +256,15 @@ export class MarkerEditorModal extends Modal {
         if (wrapper instanceof HTMLElement) {
           wrapper.classList.add("zoommap-link-input-wrapper");
           this.suggestionsEl = wrapper.createDiv({
-            cls: "zoommap-link-suggestions",
+            cls: "zoommap-link-suggestions is-hidden",
           });
-          this.suggestionsEl.style.display = "none";
         }
 
         this.buildLinkSuggestions();
 
         t.inputEl.addEventListener("keydown", (ev) => {
-          if (
-            !this.suggestionsEl ||
-            this.suggestionsEl.style.display === "none"
-          )
-            return;
+          if (!this.suggestionsEl) return;
+          if (this.suggestionsEl.classList.contains("is-hidden")) return;
 
           if (ev.key === "ArrowDown") {
             ev.preventDefault();
@@ -293,16 +287,14 @@ export class MarkerEditorModal extends Modal {
         });
       });
 
-      new Setting(contentEl)
-        .setName("Tooltip")
-        .addTextArea((a) => {
-          a.setPlaceholder("Optional tooltip text");
-          a.inputEl.rows = 3;
-          a.setValue(this.marker.tooltip ?? "");
-          a.onChange((v) => {
-            this.marker.tooltip = v;
-          });
+      new Setting(contentEl).setName("Tooltip").addTextArea((a) => {
+        a.setPlaceholder("Optional tooltip text");
+        a.inputEl.rows = 3;
+        a.setValue(this.marker.tooltip ?? "");
+        a.onChange((v) => {
+          this.marker.tooltip = v;
         });
+      });
 
       const zoomRow = new Setting(contentEl)
         .setName("Zoom range (optional)")
@@ -338,7 +330,6 @@ export class MarkerEditorModal extends Modal {
           });
         });
 
-      // Icon selection
       new Setting(contentEl)
         .setName("Icon")
         .setDesc("To set up new icons go to settings.")
@@ -346,21 +337,16 @@ export class MarkerEditorModal extends Modal {
           for (const icon of this.plugin.settings.icons) {
             d.addOption(icon.key, icon.key);
           }
-          d.setValue(
-            this.marker.iconKey ?? this.plugin.settings.defaultIconKey,
-          );
+          d.setValue(this.marker.iconKey ?? this.plugin.settings.defaultIconKey);
           d.onChange((v) => {
             this.marker.iconKey = v;
             updatePreview();
           });
         });
 
-      // Per-pin icon color (always visible; only affects SVG icons)
       const colorRow = new Setting(contentEl)
         .setName("Icon color")
-        .setDesc(
-          "Overrides the icon color for this marker (SVG icons only).",
-        );
+        .setDesc("Overrides the icon color for this marker (SVG icons only).");
 
       let colorTextEl: HTMLInputElement;
       const colorPickerEl = colorRow.controlEl.createEl("input", {
@@ -382,10 +368,7 @@ export class MarkerEditorModal extends Modal {
       });
 
       const existing = this.marker.iconColor;
-      if (
-        existing &&
-        /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(existing)
-      ) {
+      if (existing && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(existing)) {
         if (existing.length === 4) {
           const r = existing[1];
           const g = existing[2];
@@ -406,42 +389,57 @@ export class MarkerEditorModal extends Modal {
 
     // Layer
     let newLayerName = "";
+
+    const isExistingMarker = (this.data.markers ?? []).some(
+      (m) => m.id === this.marker.id,
+    );
+
+    if (this.plugin.settings.preferActiveLayerInEditor && !isExistingMarker) {
+      const active =
+        this.data.layers.find((l) => l.visible && !l.locked) ??
+        this.data.layers.find((l) => l.visible) ??
+        this.data.layers[0];
+
+      if (active) {
+        this.marker.layer = active.id;
+      }
+    }
+
     new Setting(contentEl)
       .setName("Layer")
       .setDesc("Choose an existing layer or type a new name.")
       .addDropdown((d) => {
         for (const l of this.data.layers) d.addOption(l.name, l.name);
+
         const current =
-          this.data.layers.find((l) => l.id === this.marker.layer)
-            ?.name ?? this.data.layers[0].name;
+          this.data.layers.find((l) => l.id === this.marker.layer)?.name ??
+          this.data.layers.find((l) => l.visible && !l.locked)?.name ??
+          this.data.layers.find((l) => l.visible)?.name ??
+          this.data.layers[0].name;
+
         d.setValue(current).onChange((v) => {
           const lyr = this.data.layers.find((l) => l.name === v);
           if (lyr) this.marker.layer = lyr.id;
         });
       })
       .addText((t) =>
-        t
-          .setPlaceholder("Create new layer (optional)")
-          .onChange((v) => {
-            newLayerName = v.trim();
-          }),
+        t.setPlaceholder("Create new layer (optional)").onChange((v) => {
+          newLayerName = v.trim();
+        }),
       );
 
-    // Sticker size
     if (this.marker.type === "sticker") {
-      new Setting(contentEl)
-        .setName("Size")
-        .addText((t) => {
-          t.setPlaceholder("64");
-          t.setValue(String(this.marker.stickerSize ?? 64));
-          t.onChange((v) => {
-            const n = Number(v);
-            if (Number.isFinite(n) && n > 0) {
-              this.marker.stickerSize = Math.round(n);
-              updatePreview();
-            }
-          });
+      new Setting(contentEl).setName("Size").addText((t) => {
+        t.setPlaceholder("64");
+        t.setValue(String(this.marker.stickerSize ?? 64));
+        t.onChange((v) => {
+          const n = Number(v);
+          if (Number.isFinite(n) && n > 0) {
+            this.marker.stickerSize = Math.round(n);
+            updatePreview();
+          }
         });
+      });
     }
 
     // Preview
@@ -458,19 +456,13 @@ export class MarkerEditorModal extends Modal {
             url = this.app.vault.getResourcePath(file);
           }
         }
-        const size = Math.max(
-          1,
-          Math.round(this.marker.stickerSize ?? 64),
-        );
+        const size = Math.max(1, Math.round(this.marker.stickerSize ?? 64));
         return { url, size };
       }
 
       const baseIcon =
         this.plugin.settings.icons.find(
-          (i) =>
-            i.key ===
-            (this.marker.iconKey ??
-              this.plugin.settings.defaultIconKey),
+          (i) => i.key === (this.marker.iconKey ?? this.plugin.settings.defaultIconKey),
         ) ?? this.plugin.builtinIcon();
 
       let url = baseIcon.pathOrDataUrl;
@@ -498,6 +490,7 @@ export class MarkerEditorModal extends Modal {
           url = this.app.vault.getResourcePath(file);
         }
       }
+
       return { url, size };
     };
 
@@ -513,23 +506,17 @@ export class MarkerEditorModal extends Modal {
     const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });
     const btnSave = footer.createEl("button", { text: "Save" });
     const btnDelete = footer.createEl("button", {
-      text:
-        this.marker.type === "sticker"
-          ? "Delete sticker"
-          : "Delete marker",
+      text: this.marker.type === "sticker" ? "Delete sticker" : "Delete marker",
     });
     const btnCancel = footer.createEl("button", { text: "Cancel" });
 
     btnSave.addEventListener("click", () => {
       let dataChanged = false;
+
       if (newLayerName) {
-        const exists = this.data.layers.find(
-          (l) => l.name === newLayerName,
-        );
+        const exists = this.data.layers.find((l) => l.name === newLayerName);
         if (!exists) {
-          const id = `layer_${Math.random()
-            .toString(36)
-            .slice(2, 8)}`;
+          const id = `layer_${Math.random().toString(36).slice(2, 8)}`;
           this.data.layers.push({
             id,
             name: newLayerName,
@@ -543,14 +530,10 @@ export class MarkerEditorModal extends Modal {
       if (this.marker.type !== "sticker") {
         this.normalizeZoomRange();
 
-        if (typeof this.marker.minZoom !== "number")
-          delete this.marker.minZoom;
-        if (typeof this.marker.maxZoom !== "number")
-          delete this.marker.maxZoom;
-        if (!this.marker.scaleLikeSticker)
-          delete this.marker.scaleLikeSticker;
-        if (!this.marker.iconColor)
-          delete this.marker.iconColor;
+        if (typeof this.marker.minZoom !== "number") delete this.marker.minZoom;
+        if (typeof this.marker.maxZoom !== "number") delete this.marker.maxZoom;
+        if (!this.marker.scaleLikeSticker) delete this.marker.scaleLikeSticker;
+        if (!this.marker.iconColor) delete this.marker.iconColor;
       }
 
       this.close();

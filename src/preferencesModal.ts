@@ -17,12 +17,28 @@ export class PreferencesModal extends Modal {
 
     new Setting(contentEl)
       .setName('Pins: "scale like sticker" by default')
-      .setDesc('When enabled, new pins will have "scale like sticker" enabled in the marker editor.')
+      .setDesc(
+        'When enabled, new pins will have "scale like sticker" enabled in the marker editor.',
+      )
       .addToggle((toggle) => {
         toggle
           .setValue(!!this.plugin.settings.defaultScaleLikeSticker)
           .onChange(async (value) => {
             this.plugin.settings.defaultScaleLikeSticker = value;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(contentEl)
+      .setName("Prefer first active layer for new markers")
+      .setDesc(
+        "When enabled, markers default to the first visible unlocked layer, whether created or placed.",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(!!this.plugin.settings.preferActiveLayerInEditor)
+          .onChange(async (value) => {
+            this.plugin.settings.preferActiveLayerInEditor = value;
             await this.plugin.saveSettings();
           });
       });

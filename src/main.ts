@@ -11,7 +11,13 @@ import {
 } from "obsidian";
 import type { App, MarkdownPostProcessorContext } from "obsidian";
 import { MapInstance } from "./map";
-import type { ZoomMapConfig, ZoomMapSettings, IconProfile, BaseCollection, CustomUnitDef } from "./map";
+import type {
+  ZoomMapConfig,
+  ZoomMapSettings,
+  IconProfile,
+  BaseCollection,
+  CustomUnitDef,
+} from "./map";
 import { ImageFileSuggestModal } from "./iconFileSuggest";
 import { CollectionEditorModal } from "./collectionsModals";
 import { JsonFileSuggestModal } from "./jsonFileSuggest";
@@ -30,8 +36,8 @@ function svgPinDataUrl(color = "#d23c3c"): string {
 
 interface ZoomMapSettingsExtended extends ZoomMapSettings {
   defaultWidthWrapped?: string;
-  libraryFilePath?: string; // single library file in the vault that stores icons + collections
-  faFolderPath?: string;    // folder in vault containing Font Awesome SVG icons
+  libraryFilePath?: string; // Single library file in the vault that stores icons + collections
+  faFolderPath?: string; // Folder in vault containing SVG icon packs
 }
 
 interface LibraryFileData {
@@ -52,25 +58,41 @@ function folderOf(path: string): string {
   return i >= 0 ? path.slice(0, i) : "";
 }
 
-// URL for Font Awesome Free web ZIP that contains SVG icons.
-// You can update this URL to a newer release if needed.
 const DEFAULT_FA_ZIP_URL =
   "https://use.fontawesome.com/releases/v6.4.0/fontawesome-free-6.4.0-web.zip";
-  
-const DEFAULT_RPG_ZIP_URL =
 
-"https://github.com/nagoshiashumari/rpg-awesome-raw/archive/refs/heads/master.zip";
+const DEFAULT_RPG_ZIP_URL =
+  "https://github.com/nagoshiashumari/rpg-awesome-raw/archive/refs/heads/master.zip";
 
 function isPlainObject(val: unknown): val is Record<string, unknown> {
   return typeof val === "object" && val !== null && !Array.isArray(val);
+}
+
+function setCssProps(el: HTMLElement, props: Record<string, string | null>): void {
+  for (const [key, value] of Object.entries(props)) {
+    if (value === null) el.style.removeProperty(key);
+    else el.style.setProperty(key, value);
+  }
 }
 
 /* ---------------- Defaults ---------------- */
 
 const DEFAULT_SETTINGS: ZoomMapSettingsExtended = {
   icons: [
-    { key: "pinRed",  pathOrDataUrl: svgPinDataUrl("#d23c3c"), size: 24, anchorX: 12, anchorY: 12 },
-    { key: "pinBlue", pathOrDataUrl: svgPinDataUrl("#3c62d2"), size: 24, anchorX: 12, anchorY: 12 },
+    {
+      key: "pinRed",
+      pathOrDataUrl: svgPinDataUrl("#d23c3c"),
+      size: 24,
+      anchorX: 12,
+      anchorY: 12,
+    },
+    {
+      key: "pinBlue",
+      pathOrDataUrl: svgPinDataUrl("#3c62d2"),
+      size: 24,
+      anchorX: 12,
+      anchorY: 12,
+    },
   ],
   defaultIconKey: "pinRed",
   wheelZoomFactor: 1.1,
@@ -95,12 +117,20 @@ const DEFAULT_SETTINGS: ZoomMapSettingsExtended = {
   customUnits: [],
   defaultScaleLikeSticker: false,
   enableDrawing: false,
+  preferActiveLayerInEditor: false,
 };
 
 /* ---------------- YAML parsing helpers ---------------- */
 
-interface YamlBase { path: string; name?: string }
-interface YamlOverlay { path: string; name?: string; visible?: boolean }
+interface YamlBase {
+  path: string;
+  name?: string;
+}
+interface YamlOverlay {
+  path: string;
+  name?: string;
+  visible?: boolean;
+}
 
 interface YamlOptions {
   image?: string;
@@ -110,15 +140,15 @@ interface YamlOptions {
   height?: string | number;
   width?: string | number;
   resizable?: boolean;
-  resizeHandle?: string;      // will be parsed
-  render?: string;            // will be parsed
+  resizeHandle?: string; // parsed
+  render?: string; // parsed
   responsive?: boolean;
-  responsiv?: boolean;        // legacy alias
+  responsiv?: boolean; // legacy alias
 
-  storage?: string;           // will be parsed to json|note
+  storage?: string; // parsed to json|note
   id?: string;
 
-  align?: string;             // will be parsed to left|center|right
+  align?: string; // parsed to left|center|right
   wrap?: boolean;
 
   classes?: string | string[];
@@ -131,34 +161,45 @@ interface YamlOptions {
 
 function parseBasesYaml(v: unknown): YamlBase[] {
   if (!Array.isArray(v)) return [];
-  return (v as unknown[]).map((it) => {
-    if (typeof it === "string") return { path: it };
-    if (it && typeof it === "object" && "path" in it) {
-      const obj = it as { path?: unknown; name?: unknown };
-      if (typeof obj.path === "string") {
-        return { path: obj.path, name: typeof obj.name === "string" ? obj.name : undefined };
+  return (v as unknown[])
+    .map((it) => {
+      if (typeof it === "string") return { path: it };
+      if (it && typeof it === "object" && "path" in it) {
+        const obj = it as { path?: unknown; name?: unknown };
+        if (typeof obj.path === "string") {
+          return {
+            path: obj.path,
+            name: typeof obj.name === "string" ? obj.name : undefined,
+          };
+        }
       }
-    }
-    return null;
-  }).filter((b): b is YamlBase => b !== null);
+      return null;
+    })
+    .filter((b): b is YamlBase => b !== null);
 }
 
 function parseOverlaysYaml(v: unknown): YamlOverlay[] {
   if (!Array.isArray(v)) return [];
-  return (v as unknown[]).map((it) => {
-    if (typeof it === "string") return { path: it };
-    if (it && typeof it === "object" && "path" in it) {
-      const obj = it as { path?: unknown; name?: unknown; visible?: unknown };
-      if (typeof obj.path === "string") {
-        return {
-          path: obj.path,
-          name: typeof obj.name === "string" ? obj.name : undefined,
-          visible: typeof obj.visible === "boolean" ? obj.visible : undefined,
+  return (v as unknown[])
+    .map((it) => {
+      if (typeof it === "string") return { path: it };
+      if (it && typeof it === "object" && "path" in it) {
+        const obj = it as {
+          path?: unknown;
+          name?: unknown;
+          visible?: unknown;
         };
+        if (typeof obj.path === "string") {
+          return {
+            path: obj.path,
+            name: typeof obj.name === "string" ? obj.name : undefined,
+            visible: typeof obj.visible === "boolean" ? obj.visible : undefined,
+          };
+        }
       }
-    }
-    return null;
-  }).filter((o): o is YamlOverlay => o !== null);
+      return null;
+    })
+    .filter((o): o is YamlOverlay => o !== null);
 }
 
 function parseScaleYaml(v: unknown): number | undefined {
@@ -199,7 +240,9 @@ function parseAlign(v: unknown): "left" | "center" | "right" | undefined {
 }
 
 function parseResizeHandle(v: unknown): "left" | "right" | "both" | "native" {
-  return v === "left" || v === "right" || v === "both" || v === "native" ? v : "right";
+  return v === "left" || v === "right" || v === "both" || v === "native"
+    ? v
+    : "right";
 }
 
 async function readSavedFrame(
@@ -209,11 +252,13 @@ async function readSavedFrame(
   try {
     const file = app.vault.getAbstractFileByPath(normalizePath(markersPath));
     if (!(file instanceof TFile)) return null;
-    const raw = await app.vault.read(file);
-	const parsed = JSON.parse(raw) as unknown;
 
-    let fw = NaN;
-    let fh = NaN;
+    const raw = await app.vault.read(file);
+    const parsed = JSON.parse(raw) as unknown;
+
+    let fw = Number.NaN;
+    let fh = Number.NaN;
+
     if (isPlainObject(parsed)) {
       const frame = (parsed as { frame?: unknown }).frame;
       if (frame && typeof frame === "object") {
@@ -222,6 +267,7 @@ async function readSavedFrame(
         fh = typeof fr.h === "number" ? fr.h : Number(fr.h);
       }
     }
+
     if (Number.isFinite(fw) && Number.isFinite(fh) && fw >= 48 && fh >= 48) {
       return { w: Math.round(fw), h: Math.round(fh) };
     }
@@ -237,7 +283,8 @@ export default class ZoomMapPlugin extends Plugin {
   settings: ZoomMapSettings = DEFAULT_SETTINGS;
 
   activeMap: MapInstance | null = null;
-    setActiveMap(inst: MapInstance): void {
+
+  setActiveMap(inst: MapInstance): void {
     this.activeMap = inst;
   }
 
@@ -258,23 +305,23 @@ export default class ZoomMapPlugin extends Plugin {
     this.registerMarkdownCodeBlockProcessor(
       "zoommap",
       async (src: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
-        // Parse YAML block (typed)
         let opts: Partial<YamlOptions> = {};
 
-		try {
-		  const parsed: unknown = parseYaml(src);
-		  if (parsed && typeof parsed === "object") {
-			opts = parsed as Partial<YamlOptions>;
-		  }
-		} catch (error) {
-		  console.error("Zoom Map: failed to parse zoommap block", error);
-		}
+        try {
+          const parsed: unknown = parseYaml(src);
+          if (parsed && typeof parsed === "object") {
+            opts = parsed as Partial<YamlOptions>;
+          }
+        } catch (error) {
+          console.error("Zoom Map: failed to parse zoommap block", error);
+        }
 
         const yamlBases = parseBasesYaml(opts.imageBases);
         const yamlOverlays = parseOverlaysYaml(opts.imageOverlays);
         const yamlMetersPerPixel = parseScaleYaml(opts.scale);
 
-        const renderMode: "dom" | "canvas" = opts.render === "canvas" ? "canvas" : "dom";
+        const renderMode: "dom" | "canvas" =
+          opts.render === "canvas" ? "canvas" : "dom";
 
         let image = typeof opts.image === "string" ? opts.image.trim() : "";
         if (!image && yamlBases.length > 0) image = yamlBases[0].path;
@@ -285,28 +332,28 @@ export default class ZoomMapPlugin extends Plugin {
 
         const responsive = !!(opts.responsive ?? opts.responsiv);
 
-        // storage: json | note (inline/in-note => note)
-        const storageRaw = typeof opts.storage === "string" ? opts.storage.toLowerCase() : "";
+        const storageRaw =
+          typeof opts.storage === "string" ? opts.storage.toLowerCase() : "";
         const storageMode: "json" | "note" =
           storageRaw === "note" || storageRaw === "inline" || storageRaw === "in-note"
             ? "note"
             : storageRaw === "json"
-            ? "json"
-            : (this.settings.storageDefault ?? "json");
+              ? "json"
+              : (this.settings.storageDefault ?? "json");
 
         const sectionInfo = ctx.getSectionInfo(el);
         const defaultId = `map-${sectionInfo?.lineStart ?? Date.now()}`;
         const idFromYaml = opts.id;
-        const mapId = typeof idFromYaml === "string" && idFromYaml.trim() ? idFromYaml.trim() : defaultId;
+        const mapId =
+          typeof idFromYaml === "string" && idFromYaml.trim()
+            ? idFromYaml.trim()
+            : defaultId;
 
-        const markersPathRaw = typeof opts.markers === "string" ? opts.markers : undefined;
+        const markersPathRaw =
+          typeof opts.markers === "string" ? opts.markers : undefined;
 
-        const minZoom = responsive
-          ? 1e-6
-          : parseZoomYaml(opts.minZoom, 0.25);
-        const maxZoom = responsive
-          ? 1e6
-          : parseZoomYaml(opts.maxZoom, 8);
+        const minZoom = responsive ? 1e-6 : parseZoomYaml(opts.minZoom, 0.25);
+        const maxZoom = responsive ? 1e6 : parseZoomYaml(opts.maxZoom, 8);
 
         const markersPath = normalizePath(markersPathRaw ?? `${image}.markers.json`);
 
@@ -317,22 +364,31 @@ export default class ZoomMapPlugin extends Plugin {
         const extraClasses: string[] = Array.isArray(classesValue)
           ? (classesValue as unknown[]).map((c) => String(c))
           : typeof classesValue === "string"
-          ? classesValue.split(/\s+/).map((c) => c.trim()).filter(Boolean)
-          : [];
+            ? classesValue
+              .split(/\s+/)
+              .map((c) => c.trim())
+              .filter(Boolean)
+            : [];
 
-        const resizable = responsive ? false : (typeof opts.resizable === "boolean" ? opts.resizable : this.settings.defaultResizable);
+        const resizable = responsive
+          ? false
+          : typeof opts.resizable === "boolean"
+            ? opts.resizable
+            : this.settings.defaultResizable;
+
         const resizeHandle = responsive ? "right" : parseResizeHandle(opts.resizeHandle);
 
         const widthFromYaml = Object.prototype.hasOwnProperty.call(opts, "width");
         const heightFromYaml = Object.prototype.hasOwnProperty.call(opts, "height");
 
         const extSettings = this.settings as ZoomMapSettingsExtended;
-        const widthDefault = wrap ? (extSettings.defaultWidthWrapped ?? "50%") : this.settings.defaultWidth;
+        const widthDefault = wrap
+          ? (extSettings.defaultWidthWrapped ?? "50%")
+          : this.settings.defaultWidth;
 
         let widthCss = responsive ? "100%" : toCssSize(opts.width, widthDefault);
-        let heightCss = responsive ? "auto"   : toCssSize(opts.height, this.settings.defaultHeight);
+        let heightCss = responsive ? "auto" : toCssSize(opts.height, this.settings.defaultHeight);
 
-        // Restore persisted frame (only JSON storage and when width/height not explicitly set)
         if (!responsive && storageMode === "json" && !widthFromYaml && !heightFromYaml) {
           const saved = await readSavedFrame(this.app, markersPath);
           if (saved) {
@@ -392,7 +448,6 @@ export default class ZoomMapPlugin extends Plugin {
   async loadSettings(): Promise<void> {
     const savedUnknown: unknown = await this.loadData();
 
-    // Build a typed object without unnecessary assertions
     const merged: ZoomMapSettings = { ...DEFAULT_SETTINGS };
     if (isPlainObject(savedUnknown)) {
       Object.assign(merged, savedUnknown);
@@ -404,14 +459,14 @@ export default class ZoomMapPlugin extends Plugin {
     ext.defaultWidthWrapped ??= "50%";
     ext.libraryFilePath ??= "ZoomMap/library.json";
     ext.faFolderPath ??= "ZoomMap/SVGs";
-	this.settings.customUnits ??= [];
+    this.settings.customUnits ??= [];
   }
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
   }
 
-    /* -------- Library file (icons + collections) -------- */
+  /* -------- Library file (icons + collections) -------- */
 
   private async ensureFolder(path: string): Promise<void> {
     const folder = folderOf(path);
@@ -424,12 +479,14 @@ export default class ZoomMapPlugin extends Plugin {
   async saveLibraryToPath(path: string): Promise<void> {
     const p = normalizePath(path);
     const ext = this.settings as ZoomMapSettingsExtended;
+
     const payload: LibraryFileData = {
       version: 1,
       icons: this.settings.icons ?? [],
       baseCollections: this.settings.baseCollections ?? [],
       exportedAt: new Date().toISOString(),
     };
+
     try {
       await this.ensureFolder(p);
       const existing = this.app.vault.getAbstractFileByPath(p);
@@ -544,7 +601,7 @@ export default class ZoomMapPlugin extends Plugin {
     }
   }
 
-  async rescanSvgFolder(): Promise<number> {
+  rescanSvgFolder(): number {
     const ext = this.settings as ZoomMapSettingsExtended;
     const folder = normalizePath(ext.faFolderPath?.trim() || "ZoomMap/SVGs");
     const files = this.app.vault.getFiles();
@@ -562,17 +619,16 @@ export default class ZoomMapPlugin extends Plugin {
     return count;
   }
 }
+
 function tintSvgMarkup(svg: string, color: string): string {
   const c = color.trim();
   if (!c) return svg;
 
   let s = svg;
 
-  // Replace existing fill/stroke
   s = s.replace(/fill="[^"]*"/gi, `fill="${c}"`);
   s = s.replace(/stroke="[^"]*"/gi, `stroke="${c}"`);
 
-  // Ensure root <svg> has a fill if none existed
   if (!/fill="/i.test(s)) {
     s = s.replace(/<svg([^>]*?)>/i, `<svg$1 fill="${c}">`);
   }
@@ -595,7 +651,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
   private async addFontAwesomeIcon(file: TFile): Promise<void> {
     try {
       const svg = await this.app.vault.read(file);
-      const defaultColor = "#b0b0b0"; // medium gray, visible in light and dark themes
+      const defaultColor = "#b0b0b0";
       const tinted = tintSvgMarkup(svg, defaultColor);
       const dataUrl =
         "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(tinted);
@@ -704,9 +760,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Storage location by default")
-      .setDesc(
-        "Store marker data in JSON beside image, or inline in the note.",
-      )
+      .setDesc("Store marker data in JSON beside image, or inline in the note.")
       .addDropdown((d) => {
         d.addOption("json", "JSON file (beside image)");
         d.addOption("note", "Inside the note (hidden comment)");
@@ -722,9 +776,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Default width when wrapped")
-      .setDesc(
-        "Initial width if wrap: true and no width is set in the code block.",
-      )
+      .setDesc("Initial width if wrap: true and no width is set in the code block.")
       .addText((t) => {
         const ext = this.plugin.settings as ZoomMapSettingsExtended;
         t.setPlaceholder("50%");
@@ -762,8 +814,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
         d.addOption("middle", "Middle");
         d.setValue(this.plugin.settings.panMouseButton ?? "left");
         d.onChange((v) => {
-          this.plugin.settings.panMouseButton =
-            v === "middle" ? "middle" : "left";
+          this.plugin.settings.panMouseButton = v === "middle" ? "middle" : "left";
           void this.plugin.saveSettings();
         });
       });
@@ -800,29 +851,23 @@ class ZoomMapSettingTab extends PluginSettingTab {
       .setName("Force popovers without ctrl")
       .setDesc("Opens preview popovers on simple hover.")
       .addToggle((t) =>
-        t
-          .setValue(!!this.plugin.settings.forcePopoverWithoutModKey)
-          .onChange((v) => {
-            this.plugin.settings.forcePopoverWithoutModKey = v;
-            void this.plugin.saveSettings();
-          }),
+        t.setValue(!!this.plugin.settings.forcePopoverWithoutModKey).onChange((v) => {
+          this.plugin.settings.forcePopoverWithoutModKey = v;
+          void this.plugin.saveSettings();
+        }),
       );
 
     new Setting(containerEl)
       .setName("Open editor when placing pin from menu")
-      .setDesc(
-        "When enabled, placing a pin from the pins menu opens the marker editor.",
-      )
+      .setDesc("When enabled, placing a pin from the pins menu opens the marker editor.")
       .addToggle((t) =>
-        t
-          .setValue(!!this.plugin.settings.pinPlaceOpensEditor)
-          .onChange((v) => {
-            this.plugin.settings.pinPlaceOpensEditor = v;
-            void this.plugin.saveSettings();
-          }),
+        t.setValue(!!this.plugin.settings.pinPlaceOpensEditor).onChange((v) => {
+          this.plugin.settings.pinPlaceOpensEditor = v;
+          void this.plugin.saveSettings();
+        }),
       );
-	  
-	  new Setting(containerEl)
+
+    new Setting(containerEl)
       .setName("Preferences")
       .setDesc("Global defaults for marker creation and behavior.")
       .addButton((b) =>
@@ -835,17 +880,14 @@ class ZoomMapSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("Ruler").setHeading();
 
     const applyStyleToAll = () => {
-      const color = (
-        this.plugin.settings.measureLineColor ?? "var(--text-accent)"
-      ).trim();
-      const widthPx = Math.max(
-        1,
-        this.plugin.settings.measureLineWidth ?? 2,
-      );
+      const color = (this.plugin.settings.measureLineColor ?? "var(--text-accent)").trim();
+      const widthPx = Math.max(1, this.plugin.settings.measureLineWidth ?? 2);
       document.querySelectorAll(".zm-root").forEach((el) => {
         if (el instanceof HTMLElement) {
-          el.style.setProperty("--zm-measure-color", color);
-          el.style.setProperty("--zm-measure-width", `${widthPx}px`);
+          setCssProps(el, {
+            "--zm-measure-color": color,
+            "--zm-measure-width": `${widthPx}px`,
+          });
         }
       });
     };
@@ -857,12 +899,9 @@ class ZoomMapSettingTab extends PluginSettingTab {
     colorRow.addText((t) =>
       t
         .setPlaceholder("Default")
-        .setValue(
-          this.plugin.settings.measureLineColor ?? "var(--text-accent)",
-        )
+        .setValue(this.plugin.settings.measureLineColor ?? "var(--text-accent)")
         .onChange((v) => {
-          this.plugin.settings.measureLineColor =
-            v?.trim() || "var(--text-accent)";
+          this.plugin.settings.measureLineColor = v?.trim() || "var(--text-accent)";
           void this.plugin.saveSettings();
           applyStyleToAll();
         }),
@@ -876,11 +915,8 @@ class ZoomMapSettingTab extends PluginSettingTab {
     });
 
     const setPickerFromValue = (val: string) => {
-      if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(val)) {
-        picker.value = val;
-      } else {
-        picker.value = "#ff0000";
-      }
+      if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(val)) picker.value = val;
+      else picker.value = "#ff0000";
     };
     setPickerFromValue(this.plugin.settings.measureLineColor ?? "");
     picker.oninput = () => {
@@ -918,17 +954,10 @@ class ZoomMapSettingTab extends PluginSettingTab {
       const units = ext.customUnits;
 
       if (units.length === 0) {
-        customUnitsWrap.createEl("div", {
-          text: "No custom units defined yet.",
-        });
+        customUnitsWrap.createEl("div", { text: "No custom units defined yet." });
       } else {
         units.forEach((u, idx) => {
-          const row = customUnitsWrap.createDiv();
-          row.style.display = "grid";
-          row.style.gridTemplateColumns = "1.5fr 1fr 1fr auto";
-          row.style.gap = "8px";
-          row.style.alignItems = "center";
-          row.style.marginBottom = "4px";
+          const row = customUnitsWrap.createDiv({ cls: "zoommap-custom-unit-row" });
 
           const nameInput = row.createEl("input", { type: "text" });
           nameInput.placeholder = "Name (e.g. Hex)";
@@ -959,19 +988,18 @@ class ZoomMapSettingTab extends PluginSettingTab {
           };
 
           const delBtn = row.createEl("button", { text: "Delete" });
-          delBtn.onclick = async () => {
+          delBtn.onclick = () => {
             units.splice(idx, 1);
-            await this.plugin.saveSettings();
-            renderCustomUnits();
+            void this.plugin.saveSettings().then(() => {
+              renderCustomUnits();
+            });
           };
         });
       }
 
-      const addBtn = customUnitsWrap.createEl("button", {
-        text: "Add custom unit",
-      });
-      addBtn.style.marginTop = "6px";
-      addBtn.onclick = async () => {
+      const addBtn = customUnitsWrap.createEl("button", { text: "Add custom unit" });
+      addBtn.addClass("zoommap-custom-unit-add-button");
+      addBtn.onclick = () => {
         const ext2 = this.plugin.settings as ZoomMapSettingsExtended;
         ext2.customUnits ??= [];
         const id = `cu-${Math.random().toString(36).slice(2, 8)}`;
@@ -981,8 +1009,10 @@ class ZoomMapSettingTab extends PluginSettingTab {
           abbreviation: "hex",
           metersPerUnit: 5 * 0.3048,
         } as CustomUnitDef);
-        await this.plugin.saveSettings();
-        renderCustomUnits();
+
+        void this.plugin.saveSettings().then(() => {
+          renderCustomUnits();
+        });
       };
     };
     renderCustomUnits();
@@ -998,7 +1028,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
       const hint = collectionsWrap.createEl("div", {
         text: "Collections bundle pins, favorites and stickers for specific base images. Create a 'global' collection without bindings for items that should be available everywhere.",
       });
-      hint.style.marginBottom = "8px";
+      hint.addClass("zoommap-collections-hint");
 
       const list = collectionsWrap.createDiv();
       const cols = this.plugin.settings.baseCollections ?? [];
@@ -1008,58 +1038,51 @@ class ZoomMapSettingTab extends PluginSettingTab {
         cols.forEach((c) => {
           const row = list.createDiv({ cls: "zoommap-collections-row" });
           const left = row.createDiv();
-          const name = left.createEl("div", {
-            text: c.name || "(unnamed collection)",
-          });
-          name.style.fontWeight = "600";
+
+          const name = left.createEl("div", { text: c.name || "(unnamed collection)" });
+          name.addClass("zoommap-collections-name");
+
           const meta = left.createEl("div", {
-            text: `${c.bindings?.basePaths?.length ?? 0} bases • ${
-              c.include?.pinKeys?.length ?? 0
-            } pins • ${c.include?.favorites?.length ?? 0} favorites • ${
-              c.include?.stickers?.length ?? 0
-            } stickers`,
+            text: `${c.bindings?.basePaths?.length ?? 0} bases • ${c.include?.pinKeys?.length ?? 0} pins • ${c.include?.favorites?.length ?? 0} favorites • ${c.include?.stickers?.length ?? 0} stickers`,
           });
-          meta.style.fontSize = "12px";
-          meta.style.color = "var(--text-muted)";
+          meta.addClass("zoommap-collections-meta");
 
           const edit = row.createEl("button", { text: "Edit" });
           edit.onclick = () => {
-            new CollectionEditorModal(
-              this.app,
-              this.plugin,
-              c,
-              async ({ updated, deleted }) => {
-                if (deleted) {
-                  const arr =
-                    this.plugin.settings.baseCollections ?? [];
-                  const pos = arr.indexOf(c);
-                  if (pos >= 0) arr.splice(pos, 1);
-                  await this.plugin.saveSettings();
+            new CollectionEditorModal(this.app, this.plugin, c, ({ updated, deleted }) => {
+              if (deleted) {
+                const arr = this.plugin.settings.baseCollections ?? [];
+                const pos = arr.indexOf(c);
+                if (pos >= 0) arr.splice(pos, 1);
+
+                void this.plugin.saveSettings().then(() => {
                   renderCollections();
-                  return;
-                }
-                if (updated) {
-                  await this.plugin.saveSettings();
+                });
+                return;
+              }
+
+              if (updated) {
+                void this.plugin.saveSettings().then(() => {
                   renderCollections();
-                }
-              },
-            ).open();
+                });
+              }
+            }).open();
           };
 
           const del = row.createEl("button", { text: "Delete" });
-          del.onclick = async () => {
+          del.onclick = () => {
             const arr = this.plugin.settings.baseCollections ?? [];
             const pos = arr.indexOf(c);
             if (pos >= 0) arr.splice(pos, 1);
-            await this.plugin.saveSettings();
-            renderCollections();
+
+            void this.plugin.saveSettings().then(() => {
+              renderCollections();
+            });
           };
         });
       }
 
-      const actions = collectionsWrap.createDiv({
-        cls: "zoommap-collections-actions",
-      });
+      const actions = collectionsWrap.createDiv({ cls: "zoommap-collections-actions" });
       const add = actions.createEl("button", { text: "Add collection" });
       add.onclick = () => {
         const fresh: BaseCollection = {
@@ -1068,21 +1091,18 @@ class ZoomMapSettingTab extends PluginSettingTab {
           bindings: { basePaths: [] },
           include: { pinKeys: [], favorites: [], stickers: [] },
         };
-        new CollectionEditorModal(
-          this.app,
-          this.plugin,
-          fresh,
-          async ({ updated, deleted }) => {
-            if (deleted) return;
-            if (updated) {
-              this.plugin.settings.baseCollections =
-                this.plugin.settings.baseCollections ?? [];
-              this.plugin.settings.baseCollections.push(fresh);
-              await this.plugin.saveSettings();
+
+        new CollectionEditorModal(this.app, this.plugin, fresh, ({ updated, deleted }) => {
+          if (deleted) return;
+          if (updated) {
+            this.plugin.settings.baseCollections = this.plugin.settings.baseCollections ?? [];
+            this.plugin.settings.baseCollections.push(fresh);
+
+            void this.plugin.saveSettings().then(() => {
               renderCollections();
-            }
-          },
-        ).open();
+            });
+          }
+        }).open();
       };
     };
     renderCollections();
@@ -1093,9 +1113,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
 
     const libRow = new Setting(containerEl)
       .setName("Library file (icons + collections)")
-      .setDesc(
-        "Choose a JSON file in the vault to save/load your icon library and collections.",
-      );
+      .setDesc("Choose a JSON file in the vault to save/load your icon library and collections.");
 
     libRow.addText((t) => {
       const ext = this.plugin.settings as ZoomMapSettingsExtended;
@@ -1110,28 +1128,29 @@ class ZoomMapSettingTab extends PluginSettingTab {
 
     libRow.addButton((b) =>
       b.setButtonText("Pick…").onClick(() => {
-        new JsonFileSuggestModal(this.app, async (file) => {
-          (this.plugin.settings as ZoomMapSettingsExtended).libraryFilePath =
-            file.path;
-          await this.plugin.saveSettings();
-          this.display();
+        new JsonFileSuggestModal(this.app, (file) => {
+          (this.plugin.settings as ZoomMapSettingsExtended).libraryFilePath = file.path;
+          void this.plugin.saveSettings().then(() => {
+            this.display();
+          });
         }).open();
       }),
     );
 
     libRow.addButton((b) =>
-      b.setButtonText("Save now").onClick(async () => {
+      b.setButtonText("Save now").onClick(() => {
         const ext = this.plugin.settings as ZoomMapSettingsExtended;
         const p = ext.libraryFilePath?.trim() ?? "ZoomMap/library.json";
-        await this.plugin.saveLibraryToPath(p);
+        void this.plugin.saveLibraryToPath(p);
       }),
     );
 
     libRow.addButton((b) =>
       b.setButtonText("Load…").onClick(() => {
-        new JsonFileSuggestModal(this.app, async (file) => {
-          await this.plugin.loadLibraryFromFile(file);
-          this.display();
+        new JsonFileSuggestModal(this.app, (file) => {
+          void this.plugin.loadLibraryFromFile(file).then(() => {
+            this.display();
+          });
         }).open();
       }),
     );
@@ -1141,13 +1160,11 @@ class ZoomMapSettingTab extends PluginSettingTab {
 
     const svgFolderRow = new Setting(containerEl)
       .setName("SVG icon folder in vault")
-      .setDesc(
-        "Folder that contains SVG packs.",
-      );
+      .setDesc("Folder that contains SVG packs.");
 
     svgFolderRow.addText((t) => {
       const ext = this.plugin.settings as ZoomMapSettingsExtended;
-      t.setPlaceholder("ZoomMap/SVGs");
+      t.setPlaceholder("e.g. ZoomMap/SVGs");
       t.setValue(ext.faFolderPath ?? "ZoomMap/SVGs");
       t.onChange((v) => {
         ext.faFolderPath = (v || "ZoomMap/SVGs").trim();
@@ -1156,14 +1173,13 @@ class ZoomMapSettingTab extends PluginSettingTab {
     });
 
     svgFolderRow.addButton((b) =>
-      b.setButtonText("Ensure folder").onClick(async () => {
+      b.setButtonText("Ensure folder").onClick(() => {
         const ext = this.plugin.settings as ZoomMapSettingsExtended;
-        const folder = normalizePath(
-          ext.faFolderPath?.trim() || "ZoomMap/SVGs",
-        );
+        const folder = normalizePath(ext.faFolderPath?.trim() || "ZoomMap/SVGs");
         if (!this.app.vault.getAbstractFileByPath(folder)) {
-          await this.app.vault.createFolder(folder);
-          new Notice(`Created folder: ${folder}`, 2000);
+          void this.app.vault.createFolder(folder).then(() => {
+            new Notice(`Created folder: ${folder}`, 2000);
+          });
         } else {
           new Notice("Folder already exists.", 1500);
         }
@@ -1171,8 +1187,8 @@ class ZoomMapSettingTab extends PluginSettingTab {
     );
 
     svgFolderRow.addButton((b) =>
-      b.setButtonText("Rescan icons").onClick(async () => {
-        await this.plugin.rescanSvgFolder();
+      b.setButtonText("Rescan icons").onClick(() => {
+        this.plugin.rescanSvgFolder();
       }),
     );
 
@@ -1181,24 +1197,21 @@ class ZoomMapSettingTab extends PluginSettingTab {
       .setDesc("Download common SVG packs into the configured folder.");
 
     svgDownloadRow.addButton((b) =>
-      b.setButtonText("Dl font awesome free").onClick(async () => {
-        await this.plugin.downloadFontAwesomeZip();
+      b.setButtonText("Download font awesome free").onClick(() => {
+        void this.plugin.downloadFontAwesomeZip();
       }),
     );
 
     svgDownloadRow.addButton((b) =>
-      b.setButtonText("Dl rpg awesome").onClick(async () => {
-        await this.plugin.downloadRpgAwesomeZip();
+      b.setButtonText("Download rpg awesome").onClick(() => {
+        void this.plugin.downloadRpgAwesomeZip();
       }),
     );
 
-    // Suggestions for default links (reuse marker-like behaviour)
     type IconLinkSuggestion = { label: string; value: string };
 
     const buildLinkSuggestions = (): IconLinkSuggestion[] => {
-      const files = this.app.vault
-        .getFiles()
-        .filter((f) => f.extension?.toLowerCase() === "md");
+      const files = this.app.vault.getFiles().filter((f) => f.extension?.toLowerCase() === "md");
       const suggestions: IconLinkSuggestion[] = [];
 
       const active = this.app.workspace.getActiveFile();
@@ -1207,20 +1220,14 @@ class ZoomMapSettingTab extends PluginSettingTab {
       for (const file of files) {
         const baseLink = this.app.metadataCache.fileToLinktext(file, fromPath);
 
-        suggestions.push({
-          label: baseLink,
-          value: baseLink,
-        });
+        suggestions.push({ label: baseLink, value: baseLink });
 
         const cache = this.app.metadataCache.getCache(file.path);
         const headings = cache?.headings ?? [];
         for (const h of headings) {
           const headingName = h.heading;
           const full = `${baseLink}#${headingName}`;
-          suggestions.push({
-            label: `${baseLink} › ${headingName}`,
-            value: full,
-          });
+          suggestions.push({ label: `${baseLink} › ${headingName}`, value: full });
         }
       }
 
@@ -1238,56 +1245,50 @@ class ZoomMapSettingTab extends PluginSettingTab {
       if (!(wrapper instanceof HTMLElement)) return;
 
       wrapper.classList.add("zoommap-link-input-wrapper");
-      const listEl = wrapper.createDiv({
-        cls: "zoommap-link-suggestions",
-      });
-      listEl.style.display = "none";
+      const listEl = wrapper.createDiv({ cls: "zoommap-link-suggestions is-hidden" });
+
+      const hide = () => listEl.classList.add("is-hidden");
+      const show = () => listEl.classList.remove("is-hidden");
 
       const updateList = (query: string) => {
         const q = query.trim().toLowerCase();
         listEl.empty();
+
         if (!q) {
-          listEl.style.display = "none";
+          hide();
           return;
         }
 
         const maxItems = 20;
         const matches = allLinkSuggestions
-          .filter(
-            (s) =>
-              s.value.toLowerCase().includes(q) ||
-              s.label.toLowerCase().includes(q),
-          )
+          .filter((s) => s.value.toLowerCase().includes(q) || s.label.toLowerCase().includes(q))
           .slice(0, maxItems);
 
         if (matches.length === 0) {
-          listEl.style.display = "none";
+          hide();
           return;
         }
 
-        listEl.style.display = "";
+        show();
+
         matches.forEach((s) => {
-          const row = listEl.createDiv({
-            cls: "zoommap-link-suggestion-item",
-          });
+          const row = listEl.createDiv({ cls: "zoommap-link-suggestion-item" });
           row.setText(s.label);
           row.addEventListener("mousedown", (ev) => {
             ev.preventDefault();
             setValue(s.value);
-            listEl.style.display = "none";
+            hide();
           });
         });
       };
 
-      input.addEventListener("input", () => {
-        updateList(input.value);
-      });
+      input.addEventListener("input", () => updateList(input.value));
 
       input.addEventListener("blur", () => {
-        window.setTimeout(() => {
-          listEl.style.display = "none";
-        }, 150);
+        window.setTimeout(() => hide(), 150);
       });
+
+      updateList(getValue());
     };
 
     const isSvgIcon = (icon: IconProfile): boolean => {
@@ -1297,50 +1298,39 @@ class ZoomMapSettingTab extends PluginSettingTab {
       return lower.startsWith("data:image/svg+xml") || lower.endsWith(".svg");
     };
 
-    // SVG icons table
-    const svgIconsHead = containerEl.createDiv({
-	  cls: "zm-icons-grid-head zm-grid",
-	});
-	svgIconsHead.createSpan({ text: "Name" });
-	svgIconsHead.createSpan({ text: "Preview / color / link" });
-	svgIconsHead.createSpan({ text: "Size" });
+    // SVG icons table header
+    const svgIconsHead = containerEl.createDiv({ cls: "zm-icons-grid-head zm-grid" });
+    svgIconsHead.createSpan({ text: "Name" });
+    svgIconsHead.createSpan({ text: "Preview / color / link" });
+    svgIconsHead.createSpan({ text: "Size" });
 
-	const headSvgAX = svgIconsHead.createSpan({ cls: "zm-icohead" });
-	const svgAxIco = headSvgAX.createSpan();
-	setIcon(svgAxIco, "anchor");
-	headSvgAX.appendText(" X");
+    const headSvgAX = svgIconsHead.createSpan({ cls: "zm-icohead" });
+    const svgAxIco = headSvgAX.createSpan();
+    setIcon(svgAxIco, "anchor");
+    headSvgAX.appendText(" X");
 
-	const headSvgAY = svgIconsHead.createSpan({ cls: "zm-icohead" });
-	const svgAyIco = headSvgAY.createSpan();
-	setIcon(svgAyIco, "anchor");
-	headSvgAY.appendText(" Y");
+    const headSvgAY = svgIconsHead.createSpan({ cls: "zm-icohead" });
+    const svgAyIco = headSvgAY.createSpan();
+    setIcon(svgAyIco, "anchor");
+    headSvgAY.appendText(" Y");
 
-	svgIconsHead.createSpan({ text: "Angle" });
+    svgIconsHead.createSpan({ text: "Angle" });
 
-	const headSvgTrash = svgIconsHead.createSpan();
-	setIcon(headSvgTrash, "trash");
+    const headSvgTrash = svgIconsHead.createSpan();
+    setIcon(headSvgTrash, "trash");
 
-    const svgIconsGrid = containerEl.createDiv({
-      cls: "zm-icons-grid zm-grid",
-    });
+    const svgIconsGrid = containerEl.createDiv({ cls: "zm-icons-grid zm-grid" });
 
     const addSvgSetting = new Setting(containerEl)
       .setName("Add SVG icon")
       .setDesc("Create a pin icon from an SVG file in the configured folder.");
 
-    const infoIcon = addSvgSetting.controlEl.createDiv({
-      cls: "zoommap-info-icon",
-    });
+    const infoIcon = addSvgSetting.controlEl.createDiv({ cls: "zoommap-info-icon" });
     setIcon(infoIcon, "info");
     infoIcon.setAttr(
       "title",
       "Rendering many SVG files in the picker can cause noticeable delays while all previews are generated. Once the icons are cached, searching and adding should feel much faster.",
     );
-    infoIcon.style.marginRight = "6px";
-    infoIcon.style.display = "inline-flex";
-    infoIcon.style.alignItems = "center";
-    infoIcon.style.justifyContent = "center";
-    infoIcon.style.cursor = "help";
 
     addSvgSetting.addButton((b) =>
       b.setButtonText("Add SVG icon").onClick(() => {
@@ -1356,31 +1346,27 @@ class ZoomMapSettingTab extends PluginSettingTab {
     // Image icons heading
     new Setting(containerEl).setName("Image icons").setHeading();
 
-    const imgIconsHead = containerEl.createDiv({
-	  cls: "zm-icons-grid-head zm-grid",
-	});
-	imgIconsHead.createSpan({ text: "Name" });
-	imgIconsHead.createSpan({ text: "Path / data:URL + default link" });
-	imgIconsHead.createSpan({ text: "Size" });
+    const imgIconsHead = containerEl.createDiv({ cls: "zm-icons-grid-head zm-grid" });
+    imgIconsHead.createSpan({ text: "Name" });
+    imgIconsHead.createSpan({ text: "Path / data:URL + default link" });
+    imgIconsHead.createSpan({ text: "Size" });
 
-	const headImgAX = imgIconsHead.createSpan({ cls: "zm-icohead" });
-	const axIco = headImgAX.createSpan();
-	setIcon(axIco, "anchor");
-	headImgAX.appendText(" X");
+    const headImgAX = imgIconsHead.createSpan({ cls: "zm-icohead" });
+    const axIco = headImgAX.createSpan();
+    setIcon(axIco, "anchor");
+    headImgAX.appendText(" X");
 
-	const headImgAY = imgIconsHead.createSpan({ cls: "zm-icohead" });
-	const ayIco = headImgAY.createSpan();
-	setIcon(ayIco, "anchor");
-	headImgAY.appendText(" Y");
+    const headImgAY = imgIconsHead.createSpan({ cls: "zm-icohead" });
+    const ayIco = headImgAY.createSpan();
+    setIcon(ayIco, "anchor");
+    headImgAY.appendText(" Y");
 
-	imgIconsHead.createSpan({ text: "Angle" });
+    imgIconsHead.createSpan({ text: "Angle" });
 
-	const headImgTrash = imgIconsHead.createSpan();
-	setIcon(headImgTrash, "trash");
+    const headImgTrash = imgIconsHead.createSpan();
+    setIcon(headImgTrash, "trash");
 
-    const imgIconsGrid = containerEl.createDiv({
-      cls: "zm-icons-grid zm-grid",
-    });
+    const imgIconsGrid = containerEl.createDiv({ cls: "zm-icons-grid zm-grid" });
 
     const renderIcons = () => {
       svgIconsGrid.empty();
@@ -1388,7 +1374,6 @@ class ZoomMapSettingTab extends PluginSettingTab {
 
       for (const icon of this.plugin.settings.icons) {
         if (isSvgIcon(icon)) {
-          // ---- SVG icon row ----
           const row = svgIconsGrid.createDiv({ cls: "zm-row" });
 
           const name = row.createEl("input", { type: "text" });
@@ -1399,15 +1384,10 @@ class ZoomMapSettingTab extends PluginSettingTab {
             void this.plugin.saveSettings();
           };
 
-          const previewCell = row.createDiv();
-          previewCell.style.display = "flex";
-          previewCell.style.alignItems = "center";
-          previewCell.style.gap = "6px";
-          previewCell.style.flexWrap = "wrap";
+          const previewCell = row.createDiv({ cls: "zoommap-settings__preview-cell" });
 
-          const img = previewCell.createEl("img", {
-            cls: "zoommap-fa-picker-icon",
-          });
+          const img = previewCell.createEl("img");
+          img.addClass("zoommap-settings__icon-preview");
 
           let src = icon.pathOrDataUrl ?? "";
           if (typeof src === "string" && !src.startsWith("data:") && src) {
@@ -1417,47 +1397,32 @@ class ZoomMapSettingTab extends PluginSettingTab {
             }
           }
           img.src = typeof src === "string" ? src : "";
-          img.style.width = "24px";
-          img.style.height = "24px";
-          img.style.objectFit = "contain";
-		  
-		  const applyRotationPreview = () => {
-		    const deg = icon.rotationDeg ?? 0;
-		    if (deg) {
-			  img.style.transform = `rotate(${deg}deg)`;
-			  img.style.transformOrigin = "50% 50%";
-		    } else {
-			  img.style.transform = "";
-			  img.style.transformOrigin = "";
-		    }
-		  };
-		  applyRotationPreview();
+
+          const applyRotationPreview = () => {
+            const deg = icon.rotationDeg ?? 0;
+            setCssProps(img, {
+              transform: deg ? `rotate(${deg}deg)` : null,
+            });
+          };
+          applyRotationPreview();
 
           const rawSrc = icon.pathOrDataUrl ?? "";
-          const isSvgData =
-            typeof rawSrc === "string" &&
-            rawSrc.startsWith("data:image/svg+xml");
+          const isSvgData = typeof rawSrc === "string" && rawSrc.startsWith("data:image/svg+xml");
           let currentColor = "";
           if (isSvgData) {
-            const c = this.getSvgColorFromDataUrl(rawSrc as string);
+            const c = this.getSvgColorFromDataUrl(rawSrc);
             if (c) currentColor = c;
           }
 
           const colorInput = previewCell.createEl("input", { type: "text" });
+          colorInput.addClass("zoommap-settings__color-input");
           colorInput.placeholder = "Color";
-          colorInput.style.width = "9ch";
           colorInput.value = currentColor;
 
-          const colorPicker = previewCell.createEl("input", {
-            type: "color",
-          });
-          colorPicker.style.width = "32px";
-          colorPicker.style.padding = "0";
+          const colorPicker = previewCell.createEl("input", { type: "color" });
+          colorPicker.addClass("zoommap-settings__color-picker");
 
-          if (
-            currentColor &&
-            /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(currentColor)
-          ) {
+          if (currentColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(currentColor)) {
             if (currentColor.length === 4) {
               const r = currentColor[1];
               const g = currentColor[2];
@@ -1474,15 +1439,9 @@ class ZoomMapSettingTab extends PluginSettingTab {
             void this.recolorIconSvg(icon, c).then(() => {
               const updated = icon.pathOrDataUrl ?? "";
               let out = updated;
-              if (
-                typeof out === "string" &&
-                !out.startsWith("data:") &&
-                out
-              ) {
+              if (typeof out === "string" && !out.startsWith("data:") && out) {
                 const f = this.app.vault.getAbstractFileByPath(out);
-                if (f instanceof TFile) {
-                  out = this.app.vault.getResourcePath(f);
-                }
+                if (f instanceof TFile) out = this.app.vault.getResourcePath(f);
               }
               img.src = typeof out === "string" ? out : "";
             });
@@ -1510,119 +1469,8 @@ class ZoomMapSettingTab extends PluginSettingTab {
           });
 
           const linkInput = previewCell.createEl("input", { type: "text" });
-		  linkInput.placeholder = "Default link (optional)";
-		  linkInput.style.width = "14ch";
-		  linkInput.style.minWidth = "0";
-		  linkInput.value = icon.defaultLink ?? "";
-          linkInput.oninput = () => {
-            icon.defaultLink = linkInput.value.trim() || undefined;
-            void this.plugin.saveSettings();
-          };
-
-          attachLinkAutocomplete(
-            linkInput,
-            () => icon.defaultLink ?? "",
-            (val) => {
-              icon.defaultLink = val;
-              linkInput.value = val;
-              void this.plugin.saveSettings();
-            },
-          );
-
-          const size = row.createEl("input", { type: "number" });
-          size.classList.add("zm-num");
-          size.value = String(icon.size);
-          size.oninput = () => {
-            const n = Number(size.value);
-            if (!Number.isNaN(n) && n > 0) {
-              icon.size = n;
-              void this.plugin.saveSettings();
-            }
-          };
-
-          const ax = row.createEl("input", { type: "number" });
-          ax.classList.add("zm-num");
-          ax.value = String(icon.anchorX);
-          ax.oninput = () => {
-            const n = Number(ax.value);
-            if (!Number.isNaN(n)) {
-              icon.anchorX = n;
-              void this.plugin.saveSettings();
-            }
-          };
-
-          const ay = row.createEl("input", { type: "number" });
-          ay.classList.add("zm-num");
-          ay.value = String(icon.anchorY);
-          ay.oninput = () => {
-            const n = Number(ay.value);
-            if (!Number.isNaN(n)) {
-              icon.anchorY = n;
-              void this.plugin.saveSettings();
-            }
-          };
-		  
-		  const angle = row.createEl("input", { type: "number" });
-		  angle.classList.add("zm-num");
-		  angle.value = String(icon.rotationDeg ?? 0);
-		  angle.oninput = () => {
-		    const n = Number(angle.value);
-		    if (!Number.isNaN(n)) {
-			  icon.rotationDeg = n || 0;
-			  void this.plugin.saveSettings();
-			  applyRotationPreview();
-		    }
-		  };
-
-          const del = row.createEl("button", { attr: { title: "Delete" } });
-          del.classList.add("zm-icon-btn");
-          setIcon(del, "trash");
-          del.onclick = () => {
-            this.plugin.settings.icons = this.plugin.settings.icons.filter(
-              (i) => i !== icon,
-            );
-            void this.plugin.saveSettings();
-            renderIcons();
-          };
-        } else {
-          // ---- Image icon row ----
-          const row = imgIconsGrid.createDiv({ cls: "zm-row" });
-
-          const name = row.createEl("input", { type: "text" });
-          name.classList.add("zm-name");
-          name.value = icon.key;
-          name.oninput = () => {
-            icon.key = name.value.trim();
-            void this.plugin.saveSettings();
-          };
-
-          const pathWrap = row.createDiv({ cls: "zm-path-wrap" });
-
-          const path = pathWrap.createEl("input", { type: "text" });
-          path.value = icon.pathOrDataUrl ?? "";
-          path.style.width = "50%";
-          path.oninput = () => {
-            icon.pathOrDataUrl = path.value.trim();
-            void this.plugin.saveSettings();
-          };
-
-          const pick = pathWrap.createEl("button", {
-            attr: { title: "Choose file…" },
-          });
-          pick.classList.add("zm-icon-btn");
-          setIcon(pick, "folder-open");
-          pick.onclick = () => {
-            new ImageFileSuggestModal(this.app, (file: TFile) => {
-              icon.pathOrDataUrl = file.path;
-              void this.plugin.saveSettings();
-              renderIcons();
-            }).open();
-          };
-
-          const linkInput = pathWrap.createEl("input", { type: "text" });
+          linkInput.addClass("zoommap-settings__link-input--small");
           linkInput.placeholder = "Default link (optional)";
-		  linkInput.style.width = "18ch";
-		  linkInput.style.minWidth = "0";
           linkInput.value = icon.defaultLink ?? "";
           linkInput.oninput = () => {
             icon.defaultLink = linkInput.value.trim() || undefined;
@@ -1671,25 +1519,127 @@ class ZoomMapSettingTab extends PluginSettingTab {
               void this.plugin.saveSettings();
             }
           };
-		  
-		  const angle = row.createEl("input", { type: "number" });
-	      angle.classList.add("zm-num");
-		  angle.value = String(icon.rotationDeg ?? 0);
-		  angle.oninput = () => {
-		    const n = Number(angle.value);
-		    if (!Number.isNaN(n)) {
-		      icon.rotationDeg = n || 0;
-			  void this.plugin.saveSettings();
-		    }
-		  };
+
+          const angle = row.createEl("input", { type: "number" });
+          angle.classList.add("zm-num");
+          angle.value = String(icon.rotationDeg ?? 0);
+          angle.oninput = () => {
+            const n = Number(angle.value);
+            if (!Number.isNaN(n)) {
+              icon.rotationDeg = n || 0;
+              void this.plugin.saveSettings();
+              applyRotationPreview();
+            }
+          };
 
           const del = row.createEl("button", { attr: { title: "Delete" } });
           del.classList.add("zm-icon-btn");
           setIcon(del, "trash");
           del.onclick = () => {
-            this.plugin.settings.icons = this.plugin.settings.icons.filter(
-              (i) => i !== icon,
-            );
+            this.plugin.settings.icons = this.plugin.settings.icons.filter((i) => i !== icon);
+            void this.plugin.saveSettings();
+            renderIcons();
+          };
+        } else {
+          const row = imgIconsGrid.createDiv({ cls: "zm-row" });
+
+          const name = row.createEl("input", { type: "text" });
+          name.classList.add("zm-name");
+          name.value = icon.key;
+          name.oninput = () => {
+            icon.key = name.value.trim();
+            void this.plugin.saveSettings();
+          };
+
+          const pathWrap = row.createDiv({ cls: "zm-path-wrap" });
+
+          const path = pathWrap.createEl("input", { type: "text" });
+          path.addClass("zoommap-settings__icon-path-input");
+          path.value = icon.pathOrDataUrl ?? "";
+          path.oninput = () => {
+            icon.pathOrDataUrl = path.value.trim();
+            void this.plugin.saveSettings();
+          };
+
+          const pick = pathWrap.createEl("button", { attr: { title: "Choose file…" } });
+          pick.classList.add("zm-icon-btn");
+          setIcon(pick, "folder-open");
+          pick.onclick = () => {
+            new ImageFileSuggestModal(this.app, (file: TFile) => {
+              icon.pathOrDataUrl = file.path;
+              void this.plugin.saveSettings();
+              renderIcons();
+            }).open();
+          };
+
+          const linkInput = pathWrap.createEl("input", { type: "text" });
+          linkInput.addClass("zoommap-settings__link-input--medium");
+          linkInput.placeholder = "Default link (optional)";
+          linkInput.value = icon.defaultLink ?? "";
+          linkInput.oninput = () => {
+            icon.defaultLink = linkInput.value.trim() || undefined;
+            void this.plugin.saveSettings();
+          };
+
+          attachLinkAutocomplete(
+            linkInput,
+            () => icon.defaultLink ?? "",
+            (val) => {
+              icon.defaultLink = val;
+              linkInput.value = val;
+              void this.plugin.saveSettings();
+            },
+          );
+
+          const size = row.createEl("input", { type: "number" });
+          size.classList.add("zm-num");
+          size.value = String(icon.size);
+          size.oninput = () => {
+            const n = Number(size.value);
+            if (!Number.isNaN(n) && n > 0) {
+              icon.size = n;
+              void this.plugin.saveSettings();
+            }
+          };
+
+          const ax = row.createEl("input", { type: "number" });
+          ax.classList.add("zm-num");
+          ax.value = String(icon.anchorX);
+          ax.oninput = () => {
+            const n = Number(ax.value);
+            if (!Number.isNaN(n)) {
+              icon.anchorX = n;
+              void this.plugin.saveSettings();
+            }
+          };
+
+          const ay = row.createEl("input", { type: "number" });
+          ay.classList.add("zm-num");
+          ay.value = String(icon.anchorY);
+          ay.oninput = () => {
+            const n = Number(ay.value);
+            if (!Number.isNaN(n)) {
+              icon.anchorY = n;
+              void this.plugin.saveSettings();
+            }
+          };
+
+          const angle = row.createEl("input", { type: "number" });
+          angle.classList.add("zm-num");
+          angle.value = String(icon.rotationDeg ?? 0);
+          angle.oninput = () => {
+            const n = Number(angle.value);
+            if (!Number.isNaN(n)) {
+              icon.rotationDeg = n || 0;
+              void this.plugin.saveSettings();
+            }
+          };
+
+          const del = row.createEl("button", { attr: { title: "Delete" } });
+          del.classList.add("zm-icon-btn");
+          setIcon(del, "trash");
+          del.onclick = () => {
+            this.plugin.settings.icons = this.plugin.settings.icons.filter((i) => i !== icon);
             void this.plugin.saveSettings();
             renderIcons();
           };
