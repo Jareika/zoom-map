@@ -184,37 +184,47 @@ export class MarkerStore {
   }
 
   async ensureExists(
-  initialImagePath?: string,
-  size?: { w: number; h: number },
-): Promise<void> {
-  const abs = this.getFileByPath(this.markersFilePath);
-  if (abs) return;
+    initialImagePath?: string,
+    size?: { w: number; h: number },
+    markerLayerNames?: string[],
+  ): Promise<void> {
+    const abs = this.getFileByPath(this.markersFilePath);
+    if (abs) return;
 
-  const data: MarkerFileData = {
-    image: initialImagePath ?? "",
-    size,
-    layers: [{ id: "default", name: "Default", visible: true, locked: false }],
-    markers: [],
-    bases: initialImagePath ? [initialImagePath] : [],
-    overlays: [],
-    activeBase: initialImagePath ?? "",
-    measurement: {
-      displayUnit: "auto-metric",
-      metersPerPixel: undefined,
-      scales: {},
-      customUnitId: undefined,
-    },
-    frame: undefined,
-    pinSizeOverrides: {},
-    panClamp: true,
+    const baseLayers: MarkerLayer[] =
+      markerLayerNames && markerLayerNames.length > 0
+        ? markerLayerNames.map((name, idx) => ({
+            id: idx === 0 ? "default" : generateId("layer"),
+            name: name || "Layer",
+            visible: true,
+            locked: false,
+          }))
+        : [{ id: "default", name: "Default", visible: true, locked: false }];
 
-    drawLayers: [],
-    drawings: [],
-  };
+    const data: MarkerFileData = {
+      image: initialImagePath ?? "",
+      size,
+      layers: baseLayers,
+      markers: [],
+      bases: initialImagePath ? [initialImagePath] : [],
+      overlays: [],
+      activeBase: initialImagePath ?? "",
+      measurement: {
+        displayUnit: "auto-metric",
+        metersPerPixel: undefined,
+        scales: {},
+        customUnitId: undefined,
+      },
+      frame: undefined,
+      pinSizeOverrides: {},
+      panClamp: true,
+      drawLayers: [],
+      drawings: [],
+    };
 
-  await this.create(JSON.stringify(data, null, 2));
-  new Notice(`Created marker file: ${this.markersFilePath}`, 2500);
-}
+    await this.create(JSON.stringify(data, null, 2));
+    new Notice(`Created marker file: ${this.markersFilePath}`, 2500);
+  }
 
   async load(): Promise<MarkerFileData> {
   const f = this.getFileByPath(this.markersFilePath);

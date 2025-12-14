@@ -935,3 +935,69 @@ body.zm-cursor-resize-nesw {
   font-size: 11px;
   color: var(--text-muted);
 }
+
+/* View editor modal */
+.zoommap-view-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zoommap-view-editor h2 {
+  margin-bottom: 4px;
+}
+
+.zoommap-view-editor h3 {
+  margin-top: 10px;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.zoommap-view-editor-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.zoommap-view-editor-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.zoommap-view-editor-input {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.zoommap-view-editor-input-path {
+  flex: 2 1 220px;
+}
+
+.zoommap-view-editor-input-name {
+  flex: 1 1 140px;
+}
+
+.zoommap-view-editor-button {
+  flex: 0 0 auto;
+}
+
+.zoommap-view-editor-button-delete {
+  padding: 0 6px;
+}
+
+.zoommap-view-editor-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.zoommap-view-editor-input--short {
+  width: 12ch;
+  max-width: 8ch;
+  flex: 0 0 auto;
+}

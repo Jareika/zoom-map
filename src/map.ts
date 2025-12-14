@@ -21,6 +21,7 @@ import { ImageFileSuggestModal } from "./iconFileSuggest";
 import { NamePromptModal } from "./namePrompt";
 import { RenameLayerModal, DeleteLayerModal } from "./layerManageModals";
 import { PinSizeEditorModal, type PinSizeEditorRow } from "./pinSizeEditorModal";
+import { ViewEditorModal, type ViewEditorConfig } from "./viewEditorModal";
 
 /* ===== Collections (base-bound) ===== */
 export interface MarkerPreset {
@@ -85,6 +86,9 @@ export interface ZoomMapConfig {
   storageMode?: "json" | "note";
   mapId?: string;
   responsive?: boolean;
+  yamlMarkerLayers?: string[];
+  initialZoom?: number;
+  initialCenter?: { x: number; y: number };
 }
 
 export interface IconProfile {
@@ -282,6 +286,204 @@ export class MapInstance extends Component {
   private userResizing = false;
 
   private yamlAppliedOnce = false;
+  
+  private openViewEditorFromMap(): void {
+  if (!this.data) return;
+
+  const bases = this.getBasesNormalized();
+  const overlays = this.data.overlays ?? [];
+
+  // Aktuelle Fenstergröße der Map
+  const rect = this.el.getBoundingClientRect();
+  const curW = Math.round(rect.width || 0);
+  const curH = Math.round(rect.height || 0);
+
+  const cfg: ViewEditorConfig = {
+    imageBases: bases.map((b) => ({ path: b.path, name: b.name })),
+    overlays: overlays.map((o) => ({
+      path: o.path,
+      name: o.name,
+      visible: o.visible,
+    })),
+    markersPath: this.cfg.storageMode === "json" ? this.cfg.markersPath : "",
+    renderMode: this.cfg.renderMode,
+    minZoom: this.cfg.minZoom,
+    maxZoom: this.cfg.maxZoom,
+    wrap: !!this.cfg.wrap,
+    responsive: !!this.cfg.responsive,
+
+    width: curW > 0 ? `${curW}px` : (this.cfg.width ?? ""),
+    height: curH > 0 ? `${curH}px` : (this.cfg.height ?? ""),
+
+    useWidth: !!this.cfg.widthFromYaml,
+    useHeight: !!this.cfg.heightFromYaml,
+
+    resizable: !!this.cfg.resizable,
+    resizeHandle: this.cfg.resizeHandle ?? "right",
+    align: this.cfg.align,
+    markerLayers: this.data.layers.map((l) => l.name ?? "Layer"),
+  };
+
+  const modal = new ViewEditorModal(this.app, cfg, (res) => {
+    if (res.action !== "save" || !res.config) return;
+    void this.applyViewEditorResult(res.config);
+  });
+  modal.open();
+}
+
+private applyInitialView(zoom: number, center: { x: number; y: number }): void {
+  const z = clamp(zoom, this.cfg.minZoom, this.cfg.maxZoom);
+
+  const r = this.viewportEl.getBoundingClientRect();
+  this.vw = r.width;
+  this.vh = r.height;
+
+  if (!this.imgW || !this.imgH || !this.vw || !this.vh) {
+    this.fitToView();
+    return;
+  }
+
+  const worldX = center.x * this.imgW;
+  const worldY = center.y * this.imgH;
+
+  const tx = this.vw / 2 - worldX * z;
+  const ty = this.vh / 2 - worldY * z;
+
+  this.applyTransform(z, tx, ty);
+}
+
+private async saveDefaultViewToYaml(): Promise<void> {
+  if (typeof this.cfg.sectionStart !== "number") {
+    new Notice("Cannot store default view (no YAML section info).", 2500);
+    return;
+  }
+
+  const af = this.app.vault.getAbstractFileByPath(this.cfg.sourcePath);
+  if (!(af instanceof TFile)) {
+    new Notice("Source note not found.", 2500);
+    return;
+  }
+
+  const z = this.scale;
+  if (!this.imgW || !this.imgH || !Number.isFinite(z) || z <= 0) {
+    new Notice("Cannot store default view (image not ready).", 2500);
+    return;
+  }
+
+  const r = this.viewportEl.getBoundingClientRect();
+  const vw = r.width || this.vw || 1;
+  const vh = r.height || this.vh || 1;
+  const centerScreenX = vw / 2;
+  const centerScreenY = vh / 2;
+
+  const worldX = (centerScreenX - this.tx) / z;
+  const worldY = (centerScreenY - this.ty) / z;
+
+  const cx = Math.min(Math.max(worldX / this.imgW, 0), 1);
+  const cy = Math.min(Math.max(worldY / this.imgH, 0), 1);
+
+  const zoom = z;
+
+  await this.app.vault.process(af, (text) => {
+    const lines = text.split("\n");
+    const blk = this.findZoommapBlock(lines, this.cfg.sectionStart);
+    if (!blk) return text;
+
+    const content = lines.slice(blk.start + 1, blk.end);
+    const keyRe = /^(\s*)view\s*:/;
+    let keyIdx = -1;
+    let keyIndent = "";
+
+    for (let i = 0; i < content.length; i++) {
+      const m = keyRe.exec(content[i]);
+      if (m) {
+        keyIdx = i;
+        keyIndent = m[1] ?? "";
+        break;
+      }
+    }
+
+    const viewLines = [
+      `${keyIndent}view:`,
+      `${keyIndent}  zoom: ${zoom.toFixed(4)}`,
+      `${keyIndent}  centerX: ${cx.toFixed(6)}`,
+      `${keyIndent}  centerY: ${cy.toFixed(6)}`,
+    ];
+
+    const isNextTopLevelKey = (ln: string) => {
+      const trimmed = ln.trim();
+      if (!trimmed) return false;
+      if (trimmed.startsWith("#")) return false;
+      const spaces = (/^\s*/.exec(ln))?.[0].length ?? 0;
+      return spaces <= keyIndent.length && /^[A-Za-z0-9_-]+\s*:/.test(trimmed);
+    };
+
+    let newContent: string[];
+
+    if (keyIdx >= 0) {
+      let end = keyIdx + 1;
+      while (end < content.length && !isNextTopLevelKey(content[end])) end++;
+
+      newContent = [
+        ...content.slice(0, keyIdx),
+        ...viewLines,
+        ...content.slice(end),
+      ];
+    } else {
+      const indent = this.detectYamlKeyIndent(content);
+      const vLines = [
+        `${indent}view:`,
+        `${indent}  zoom: ${zoom.toFixed(4)}`,
+        `${indent}  centerX: ${cx.toFixed(6)}`,
+        `${indent}  centerY: ${cy.toFixed(6)}`,
+      ];
+      newContent = [...content, ...vLines];
+    }
+
+    return [
+      ...lines.slice(0, blk.start + 1),
+      ...newContent,
+      ...lines.slice(blk.end),
+    ].join("\n");
+  });
+
+  new Notice("Default view stored in YAML.", 2000);
+}
+
+private async applyViewEditorResult(cfg: ViewEditorConfig): Promise<void> {
+  if (typeof this.cfg.sectionStart !== "number") {
+    new Notice("Cannot update YAML for this map (no section info).", 3000);
+    return;
+  }
+
+  const af = this.app.vault.getAbstractFileByPath(this.cfg.sourcePath);
+  if (!(af instanceof TFile)) {
+    new Notice("Source note not found.", 3000);
+    return;
+  }
+
+  const buildYaml = (pluginCfg: ViewEditorConfig): string => {
+    const plugin = this.plugin;
+    return plugin.buildYamlFromViewConfig(pluginCfg);
+  };
+
+  await this.app.vault.process(af, (text) => {
+    const lines = text.split("\n");
+    const blk = this.findZoommapBlock(lines, this.cfg.sectionStart);
+    if (!blk) return text;
+
+    const yaml = buildYaml(cfg);
+    const yamlLines = yaml.split("\n");
+
+    return [
+      ...lines.slice(0, blk.start + 1),
+      ...yamlLines,
+      ...lines.slice(blk.end),
+    ].join("\n");
+  });
+
+  new Notice("View updated. Reload the note to see changes.", 2500);
+}
   
   private tintedSvgCache: Map<string, string> = new Map<string, string>();
 
@@ -527,7 +729,11 @@ export class MapInstance extends Component {
 
     if (this.cfg.responsive) this.updateResponsiveAspectRatio();
 
-    await this.store.ensureExists(this.cfg.imagePath, { w: this.imgW, h: this.imgH });
+    await this.store.ensureExists(
+    this.cfg.imagePath,
+    { w: this.imgW, h: this.imgH },
+    this.cfg.yamlMarkerLayers,
+  );
     this.data = await this.store.load();
 
     await this.applyYamlOnFirstLoad();
@@ -562,7 +768,13 @@ export class MapInstance extends Component {
     this.ro.observe(this.el);
     this.register(() => this.ro?.disconnect());
 
-    this.fitToView();
+	if (this.cfg.responsive) {
+	  this.fitToView();
+	} else if (this.cfg.initialZoom && this.cfg.initialCenter) {
+	  this.applyInitialView(this.cfg.initialZoom, this.cfg.initialCenter);
+	} else {
+	  this.fitToView();
+	}
 
     await this.applyActiveBaseAndOverlays();
     this.setupMeasureOverlay();
@@ -2168,9 +2380,23 @@ private onContextMenuViewport(e: MouseEvent): void {
               if (chk) chk.textContent = this.data.panClamp ? "" : "✓";
             },
           },
-        ],
-      },
-    );
+		  {
+			label: "Edit view…",
+			action: () => {
+			  this.closeMenu();
+			  this.openViewEditorFromMap();
+			},
+		  },
+		  {
+			label: "Set default view here",
+			action: () => {
+			  void this.saveDefaultViewToYaml();
+			  this.closeMenu();
+			},
+		  },
+		],
+	  },
+	);
 
     if (!this.cfg.responsive) {
       items.push(
@@ -4919,7 +5145,7 @@ interface ZMMenuItem {
   type?: "item" | "separator";
   label?: string;
   // Menu item handler; receives the clicked row and the menu instance.
-  action?: (rowEl: HTMLDivElement, menu: ZMMenu) => void | Promise<void>;
+  action?: (rowEl: HTMLDivElement, menu?: ZMMenu) => void | Promise<void>;
   iconUrl?: string;
   checked?: boolean;
   mark?: "check" | "x" | "minus";

@@ -67,13 +67,27 @@ export class NoteMarkerStore {
     };
   }
 
-  async ensureExists(initialImagePath?: string, size?: { w: number; h: number }): Promise<void> {
+  async ensureExists(
+    initialImagePath?: string,
+    size?: { w: number; h: number },
+    markerLayerNames?: string[],
+  ): Promise<void> {
     const { file } = await this.readNote();
+
+    const baseLayers =
+      markerLayerNames && markerLayerNames.length > 0
+        ? markerLayerNames.map((name, idx) => ({
+            id: idx === 0 ? "default" : `layer_${idx}`,
+            name: name || "Layer",
+            visible: true,
+            locked: false,
+          }))
+        : [{ id: "default", name: "Default", visible: true, locked: false }];
 
     const data: MarkerFileData = {
       image: initialImagePath ?? "",
       size,
-      layers: [{ id: "default", name: "Default", visible: true, locked: false }],
+      layers: baseLayers,
       markers: [],
       bases: initialImagePath ? [initialImagePath] : [],
       overlays: [],

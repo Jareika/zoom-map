@@ -3,11 +3,13 @@ import {
   PluginSettingTab,
   Setting,
   parseYaml,
+  stringifyYaml,
   normalizePath,
   TFile,
   Notice,
   setIcon,
   requestUrl,
+  MarkdownView,
 } from "obsidian";
 import type { App, MarkdownPostProcessorContext } from "obsidian";
 import { MapInstance } from "./map";
@@ -18,6 +20,9 @@ import type {
   BaseCollection,
   CustomUnitDef,
 } from "./map";
+
+import { ViewEditorModal, type ViewEditorConfig } from "./viewEditorModal";
+
 import { ImageFileSuggestModal } from "./iconFileSuggest";
 import { CollectionEditorModal } from "./collectionsModals";
 import { JsonFileSuggestModal } from "./jsonFileSuggest";
@@ -157,6 +162,15 @@ interface YamlOptions {
   imageOverlays?: (YamlOverlay | string)[];
 
   scale?: { metersPerPixel?: number; pixelsPerMeter?: number };
+  
+  markerLayers?: (string | { name: string })[];
+  
+  view?: {
+    zoom?: number | string;
+    centerX?: number;
+    centerY?: number;
+  };
+  
 }
 
 function parseBasesYaml(v: unknown): YamlBase[] {
@@ -290,6 +304,42 @@ export default class ZoomMapPlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
+	
+	this.addCommand({
+    id: "insert-new-map",
+    name: "Insert new map…",
+    editorCallback: (editor, view) => {
+      const file = (view as MarkdownView).file;
+      if (!file) return;
+
+      const initialConfig: ViewEditorConfig = {
+        imageBases: [{ path: "", name: "" }],
+        overlays: [],
+        markersPath: "",
+        renderMode: "dom",
+        minZoom: 0.25,
+        maxZoom: 8,
+        wrap: false,
+        responsive: false,
+        width: "100%",
+        height: "480px",
+		useWidth: true,
+		useHeight: true,
+        resizable: false,
+        resizeHandle: "native",
+        align: undefined,
+        markerLayers: ["Default"],
+      };
+
+      new ViewEditorModal(this.app, initialConfig, (res) => {
+        if (res.action !== "save" || !res.config) return;
+        const yaml = this.buildYamlFromViewConfig(res.config);
+        const block = "```zoommap\n" + yaml + "\n```\n";
+
+        editor.replaceRange(block, editor.getCursor());
+      }).open();
+    },
+  });
 
     this.addCommand({
       id: "toggle-measure-mode",
@@ -319,6 +369,27 @@ export default class ZoomMapPlugin extends Plugin {
         const yamlBases = parseBasesYaml(opts.imageBases);
         const yamlOverlays = parseOverlaysYaml(opts.imageOverlays);
         const yamlMetersPerPixel = parseScaleYaml(opts.scale);
+		
+		let initialZoom: number | undefined;
+		let initialCenter: { x: number; y: number } | undefined;
+
+		const viewOpt = opts.view;
+		if (viewOpt && typeof viewOpt === "object") {
+		  // Zoom: Zahl oder Prozent-String
+		  initialZoom = parseZoomYaml(viewOpt.zoom, NaN);
+		  if (!Number.isFinite(initialZoom) || initialZoom! <= 0) {
+			initialZoom = undefined;
+		  }
+
+		  const cx = typeof viewOpt.centerX === "number" ? viewOpt.centerX : NaN;
+		  const cy = typeof viewOpt.centerY === "number" ? viewOpt.centerY : NaN;
+		  if (Number.isFinite(cx) && Number.isFinite(cy)) {
+			initialCenter = {
+			  x: Math.min(Math.max(cx, 0), 1),
+			  y: Math.min(Math.max(cy, 0), 1),
+			};
+		  }
+		}
 
         const renderMode: "dom" | "canvas" =
           opts.render === "canvas" ? "canvas" : "dom";
@@ -399,31 +470,46 @@ export default class ZoomMapPlugin extends Plugin {
           }
         }
 
-        const cfg: ZoomMapConfig = {
-          imagePath: image,
-          markersPath,
-          minZoom,
-          maxZoom,
-          sourcePath: ctx.sourcePath,
-          width: widthCss,
-          height: heightCss,
-          resizable,
-          resizeHandle,
-          align,
-          wrap,
-          extraClasses,
-          renderMode,
-          yamlBases,
-          yamlOverlays,
-          yamlMetersPerPixel,
-          sectionStart: sectionInfo?.lineStart,
-          sectionEnd: sectionInfo?.lineEnd,
-          widthFromYaml,
-          heightFromYaml,
-          storageMode,
-          mapId,
-          responsive,
-        };
+        const markerLayersFromYaml: string[] | undefined = Array.isArray(opts.markerLayers)
+		  ? (opts.markerLayers as unknown[])
+			  .map((v) =>
+				typeof v === "string"
+				  ? v.trim()
+				  : v && typeof v === "object" && "name" in v
+				  ? String((v as { name: unknown }).name ?? "").trim()
+				  : "",
+			  )
+			  .filter((s) => s.length > 0)
+		  : undefined;
+
+		const cfg: ZoomMapConfig = {
+		  imagePath: image,
+		  markersPath,
+		  minZoom,
+		  maxZoom,
+		  sourcePath: ctx.sourcePath,
+		  width: widthCss,
+		  height: heightCss,
+		  resizable,
+		  resizeHandle,
+		  align,
+		  wrap,
+		  extraClasses,
+		  renderMode,
+		  yamlBases,
+		  yamlOverlays,
+		  yamlMetersPerPixel,
+		  sectionStart: sectionInfo?.lineStart,
+		  sectionEnd: sectionInfo?.lineEnd,
+		  widthFromYaml,
+		  heightFromYaml,
+		  storageMode,
+		  mapId,
+		  responsive,
+		  yamlMarkerLayers: markerLayersFromYaml,
+		  initialZoom,
+		  initialCenter,
+		};
 
         const inst = new MapInstance(this.app, this, el, cfg);
         ctx.addChild(inst);
@@ -618,6 +704,60 @@ export default class ZoomMapPlugin extends Plugin {
     );
     return count;
   }
+  
+  private buildYamlFromViewConfig(cfg: ViewEditorConfig): string {
+  const obj: any = {};
+
+  const bases = (cfg.imageBases ?? []).filter((b) => b.path && b.path.trim().length > 0);
+  if (bases.length > 0) {
+    obj.image = bases[0].path;
+    obj.imageBases = bases.map((b) =>
+      b.name ? { path: b.path, name: b.name } : { path: b.path },
+    );
+  }
+
+  const overlays = (cfg.overlays ?? []).filter((o) => o.path && o.path.trim().length > 0);
+  if (overlays.length > 0) {
+    obj.imageOverlays = overlays.map((o) => {
+      const r: any = { path: o.path };
+      if (o.name) r.name = o.name;
+      if (typeof o.visible === "boolean") r.visible = o.visible;
+      return r;
+    });
+  }
+
+  let markersPath = cfg.markersPath?.trim();
+  if ((!markersPath || !markersPath.length) && bases.length > 0) {
+    const first = bases[0].path;
+    const dot = first.lastIndexOf(".");
+    const base = dot >= 0 ? first.slice(0, dot) : first;
+    markersPath = `${base}.markers.json`;
+  }
+  if (markersPath) obj.markers = markersPath;
+
+  if (cfg.markerLayers && cfg.markerLayers.length > 0) {
+    obj.markerLayers = cfg.markerLayers
+      .map((n) => n.trim())
+      .filter((n) => n.length > 0);
+  }
+
+  obj.minZoom = cfg.minZoom;
+  obj.maxZoom = cfg.maxZoom;
+  obj.wrap = !!cfg.wrap;
+  obj.responsive = !!cfg.responsive;
+  if (cfg.useWidth && cfg.width && cfg.width.trim().length > 0) {
+    obj.width = cfg.width;
+  }
+  if (cfg.useHeight && cfg.height && cfg.height.trim().length > 0) {
+    obj.height = cfg.height;
+  }
+  obj.resizable = !!cfg.resizable;
+  obj.resizeHandle = cfg.resizeHandle;
+  if (cfg.renderMode === "canvas") obj.render = "canvas";
+  if (cfg.align) obj.align = cfg.align;
+
+  return stringifyYaml(obj).trimEnd();
+}
 }
 
 function tintSvgMarkup(svg: string, color: string): string {
