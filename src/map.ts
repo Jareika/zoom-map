@@ -322,6 +322,8 @@ export class MapInstance extends Component {
     resizeHandle: this.cfg.resizeHandle ?? "right",
     align: this.cfg.align,
     markerLayers: this.data.layers.map((l) => l.name ?? "Layer"),
+	
+	id: this.cfg.mapId,
   };
 
   const modal = new ViewEditorModal(this.app, cfg, (res) => {
@@ -3968,6 +3970,11 @@ private onContextMenuViewport(e: MouseEvent): void {
 
   private onMarkerEnter(ev: MouseEvent, m: Marker, hostEl: HTMLElement): void {
     if (m.type === "sticker") return;
+
+    const hasTooltipText = !!m.tooltip && m.tooltip.trim().length > 0;
+    const wantInternalTooltip =
+      hasTooltipText && (!!m.tooltipAlwaysOn || !m.link);
+
     if (m.link) {
       const workspace = this.app.workspace;
       const eventForPopover = this.plugin.settings.forcePopoverWithoutModKey
@@ -3989,26 +3996,45 @@ private onContextMenuViewport(e: MouseEvent): void {
         linktext: m.link,
         sourcePath: this.cfg.sourcePath,
       });
+
+      if (wantInternalTooltip) {
+        this.showInternalTooltip(ev, m);
+      }
       return;
     }
-    this.showInternalTooltip(ev, m);
+
+    if (wantInternalTooltip) {
+      this.showInternalTooltip(ev, m);
+    }
   }
 
   private showInternalTooltip(ev: MouseEvent, m: Marker): void {
     if (!this.ready) return;
+
+    const text = (m.tooltip ?? "").trim();
+    if (!text) return;
+
     if (!this.tooltipEl) {
       this.tooltipEl = this.viewportEl.createDiv({ cls: "zm-tooltip" });
-      this.tooltipEl.addEventListener("mouseenter", () => this.cancelHideTooltip());
-      this.tooltipEl.addEventListener("mouseleave", () => this.hideTooltipSoon());
+      this.tooltipEl.addEventListener("mouseenter", () =>
+        this.cancelHideTooltip(),
+      );
+      this.tooltipEl.addEventListener("mouseleave", () =>
+        this.hideTooltipSoon(),
+      );
     }
-    this.tooltipEl.style.maxWidth = `${this.plugin.settings.hoverMaxWidth ?? 360}px`;
-    this.tooltipEl.style.maxHeight = `${this.plugin.settings.hoverMaxHeight ?? 260}px`;
+
+    this.tooltipEl.style.maxWidth = `${
+      this.plugin.settings.hoverMaxWidth ?? 360
+    }px`;
+    this.tooltipEl.style.maxHeight = `${
+      this.plugin.settings.hoverMaxHeight ?? 260
+    }px`;
 
     this.cancelHideTooltip();
     this.tooltipEl.empty();
 
-    if (m.tooltip) this.tooltipEl.createEl("div", { text: m.tooltip });
-    else this.tooltipEl.setText("(no content)");
+    this.tooltipEl.createEl("div", { text });
 
     this.positionTooltip(ev.clientX, ev.clientY);
     this.tooltipEl.classList.add("zm-tooltip-visible");

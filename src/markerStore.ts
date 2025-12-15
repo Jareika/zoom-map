@@ -87,6 +87,7 @@ export interface Marker {
   iconKey?: string;
   iconColor?: string; // per-pin SVG color override
   tooltip?: string;
+  tooltipAlwaysOn?: boolean;
 
   // Marker type + sticker fields
   type?: MarkerKind;

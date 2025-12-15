@@ -286,6 +286,19 @@ export class MarkerEditorModal extends Modal {
           window.setTimeout(() => this.hideLinkSuggestions(), 150);
         });
       });
+	  
+	  new Setting(contentEl)
+       .setName("Tooltip always on")
+       .setDesc("Show the tooltip even if this marker has a link.")
+       .addToggle((tg) => {
+       tg.setValue(!!this.marker.tooltipAlwaysOn).onChange((on) => {
+          if (on) {
+            this.marker.tooltipAlwaysOn = true;
+          } else {
+            delete this.marker.tooltipAlwaysOn;
+          }
+        });
+      });
 
       new Setting(contentEl).setName("Tooltip").addTextArea((a) => {
         a.setPlaceholder("Optional tooltip text");
@@ -528,13 +541,14 @@ export class MarkerEditorModal extends Modal {
       }
 
       if (this.marker.type !== "sticker") {
-        this.normalizeZoomRange();
+	    this.normalizeZoomRange();
 
-        if (typeof this.marker.minZoom !== "number") delete this.marker.minZoom;
-        if (typeof this.marker.maxZoom !== "number") delete this.marker.maxZoom;
-        if (!this.marker.scaleLikeSticker) delete this.marker.scaleLikeSticker;
-        if (!this.marker.iconColor) delete this.marker.iconColor;
-      }
+	    if (typeof this.marker.minZoom !== "number") delete this.marker.minZoom;
+	    if (typeof this.marker.maxZoom !== "number") delete this.marker.maxZoom;
+	    if (!this.marker.scaleLikeSticker) delete this.marker.scaleLikeSticker;
+	    if (!this.marker.iconColor) delete this.marker.iconColor;
+	    if (!this.marker.tooltipAlwaysOn) delete this.marker.tooltipAlwaysOn;
+	  }
 
       this.close();
       this.onResult({

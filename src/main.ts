@@ -28,6 +28,7 @@ import { CollectionEditorModal } from "./collectionsModals";
 import { JsonFileSuggestModal } from "./jsonFileSuggest";
 import { FaIconPickerModal } from "./faIconPickerModal";
 import { PreferencesModal } from "./preferencesModal";
+import { IconOutlineModal } from "./iconOutlineModal";
 
 /* ---------------- Utils ---------------- */
 
@@ -329,6 +330,7 @@ export default class ZoomMapPlugin extends Plugin {
         resizeHandle: "native",
         align: undefined,
         markerLayers: ["Default"],
+		id: `map-${Date.now().toString(36)}`,
       };
 
       new ViewEditorModal(this.app, initialConfig, (res) => {
@@ -706,58 +708,68 @@ export default class ZoomMapPlugin extends Plugin {
   }
   
   private buildYamlFromViewConfig(cfg: ViewEditorConfig): string {
-  const obj: any = {};
+    const obj: any = {};
 
-  const bases = (cfg.imageBases ?? []).filter((b) => b.path && b.path.trim().length > 0);
-  if (bases.length > 0) {
-    obj.image = bases[0].path;
-    obj.imageBases = bases.map((b) =>
-      b.name ? { path: b.path, name: b.name } : { path: b.path },
+    const bases = (cfg.imageBases ?? []).filter(
+      (b) => b.path && b.path.trim().length > 0,
     );
-  }
+    if (bases.length > 0) {
+      obj.image = bases[0].path;
+      obj.imageBases = bases.map((b) =>
+        b.name ? { path: b.path, name: b.name } : { path: b.path },
+      );
+    }
 
-  const overlays = (cfg.overlays ?? []).filter((o) => o.path && o.path.trim().length > 0);
-  if (overlays.length > 0) {
-    obj.imageOverlays = overlays.map((o) => {
-      const r: any = { path: o.path };
-      if (o.name) r.name = o.name;
-      if (typeof o.visible === "boolean") r.visible = o.visible;
-      return r;
-    });
-  }
+    const overlays = (cfg.overlays ?? []).filter(
+      (o) => o.path && o.path.trim().length > 0,
+    );
+    if (overlays.length > 0) {
+      obj.imageOverlays = overlays.map((o) => {
+        const r: any = { path: o.path };
+        if (o.name) r.name = o.name;
+        if (typeof o.visible === "boolean") r.visible = o.visible;
+        return r;
+      });
+    }
 
-  let markersPath = cfg.markersPath?.trim();
-  if ((!markersPath || !markersPath.length) && bases.length > 0) {
-    const first = bases[0].path;
-    const dot = first.lastIndexOf(".");
-    const base = dot >= 0 ? first.slice(0, dot) : first;
-    markersPath = `${base}.markers.json`;
-  }
-  if (markersPath) obj.markers = markersPath;
+    let markersPath = cfg.markersPath?.trim();
+    if ((!markersPath || !markersPath.length) && bases.length > 0) {
+      const first = bases[0].path;
+      const dot = first.lastIndexOf(".");
+      const base = dot >= 0 ? first.slice(0, dot) : first;
+      markersPath = `${base}.markers.json`;
+    }
+    if (markersPath) obj.markers = markersPath;
 
-  if (cfg.markerLayers && cfg.markerLayers.length > 0) {
-    obj.markerLayers = cfg.markerLayers
-      .map((n) => n.trim())
-      .filter((n) => n.length > 0);
-  }
+    if (cfg.markerLayers && cfg.markerLayers.length > 0) {
+      obj.markerLayers = cfg.markerLayers
+        .map((n) => n.trim())
+        .filter((n) => n.length > 0);
+    }
 
-  obj.minZoom = cfg.minZoom;
-  obj.maxZoom = cfg.maxZoom;
-  obj.wrap = !!cfg.wrap;
-  obj.responsive = !!cfg.responsive;
-  if (cfg.useWidth && cfg.width && cfg.width.trim().length > 0) {
-    obj.width = cfg.width;
-  }
-  if (cfg.useHeight && cfg.height && cfg.height.trim().length > 0) {
-    obj.height = cfg.height;
-  }
-  obj.resizable = !!cfg.resizable;
-  obj.resizeHandle = cfg.resizeHandle;
-  if (cfg.renderMode === "canvas") obj.render = "canvas";
-  if (cfg.align) obj.align = cfg.align;
+    obj.minZoom = cfg.minZoom;
+    obj.maxZoom = cfg.maxZoom;
+    obj.wrap = !!cfg.wrap;
+    obj.responsive = !!cfg.responsive;
 
-  return stringifyYaml(obj).trimEnd();
-}
+    if (cfg.useWidth && cfg.width && cfg.width.trim().length > 0) {
+      obj.width = cfg.width;
+    }
+    if (cfg.useHeight && cfg.height && cfg.height.trim().length > 0) {
+      obj.height = cfg.height;
+    }
+
+    obj.resizable = !!cfg.resizable;
+    obj.resizeHandle = cfg.resizeHandle;
+    if (cfg.renderMode === "canvas") obj.render = "canvas";
+    if (cfg.align) obj.align = cfg.align;
+
+    if (cfg.id && cfg.id.trim().length > 0) {
+      obj.id = cfg.id.trim();
+    }
+
+    return stringifyYaml(obj).trimEnd();
+  }
 }
 
 function tintSvgMarkup(svg: string, color: string): string {
@@ -1626,6 +1638,17 @@ class ZoomMapSettingTab extends PluginSettingTab {
               void this.plugin.saveSettings();
             },
           );
+		  
+		  const outlineBtn = previewCell.createEl("button", {
+			attr: { title: "SVG outline…" },
+		  });
+		  outlineBtn.classList.add("zm-icon-btn");
+		  setIcon(outlineBtn, "gear");
+		    outlineBtn.onclick = () => {
+			  new IconOutlineModal(this.app, this.plugin, icon, (newDataUrl) => {
+			      img.src = newDataUrl;
+			  }).open();
+		    };
 
           const size = row.createEl("input", { type: "number" });
           size.classList.add("zm-num");

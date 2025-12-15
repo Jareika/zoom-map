@@ -23,6 +23,7 @@ export interface ViewEditorConfig {
   resizeHandle: ResizeHandle;
   align?: AlignMode;
   markerLayers: string[];
+  id?: string;
 }
 
 export interface ViewEditorResult {
@@ -432,6 +433,20 @@ export class ViewEditorModal extends Modal {
           this.cfg.align = (v || undefined) as AlignMode | undefined;
         });
       });
+	  
+	  // ID
+	new Setting(contentEl)
+	  .setClass("zoommap-view-editor-row")
+	  .setName("ID (optional)")
+	  .setDesc("Stable identifier if you store markers inline in the note.")
+	  .addText((t) => {
+		t.setPlaceholder("Map-world-1");
+		t.setValue(this.cfg.id ?? "");
+		t.onChange((v) => {
+		  const val = v.trim();
+		  this.cfg.id = val.length ? val : undefined;
+		});
+	  });
 
     /* -------- Footer -------- */
     const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });
