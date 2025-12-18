@@ -6978,9 +6978,11 @@ var ZoomMapPlugin = class extends import_obsidian17.Plugin {
         let initialCenter;
         const viewOpt = opts.view;
         if (viewOpt && typeof viewOpt === "object") {
-          initialZoom = parseZoomYaml(viewOpt.zoom, NaN);
-          if (!Number.isFinite(initialZoom) || initialZoom <= 0) {
+          const rawZoom = parseZoomYaml(viewOpt.zoom, NaN);
+          if (!Number.isFinite(rawZoom) || rawZoom <= 0) {
             initialZoom = void 0;
+          } else {
+            initialZoom = rawZoom;
           }
           const cx = typeof viewOpt.centerX === "number" ? viewOpt.centerX : NaN;
           const cy = typeof viewOpt.centerY === "number" ? viewOpt.centerY : NaN;
@@ -7030,12 +7032,16 @@ var ZoomMapPlugin = class extends import_obsidian17.Plugin {
             el.style.height = heightCss;
           }
         }
-        const markerLayersFromYaml = Array.isArray(opts.markerLayers) ? opts.markerLayers.map(
-          (v) => {
-            var _a2;
-            return typeof v === "string" ? v.trim() : v && typeof v === "object" && "name" in v ? String((_a2 = v.name) != null ? _a2 : "").trim() : "";
+        const markerLayersFromYaml = Array.isArray(opts.markerLayers) ? opts.markerLayers.map((v) => {
+          if (typeof v === "string") {
+            return v.trim();
           }
-        ).filter((s) => s.length > 0) : void 0;
+          if (v && typeof v === "object" && "name" in v) {
+            const name = v.name;
+            return typeof name === "string" ? name.trim() : "";
+          }
+          return "";
+        }).filter((s) => s.length > 0) : void 0;
         const cfg = {
           imagePath: image,
           markersPath,
@@ -7243,7 +7249,9 @@ var ZoomMapPlugin = class extends import_obsidian17.Plugin {
     );
     if (overlays.length > 0) {
       obj.imageOverlays = overlays.map((o) => {
-        const r = { path: o.path };
+        const r = {
+          path: o.path
+        };
         if (o.name) r.name = o.name;
         if (typeof o.visible === "boolean") r.visible = o.visible;
         return r;

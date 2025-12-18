@@ -378,9 +378,11 @@ export default class ZoomMapPlugin extends Plugin {
 		const viewOpt = opts.view;
 		if (viewOpt && typeof viewOpt === "object") {
 		  // Zoom: Zahl oder Prozent-String
-		  initialZoom = parseZoomYaml(viewOpt.zoom, NaN);
-		  if (!Number.isFinite(initialZoom) || initialZoom! <= 0) {
+		  const rawZoom = parseZoomYaml(viewOpt.zoom, NaN);
+		  if (!Number.isFinite(rawZoom) || rawZoom <= 0) {
 			initialZoom = undefined;
+		  } else {
+			initialZoom = rawZoom;
 		  }
 
 		  const cx = typeof viewOpt.centerX === "number" ? viewOpt.centerX : NaN;
@@ -474,13 +476,18 @@ export default class ZoomMapPlugin extends Plugin {
 
         const markerLayersFromYaml: string[] | undefined = Array.isArray(opts.markerLayers)
 		  ? (opts.markerLayers as unknown[])
-			  .map((v) =>
-				typeof v === "string"
-				  ? v.trim()
-				  : v && typeof v === "object" && "name" in v
-				  ? String((v as { name: unknown }).name ?? "").trim()
-				  : "",
-			  )
+			  .map((v) => {
+				if (typeof v === "string") {
+				  return v.trim();
+				}
+
+				if (v && typeof v === "object" && "name" in v) {
+				  const name = (v as { name?: unknown }).name;
+				  return typeof name === "string" ? name.trim() : "";
+				}
+
+				return "";
+			  })
 			  .filter((s) => s.length > 0)
 		  : undefined;
 
@@ -708,7 +715,7 @@ export default class ZoomMapPlugin extends Plugin {
   }
   
   private buildYamlFromViewConfig(cfg: ViewEditorConfig): string {
-    const obj: any = {};
+    const obj: Record<string, unknown> = {};
 
     const bases = (cfg.imageBases ?? []).filter(
       (b) => b.path && b.path.trim().length > 0,
@@ -721,16 +728,18 @@ export default class ZoomMapPlugin extends Plugin {
     }
 
     const overlays = (cfg.overlays ?? []).filter(
-      (o) => o.path && o.path.trim().length > 0,
-    );
-    if (overlays.length > 0) {
-      obj.imageOverlays = overlays.map((o) => {
-        const r: any = { path: o.path };
-        if (o.name) r.name = o.name;
-        if (typeof o.visible === "boolean") r.visible = o.visible;
-        return r;
-      });
-    }
+	  (o) => o.path && o.path.trim().length > 0,
+	);
+	if (overlays.length > 0) {
+	  obj.imageOverlays = overlays.map((o) => {
+		const r: { path: string; name?: string; visible?: boolean } = {
+		  path: o.path,
+		};
+		if (o.name) r.name = o.name;
+		if (typeof o.visible === "boolean") r.visible = o.visible;
+		return r;
+	  });
+	}
 
     let markersPath = cfg.markersPath?.trim();
     if ((!markersPath || !markersPath.length) && bases.length > 0) {

@@ -1,0 +1,104 @@
+diff --git a/src/main.ts b/src/main.ts
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -373,19 +373,23 @@
+-		let initialZoom: number | undefined;
+-		let initialCenter: { x: number; y: number } | undefined;
+-
+-		const viewOpt = opts.view;
+-		if (viewOpt && typeof viewOpt === "object") {
+-		  // Zoom: Zahl oder Prozent-String
+-		  initialZoom = parseZoomYaml(viewOpt.zoom, NaN);
+-		  if (!Number.isFinite(initialZoom) || initialZoom! <= 0) {
+-			initialZoom = undefined;
+-		  }
+-
+-		  const cx = typeof viewOpt.centerX === "number" ? viewOpt.centerX : NaN;
+-		  const cy = typeof viewOpt.centerY === "number" ? viewOpt.centerY : NaN;
+-		  if (Number.isFinite(cx) && Number.isFinite(cy)) {
+-			initialCenter = {
+-			  x: Math.min(Math.max(cx, 0), 1),
+-			  y: Math.min(Math.max(cy, 0), 1),
+-			};
+-		  }
+-		}
++		let initialZoom: number | undefined;
++		let initialCenter: { x: number; y: number } | undefined;
++
++		const viewOpt = opts.view;
++		if (viewOpt && typeof viewOpt === "object") {
++		  // Zoom: Zahl oder Prozent-String
++		  const rawZoom = parseZoomYaml(viewOpt.zoom, NaN);
++		  if (!Number.isFinite(rawZoom) || rawZoom <= 0) {
++			initialZoom = undefined;
++		  } else {
++			initialZoom = rawZoom;
++		  }
++
++		  const cx = typeof viewOpt.centerX === "number" ? viewOpt.centerX : NaN;
++		  const cy = typeof viewOpt.centerY === "number" ? viewOpt.centerY : NaN;
++		  if (Number.isFinite(cx) && Number.isFinite(cy)) {
++			initialCenter = {
++			  x: Math.min(Math.max(cx, 0), 1),
++			  y: Math.min(Math.max(cy, 0), 1),
++			};
++		  }
++		}
+@@ -472,15 +476,22 @@
+-        const markerLayersFromYaml: string[] | undefined = Array.isArray(opts.markerLayers)
+-		  ? (opts.markerLayers as unknown[])
+-			  .map((v) =>
+-				typeof v === "string"
+-				  ? v.trim()
+-				  : v && typeof v === "object" && "name" in v
+-				  ? String((v as { name: unknown }).name ?? "").trim()
+-				  : "",
+-			  )
+-			  .filter((s) => s.length > 0)
+-		  : undefined;
++        const markerLayersFromYaml: string[] | undefined = Array.isArray(opts.markerLayers)
++		  ? (opts.markerLayers as unknown[])
++			  .map((v) => {
++				if (typeof v === "string") {
++				  return v.trim();
++				}
++
++				if (v && typeof v === "object" && "name" in v) {
++				  const name = (v as { name?: unknown }).name;
++				  return typeof name === "string" ? name.trim() : "";
++				}
++
++				return "";
++			  })
++			  .filter((s) => s.length > 0)
++		  : undefined;
+@@ -704,7 +715,7 @@
+-  private buildYamlFromViewConfig(cfg: ViewEditorConfig): string {
+-    const obj: any = {};
++  private buildYamlFromViewConfig(cfg: ViewEditorConfig): string {
++    const obj: Record<string, unknown> = {};
+@@ -723,13 +734,17 @@
+-    const overlays = (cfg.overlays ?? []).filter(
+-      (o) => o.path && o.path.trim().length > 0,
+-    );
+-    if (overlays.length > 0) {
+-      obj.imageOverlays = overlays.map((o) => {
+-        const r: any = { path: o.path };
+-        if (o.name) r.name = o.name;
+-        if (typeof o.visible === "boolean") r.visible = o.visible;
+-        return r;
+-      });
+-    }
++    const overlays = (cfg.overlays ?? []).filter(
++      (o) => o.path && o.path.trim().length > 0,
++    );
++    if (overlays.length > 0) {
++      obj.imageOverlays = overlays.map((o) => {
++        const r: { path: string; name?: string; visible?: boolean } = {
++          path: o.path,
++        };
++        if (o.name) r.name = o.name;
++        if (typeof o.visible === "boolean") r.visible = o.visible;
++        return r;
++      });
++    }
