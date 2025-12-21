@@ -124,6 +124,7 @@ const DEFAULT_SETTINGS: ZoomMapSettingsExtended = {
   defaultScaleLikeSticker: false,
   enableDrawing: false,
   preferActiveLayerInEditor: false,
+  enableTextLayers: false,
 };
 
 /* ---------------- YAML parsing helpers ---------------- */
@@ -555,6 +556,7 @@ export default class ZoomMapPlugin extends Plugin {
     ext.libraryFilePath ??= "ZoomMap/library.json";
     ext.faFolderPath ??= "ZoomMap/SVGs";
     this.settings.customUnits ??= [];
+	this.settings.enableTextLayers ??= false;
   }
 
   async saveSettings(): Promise<void> {

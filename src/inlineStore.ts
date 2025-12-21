@@ -103,6 +103,7 @@ export class NoteMarkerStore {
       panClamp: true,
       drawLayers: [],
       drawings: [],
+	  textLayers: [],
     };
 
     const payload = JSON.stringify(data, null, 2);

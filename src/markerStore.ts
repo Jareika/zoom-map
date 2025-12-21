@@ -63,6 +63,42 @@ export interface Drawing {
   bakedHeight?: number;
 }
 
+export interface TextLayerStyle {
+  fontFamily: string;
+  fontSize: number;
+  color: string;
+
+  fontWeight?: string;
+  italic?: boolean;
+  letterSpacing?: number;
+
+  lineHeight?: number;
+
+  padLeft?: number;
+  padRight?: number;
+}
+
+export interface TextBaseline {
+  id: string;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  text?: string;
+}
+
+export interface TextLayer {
+  id: string;
+  name: string;
+  locked: boolean;
+
+  rect: { x0: number; y0: number; x1: number; y1: number };
+  lines: TextBaseline[];
+
+  allowAngledBaselines?: boolean;
+  style: TextLayerStyle;
+}
+
 export type MarkerKind = "pin" | "sticker" | "swap";
 
 export type AnchorSpace = "world" | "viewport";
@@ -168,6 +204,8 @@ export interface MarkerFileData {
 
   drawLayers?: DrawLayer[];
   drawings?: Drawing[];
+  
+  textLayers?: TextLayer[];
 }
 
 export function generateId(prefix = "m"): string {
@@ -227,6 +265,7 @@ export class MarkerStore {
       panClamp: true,
       drawLayers: [],
       drawings: [],
+	  textLayers: [],
     };
 
     await this.create(JSON.stringify(data, null, 2));
@@ -293,6 +332,8 @@ export class MarkerStore {
   // Drawing layers and drawings
   parsed.drawLayers ??= [];
   parsed.drawings ??= [];
+  
+  parsed.textLayers ??= [];
 
   return parsed;
   }

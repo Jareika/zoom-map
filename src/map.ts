@@ -11,6 +11,9 @@ import type {
   Drawing,
   DrawingKind,
   FillPatternKind,
+  TextLayer,
+  TextBaseline,
+  TextLayerStyle,
 } from "./markerStore";
 import type ZoomMapPlugin from "./main";
 import { MarkerEditorModal } from "./markerEditor";
@@ -23,6 +26,7 @@ import { RenameLayerModal, DeleteLayerModal } from "./layerManageModals";
 import { PinSizeEditorModal, type PinSizeEditorRow } from "./pinSizeEditorModal";
 import { ViewEditorModal, type ViewEditorConfig } from "./viewEditorModal";
 import { SwapFramesEditorModal } from "./collectionsModals";
+import { TextLayerStyleModal } from "./textLayerStyleModal";
 
 /* ===== Collections (base-bound) ===== */
 export interface MarkerPreset {
@@ -147,6 +151,7 @@ export interface ZoomMapSettings {
   defaultScaleLikeSticker?: boolean;
   enableDrawing?: boolean;
   preferActiveLayerInEditor?: boolean;
+  enableTextLayers?: boolean;
 }
 
 interface Point { x: number; y: number; }
@@ -238,6 +243,33 @@ export class MapInstance extends Component {
   private overlaySources: Map<string, CanvasImageSource> = new Map<string, CanvasImageSource>();
   private overlayLoading: Map<string, Promise<CanvasImageSource | null>> = new Map<string, Promise<CanvasImageSource | null>>();
 
+  // Text layers (character sheets)
+  private textSvgWrap!: HTMLDivElement;
+  private textSvg!: SVGSVGElement;
+  private textGuidesLayer!: SVGGElement;
+  private textDraftLayer!: SVGGElement;
+  private textTextLayer!: SVGGElement;
+
+  private textHitEl!: HTMLDivElement;
+  private textEditEl!: HTMLDivElement;
+
+  private textMode: null | "draw-layer" | "draw-lines" | "edit" = null;
+  private activeTextLayerId: string | null = null;
+
+  private textDrawStart: Point | null = null;
+  private textDrawPreview: Point | null = null;
+
+  private textLineStart: Point | null = null;
+  private textLinePreview: Point | null = null;
+
+  private textInputs: Map<string, HTMLInputElement> = new Map();
+  private textDirty = false;
+  private textSaveTimer: number | null = null;
+
+  private textOutsideCleanup: (() => void) | null = null;
+
+  private textMeasureSpan: HTMLSpanElement | null = null;
+
   private cfg: ZoomMapConfig;
   private store: MarkerStore | NoteMarkerStore;
   private data: MarkerFileData | undefined;
@@ -285,6 +317,9 @@ export class MapInstance extends Component {
   private drawRectStart: Point | null = null;
   private drawCircleCenter: Point | null = null;
   private drawPolygonPoints: Point[] = [];
+  private viewDragDist = 0;
+  private viewDragMoved = false;
+  private suppressTextClickOnce = false;
 
   private panRAF: number | null = null;
   private panAccDx = 0;
@@ -309,7 +344,6 @@ export class MapInstance extends Component {
   const bases = this.getBasesNormalized();
   const overlays = this.data.overlays ?? [];
 
-  // Aktuelle Fenstergröße der Map
   const rect = this.el.getBoundingClientRect();
   const curW = Math.round(rect.width || 0);
   const curH = Math.round(rect.height || 0);
@@ -709,6 +743,24 @@ private async applyViewEditorResult(cfg: ViewEditorConfig): Promise<void> {
     this.registerDomEvent(window, "keydown", (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
 
+      if (this.textMode === "edit") {
+        this.stopTextEdit(true);
+        this.closeMenu();
+        return;
+      }
+      if (this.textMode === "draw-layer" || this.textMode === "draw-lines") {
+        this.textMode = null;
+        this.activeTextLayerId = null;
+        this.textDrawStart = null;
+        this.textDrawPreview = null;
+        this.textLineStart = null;
+        this.textLinePreview = null;
+        this.renderTextDraft();
+		this.renderTextLayers();
+        this.closeMenu();
+        return;
+      }
+
       if (this.drawingMode) {
         this.drawingMode = null;
         this.drawingActiveLayerId = null;
@@ -797,6 +849,7 @@ private async applyViewEditorResult(cfg: ViewEditorConfig): Promise<void> {
     await this.applyActiveBaseAndOverlays();
     this.setupMeasureOverlay();
     this.setupDrawOverlay();
+	this.setupTextOverlay();
 
     this.applyMeasureStyle();
 
@@ -1023,6 +1076,938 @@ private async applyViewEditorResult(cfg: ViewEditorConfig): Promise<void> {
 
     this.drawDraftLayer = document.createElementNS(ns, "g");
     this.drawSvg.appendChild(this.drawDraftLayer);
+  }
+  
+  private ensureTextData(): void {
+    if (!this.data) return;
+    this.data.textLayers ??= [];
+  }
+
+  private defaultTextLayerStyle(): TextLayerStyle {
+    return {
+      fontFamily: "var(--font-text)",
+      fontSize: 14,
+      color: "var(--text-normal)",
+      fontWeight: "400",
+      baselineOffset: 0,
+      padLeft: 0,
+      padRight: 0,
+    };
+  }
+
+  private normalizeTextLayerStyle(style?: Partial<TextLayerStyle>): TextLayerStyle {
+    const s = { ...this.defaultTextLayerStyle(), ...(style ?? {}) };
+
+    s.fontFamily = (s.fontFamily ?? "").trim() || "var(--font-text)";
+    s.color = (s.color ?? "").trim() || "var(--text-normal)";
+
+    if (!Number.isFinite(s.fontSize) || s.fontSize <= 1) s.fontSize = 14;
+    if (!Number.isFinite(s.baselineOffset ?? 0)) s.baselineOffset = 0;
+    if (!Number.isFinite(s.padLeft ?? 0) || (s.padLeft ?? 0) < 0) s.padLeft = 0;
+    if (!Number.isFinite(s.padRight ?? 0) || (s.padRight ?? 0) < 0) s.padRight = 0;
+
+    if (typeof s.italic !== "boolean") delete s.italic;
+    if (typeof s.letterSpacing !== "number" || !Number.isFinite(s.letterSpacing)) {
+      delete s.letterSpacing;
+    }
+    if (s.fontWeight != null) {
+      const fw = String(s.fontWeight).trim();
+      s.fontWeight = fw.length ? fw : undefined;
+    }
+
+    return s;
+  }
+
+  private setupTextOverlay(): void {
+    const ns = "http://www.w3.org/2000/svg";
+
+    this.textSvgWrap = this.worldEl.createDiv({ cls: "zm-text" });
+
+    this.textSvg = document.createElementNS(ns, "svg");
+    this.textSvg.classList.add("zm-text__svg");
+    this.textSvg.setAttribute("width", String(this.imgW));
+    this.textSvg.setAttribute("height", String(this.imgH));
+    this.textSvgWrap.appendChild(this.textSvg);
+
+    this.textGuidesLayer = document.createElementNS(ns, "g");
+    this.textSvg.appendChild(this.textGuidesLayer);
+
+    this.textDraftLayer = document.createElementNS(ns, "g");
+    this.textSvg.appendChild(this.textDraftLayer);
+
+    this.textTextLayer = document.createElementNS(ns, "g");
+    this.textSvg.appendChild(this.textTextLayer);
+
+    this.textHitEl = this.worldEl.createDiv({ cls: "zm-text-hitboxes" });
+    this.textEditEl = this.worldEl.createDiv({ cls: "zm-text-edit" });
+
+    // Text width measurement (CSS variables supported)
+    this.textMeasureSpan = this.viewportEl.createEl("span", { cls: "zm-text-measure" });
+  }
+
+  private renderTextLayers(): void {
+    if (!this.data || !this.textSvg) return;
+
+    const enabled = !!this.plugin.settings.enableTextLayers;
+    this.ensureTextData();
+
+    // If disabled: fully hide / disable
+    if (!enabled) {
+      this.textGuidesLayer.innerHTML = "";
+      this.textDraftLayer.innerHTML = "";
+      this.textTextLayer.innerHTML = "";
+      this.textHitEl.empty();
+      this.stopTextEdit(false);
+      return;
+    }
+
+    // Keep SVG in sync with image size
+    this.textSvg.setAttribute("width", String(this.imgW));
+    this.textSvg.setAttribute("height", String(this.imgH));
+
+    this.textGuidesLayer.innerHTML = "";
+    this.textTextLayer.innerHTML = "";
+    this.textHitEl.empty();
+
+    const ns = "http://www.w3.org/2000/svg";
+
+    const abs = (nx: number, ny: number) => ({ x: nx * this.imgW, y: ny * this.imgH });
+    const rectAbs = (r: { x0: number; y0: number; x1: number; y1: number }) => {
+      const x = Math.min(r.x0, r.x1) * this.imgW;
+      const y = Math.min(r.y0, r.y1) * this.imgH;
+      const w = Math.abs(r.x1 - r.x0) * this.imgW;
+      const h = Math.abs(r.y1 - r.y0) * this.imgH;
+      return { x, y, w, h };
+    };
+
+    const layers = this.data.textLayers ?? [];
+    for (const layer of layers) {
+      layer.style = this.normalizeTextLayerStyle(layer.style);
+
+      // Hitbox for selecting / editing
+      const r = rectAbs(layer.rect);
+      const hb = this.textHitEl.createDiv({ cls: "zm-text-hitbox" });
+      hb.dataset.id = layer.id;
+      hb.style.left = `${r.x}px`;
+      hb.style.top = `${r.y}px`;
+      hb.style.width = `${r.w}px`;
+      hb.style.height = `${r.h}px`;
+      hb.ondragstart = (ev) => ev.preventDefault();
+      
+      hb.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+      });
+
+      hb.addEventListener("click", (e: MouseEvent) => {
+        e.stopPropagation();
+		
+		if (this.suppressTextClickOnce) return;
+
+        // Draw lines mode: clicks inside the layer define baselines
+        if (this.textMode === "draw-lines" && this.activeTextLayerId === layer.id) {
+          this.onTextDrawLineClick(layer, e);
+          return;
+        }
+
+        // Normal edit mode
+        this.onTextLayerClick(layer, e);
+      });
+
+      // Guides
+      const showNow = this.textMode === "draw-lines" && this.activeTextLayerId === layer.id;
+
+      if (showNow) {
+        const rect = document.createElementNS(ns, "rect");
+        rect.classList.add("zm-text-guide-rect");
+        rect.setAttribute("x", String(r.x));
+        rect.setAttribute("y", String(r.y));
+        rect.setAttribute("width", String(r.w));
+        rect.setAttribute("height", String(r.h));
+        this.textGuidesLayer.appendChild(rect);
+
+        for (const ln of layer.lines ?? []) {
+          const a = abs(ln.x0, ln.y0);
+          const b = abs(ln.x1, ln.y1);
+
+          const line = document.createElementNS(ns, "line");
+          line.classList.add("zm-text-guide-line");
+          line.setAttribute("x1", String(a.x));
+          line.setAttribute("y1", String(a.y));
+          line.setAttribute("x2", String(b.x));
+          line.setAttribute("y2", String(b.y));
+          this.textGuidesLayer.appendChild(line);
+        }
+      }
+
+      // Static text (hidden while editing this layer)
+      const isEditingThis = this.textMode === "edit" && this.activeTextLayerId === layer.id;
+      if (isEditingThis) continue;
+
+      const st = layer.style;
+      for (const ln of layer.lines ?? []) {
+        const txt = (ln.text ?? "").trimEnd();
+        if (!txt) continue;
+
+        const a = abs(ln.x0, ln.y0);
+        const b = abs(ln.x1, ln.y1);
+
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+
+        const padLeft = st.padLeft ?? 0;
+        const x = a.x + padLeft;
+        const y = a.y;
+
+        const t = document.createElementNS(ns, "text");
+        t.setAttribute("x", String(x));
+        t.setAttribute("y", String(y));
+        t.textContent = txt;
+
+        // Styling
+        t.style.fill = st.color;
+        t.style.fontFamily = st.fontFamily;
+        t.style.fontSize = `${st.fontSize}px`;
+        if (st.fontWeight) t.style.fontWeight = st.fontWeight;
+        if (st.italic) t.style.fontStyle = "italic";
+        if (typeof st.letterSpacing === "number") t.style.letterSpacing = `${st.letterSpacing}px`;
+
+        // Rotation only if the baseline is angled
+        if (Math.abs(angleDeg) > 0.01) {
+          t.setAttribute("transform", `rotate(${angleDeg} ${x} ${y})`);
+        }
+
+        this.textTextLayer.appendChild(t);
+      }
+    }
+
+    this.renderTextDraft();
+  }
+
+  private renderTextDraft(): void {
+    if (!this.textDraftLayer) return;
+    this.textDraftLayer.innerHTML = "";
+
+    const enabled = !!this.plugin.settings.enableTextLayers;
+    if (!enabled) return;
+
+    const ns = "http://www.w3.org/2000/svg";
+    const abs = (nx: number, ny: number) => ({ x: nx * this.imgW, y: ny * this.imgH });
+
+    // Box preview while creating a new text layer
+    if (this.textMode === "draw-layer" && this.textDrawStart && this.textDrawPreview) {
+      const a = abs(this.textDrawStart.x, this.textDrawStart.y);
+      const b = abs(this.textDrawPreview.x, this.textDrawPreview.y);
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(a.x - b.x);
+      const h = Math.abs(a.y - b.y);
+
+      const rect = document.createElementNS(ns, "rect");
+      rect.classList.add("zm-text-guide-rect");
+      rect.setAttribute("x", String(x));
+      rect.setAttribute("y", String(y));
+      rect.setAttribute("width", String(w));
+      rect.setAttribute("height", String(h));
+      this.textDraftLayer.appendChild(rect);
+    }
+
+    // Line preview while drawing baselines
+    if (this.textMode === "draw-lines" && this.textLineStart && this.textLinePreview) {
+      const a = abs(this.textLineStart.x, this.textLineStart.y);
+      const b = abs(this.textLinePreview.x, this.textLinePreview.y);
+
+      const line = document.createElementNS(ns, "line");
+      line.classList.add("zm-text-guide-draft");
+      line.setAttribute("x1", String(a.x));
+      line.setAttribute("y1", String(a.y));
+      line.setAttribute("x2", String(b.x));
+      line.setAttribute("y2", String(b.y));
+      this.textDraftLayer.appendChild(line);
+    }
+  }
+
+  private onTextLayerClick(layer: TextLayer, ev: MouseEvent): void {
+    if (!this.data) return;
+    if (!this.plugin.settings.enableTextLayers) return;
+
+    if (layer.locked) {
+      new Notice("Text layer is locked.", 1500);
+      return;
+    }
+
+    const lines = layer.lines ?? [];
+    if (lines.length === 0) {
+      new Notice("No baselines in this layer yet. Use 'draw lines' first.", 3000);
+      return;
+    }
+
+    const p = this.mouseEventToWorldNorm(ev);
+    this.startTextEdit(layer.id, p);
+  }
+
+  private mouseEventToWorldNorm(ev: MouseEvent): Point {
+    const vpRect = this.viewportEl.getBoundingClientRect();
+    const vx = ev.clientX - vpRect.left;
+    const vy = ev.clientY - vpRect.top;
+    const wx = (vx - this.tx) / this.scale;
+    const wy = (vy - this.ty) / this.scale;
+    return {
+      x: clamp(wx / this.imgW, 0, 1),
+      y: clamp(wy / this.imgH, 0, 1),
+    };
+  }
+
+  private startTextEdit(layerId: string, focus?: Point): void {
+    if (!this.data) return;
+
+    // Close other modes
+    this.measuring = false;
+    this.calibrating = false;
+    this.drawingMode = null;
+
+    this.stopTextEdit(true);
+
+    this.textMode = "edit";
+    this.activeTextLayerId = layerId;
+    this.textDirty = false;
+
+    const layer = (this.data.textLayers ?? []).find((l) => l.id === layerId);
+    if (!layer) return;
+
+    layer.style = this.normalizeTextLayerStyle(layer.style);
+
+    this.textEditEl.empty();
+    this.textInputs.clear();
+
+    const st = layer.style;
+
+    const sorted = [...(layer.lines ?? [])].sort((a, b) => {
+      const ay = (a.y0 + a.y1) / 2;
+      const by = (b.y0 + b.y1) / 2;
+      return ay - by || a.x0 - b.x0;
+    });
+    layer.lines = sorted;
+
+    for (let i = 0; i < layer.lines.length; i += 1) {
+      const ln = layer.lines[i];
+
+      const ax0 = ln.x0 * this.imgW;
+      const ay0 = ln.y0 * this.imgH;
+      const ax1 = ln.x1 * this.imgW;
+      const ay1 = ln.y1 * this.imgH;
+
+      const dx = ax1 - ax0;
+      const dy = ay1 - ay0;
+      const len = Math.max(1, Math.hypot(dx, dy));
+      const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+
+      // Line box sizing (prevents vertical clipping)
+      const fontSize = st.fontSize;
+      const lineH =
+        typeof st.lineHeight === "number" && st.lineHeight > 1
+          ? st.lineHeight
+          : Math.round(fontSize * 1.35);
+
+      // Approx baseline alignment:
+      // CSS line-height adds leading split above/below -> baseline shifts down by leading/2.
+      const leading = Math.max(0, lineH - fontSize);
+      const ascent = Math.round(fontSize * 0.8);
+      const rise = ascent + Math.round(leading / 2);
+
+      const ux = dx / len;
+      const uy = dy / len;
+      const nx = -uy;
+      const ny = ux;
+
+      const row = this.textEditEl.createDiv({ cls: "zm-text-line" });
+
+      // Move the input box "above" the baseline so text sits on the line.
+      row.style.left = `${ax0 - nx * rise}px`;
+      row.style.top = `${ay0 - ny * rise}px`;
+
+      row.style.width = `${len}px`;
+      row.style.height = `${lineH}px`;
+      row.style.transform = `rotate(${angle}deg)`;
+
+      const input = row.createEl("input", { cls: "zm-text-input" });
+      input.type = "text";
+      input.value = ln.text ?? "";
+
+      input.style.boxSizing = "border-box";
+      input.style.height = `${lineH}px`;
+      input.style.lineHeight = `${lineH}px`;
+
+      input.style.fontFamily = st.fontFamily;
+      input.style.fontSize = `${st.fontSize}px`;
+      input.style.color = st.color;
+      if (st.fontWeight) input.style.fontWeight = st.fontWeight;
+      if (st.italic) input.style.fontStyle = "italic";
+      if (typeof st.letterSpacing === "number") input.style.letterSpacing = `${st.letterSpacing}px`;
+      input.style.paddingLeft = `${st.padLeft ?? 0}px`;
+      input.style.paddingRight = `${st.padRight ?? 0}px`;
+
+      // Prevent viewport handlers (pan/zoom/add-marker) from interfering
+      input.addEventListener("pointerdown", (e) => e.stopPropagation());
+      input.addEventListener("click", (e) => e.stopPropagation());
+      input.addEventListener("dblclick", (e) => e.stopPropagation());
+      input.addEventListener("contextmenu", (e) => e.stopPropagation());
+
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          this.stopTextEdit(true);
+          return;
+        }
+		
+		if (e.key === "Backspace") {
+        const selStart = input.selectionStart ?? 0;
+        const selEnd = input.selectionEnd ?? selStart;
+
+        // If caret is at the start of this baseline line:
+        // move to previous line (like deleting a newline in a textarea).
+        if (selStart === 0 && selEnd === 0 && i > 0) {
+          e.preventDefault();
+          e.stopPropagation();
+
+          const prev = this.getTextInputByIndex(i - 1);
+          if (!prev) return;
+
+          const joinPos = prev.value.length;
+
+          prev.focus();
+          prev.setSelectionRange(joinPos, joinPos);
+
+          // Try to pull words up from this line into the previous one
+          // (removes the "implicit newline" as much as it fits).
+          this.textDirty = true;
+          this.reflowTextLayer(layer, i - 1, { advanceFocus: false });
+          this.scheduleTextSave();
+
+          // Ensure caret stays at the join position after reflow updates values.
+          window.setTimeout(() => {
+            if (this.textMode !== "edit") return;
+            const pos = Math.min(joinPos, prev.value.length);
+            prev.focus();
+            prev.setSelectionRange(pos, pos);
+          }, 0);
+
+          return;
+        }
+      }
+
+        // Jump between baselines
+        if (e.key === "Enter") {
+          e.preventDefault();
+          e.stopPropagation();
+          const next = this.getTextInputByIndex(i + 1);
+          next?.focus();
+          return;
+        }
+
+        if (e.key === "ArrowDown") {
+          const next = this.getTextInputByIndex(i + 1);
+          if (next) {
+            e.preventDefault();
+            next.focus();
+          }
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          const prev = this.getTextInputByIndex(i - 1);
+          if (prev) {
+            e.preventDefault();
+            prev.focus();
+          }
+          return;
+        }
+      });
+
+      input.addEventListener("input", () => {
+	  if (layer.locked) {
+		input.value = ln.text ?? "";
+		new Notice("Text layer is locked.", 1200);
+		return;
+	  }
+
+	  // If the user is typing at the end of the line, we can safely advance focus on overflow.
+	  const selStart = input.selectionStart ?? input.value.length;
+	  const selEnd = input.selectionEnd ?? selStart;
+	  const hasSelection = selEnd !== selStart;
+	  const atEnd = !hasSelection && selStart === input.value.length;
+
+	  ln.text = input.value;
+	  this.textDirty = true;
+
+	  const move = this.reflowTextLayer(layer, i, { advanceFocus: atEnd });
+	  this.scheduleTextSave();
+
+	  if (move.advance) {
+		window.setTimeout(() => {
+		  if (this.textMode !== "edit") return;
+		  const next = this.getTextInputByIndex(move.advance!.toIndex);
+		  if (!next) return;
+
+		  next.focus();
+
+		  const pos = Math.min(move.advance!.caret, next.value.length);
+		  next.setSelectionRange(pos, pos);
+		}, 0);
+	  }
+	});
+
+      this.textInputs.set(ln.id, input);
+    }
+
+    this.installTextOutsideClickHandler();
+
+    // Focus nearest line (or first)
+    if (focus) {
+      this.focusNearestBaseline(layer, focus);
+    } else {
+      this.getTextInputByIndex(0)?.focus();
+    }
+
+    // Hide static SVG text for the active layer
+    this.renderTextLayers();
+  }
+
+  private stopTextEdit(save: boolean): void {
+    if (this.textMode !== "edit") return;
+
+    this.textMode = null;
+    this.activeTextLayerId = null;
+
+    this.textInputs.clear();
+    this.textEditEl.empty();
+
+    this.textOutsideCleanup?.();
+    this.textOutsideCleanup = null;
+
+    if (save) {
+      this.flushTextSaveNow();
+    } else {
+      if (this.textSaveTimer !== null) {
+        window.clearTimeout(this.textSaveTimer);
+        this.textSaveTimer = null;
+      }
+      this.textDirty = false;
+    }
+
+    this.renderTextLayers();
+  }
+
+  private installTextOutsideClickHandler(): void {
+    this.textOutsideCleanup?.();
+    this.textOutsideCleanup = null;
+
+    const doc = this.el.ownerDocument;
+
+    const handler = (ev: PointerEvent) => {
+      if (this.textMode !== "edit") return;
+
+      const t = ev.target;
+      if (!(t instanceof Node)) return;
+
+      if (this.textEditEl.contains(t)) return;
+
+      if (this.activeTextLayerId) {
+        const hb = this.textHitEl.querySelector(
+          `.zm-text-hitbox[data-id="${this.activeTextLayerId}"]`,
+        );
+        if (hb && hb.contains(t)) return;
+      }
+
+      this.stopTextEdit(true);
+    };
+
+    doc.addEventListener("pointerdown", handler, { capture: true });
+    this.textOutsideCleanup = () => {
+      doc.removeEventListener("pointerdown", handler, true);
+    };
+  }
+
+  private getTextInputByIndex(index: number): HTMLInputElement | null {
+    if (!this.data || !this.activeTextLayerId) return null;
+    const layer = (this.data.textLayers ?? []).find((l) => l.id === this.activeTextLayerId);
+    if (!layer) return null;
+    const ln = layer.lines?.[index];
+    if (!ln) return null;
+    return this.textInputs.get(ln.id) ?? null;
+  }
+
+  private focusNearestBaseline(layer: TextLayer, p: Point): void {
+    if (!layer.lines?.length) return;
+
+    const py = p.y;
+    let bestIdx = 0;
+    let bestDist = Infinity;
+
+    for (let i = 0; i < layer.lines.length; i += 1) {
+      const ln = layer.lines[i];
+      const y = (ln.y0 + ln.y1) / 2;
+      const d = Math.abs(y - py);
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    }
+
+    this.getTextInputByIndex(bestIdx)?.focus();
+  }
+
+  private scheduleTextSave(delayMs = 900): void {
+    if (!this.data) return;
+
+    if (this.textSaveTimer !== null) window.clearTimeout(this.textSaveTimer);
+    this.textSaveTimer = window.setTimeout(() => {
+      this.textSaveTimer = null;
+      if (!this.textDirty) return;
+      void this.saveDataSoon().then(() => {
+        this.textDirty = false;
+      });
+    }, delayMs);
+  }
+
+  private flushTextSaveNow(): void {
+    if (!this.data) return;
+
+    if (this.textSaveTimer !== null) {
+      window.clearTimeout(this.textSaveTimer);
+      this.textSaveTimer = null;
+    }
+    if (!this.textDirty) return;
+
+    void this.saveDataSoon().then(() => {
+      this.textDirty = false;
+    });
+  }
+
+  private measureTextWidthPx(style: TextLayerStyle, text: string): number {
+    const span = this.textMeasureSpan;
+    if (!span) return text.length * (style.fontSize ?? 14);
+
+    span.style.fontFamily = style.fontFamily;
+    span.style.fontSize = `${style.fontSize}px`;
+    span.style.fontWeight = style.fontWeight ?? "400";
+    span.style.fontStyle = style.italic ? "italic" : "normal";
+    span.style.letterSpacing =
+      typeof style.letterSpacing === "number" ? `${style.letterSpacing}px` : "normal";
+
+    span.textContent = text || "";
+    return span.getBoundingClientRect().width;
+  }
+
+  private lineCapacityPx(layer: TextLayer, ln: TextBaseline): number {
+    const st = layer.style;
+    const ax0 = ln.x0 * this.imgW;
+    const ay0 = ln.y0 * this.imgH;
+    const ax1 = ln.x1 * this.imgW;
+    const ay1 = ln.y1 * this.imgH;
+    const len = Math.hypot(ax1 - ax0, ay1 - ay0);
+
+    const cap = len - (st.padLeft ?? 0) - (st.padRight ?? 0);
+    return Math.max(10, cap);
+  }
+
+  private splitToFit(layer: TextLayer, ln: TextBaseline, text: string): { fit: string; rest: string } {
+    const cap = this.lineCapacityPx(layer, ln);
+    const st = layer.style;
+
+    if (this.measureTextWidthPx(st, text) <= cap) return { fit: text, rest: "" };
+
+    // Try to split on spaces (word wrap)
+    for (let i = text.length - 1; i >= 0; i -= 1) {
+      if (text[i] !== " ") continue;
+      const left = text.slice(0, i).trimEnd();
+      const right = text.slice(i + 1).trimStart();
+      if (!left) continue;
+
+      if (this.measureTextWidthPx(st, left) <= cap) {
+        return { fit: left, rest: right };
+      }
+    }
+
+    // Fallback: character wrap (binary search)
+    let lo = 0;
+    let hi = text.length;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      const left = text.slice(0, mid);
+      if (this.measureTextWidthPx(st, left) <= cap) lo = mid;
+      else hi = mid - 1;
+    }
+
+    const fit = text.slice(0, lo).trimEnd();
+    const rest = text.slice(lo).trimStart();
+    return { fit, rest };
+  }
+
+  private pullWord(text: string): { word: string; rest: string } | null {
+    const s = text.trimStart();
+    if (!s) return null;
+
+    const m = /^(\S+)\s*(.*)$/.exec(s);
+    if (!m) return null;
+
+    return { word: m[1] ?? "", rest: m[2] ?? "" };
+  }
+
+  private reflowTextLayer(
+  layer: TextLayer,
+  startIndex: number,
+  opts?: { advanceFocus?: boolean },
+): { advance?: { toIndex: number; caret: number } } {
+  if (!layer.lines?.length) return {};
+
+  let advance: { toIndex: number; caret: number } | undefined;
+
+  // 1) Push overflow forward from startIndex
+  for (let i = startIndex; i < layer.lines.length; i += 1) {
+    const ln = layer.lines[i];
+    const txt = ln.text ?? "";
+    const { fit, rest } = this.splitToFit(layer, ln, txt);
+
+    if (!rest) {
+      ln.text = fit;
+      continue;
+    }
+
+    ln.text = fit;
+
+    const next = layer.lines[i + 1];
+    if (!next) {
+      new Notice("No more baselines in this text layer.", 1500);
+      continue;
+    }
+
+    const nextTxt = (next.text ?? "").trimStart();
+    next.text = (rest + (nextTxt ? " " + nextTxt : "")).trimEnd();
+
+    // Suggest focus move only for the line that the user is actively typing in
+    if (!advance && i === startIndex && opts?.advanceFocus) {
+      advance = { toIndex: i + 1, caret: rest.length };
+    }
+  }
+
+  // 2) Pull words up to fill gaps
+  for (let i = startIndex; i < layer.lines.length - 1; i += 1) {
+    const cur = layer.lines[i];
+    const next = layer.lines[i + 1];
+    if (!next) continue;
+
+    while (true) {
+      const pick = this.pullWord(next.text ?? "");
+      if (!pick) break;
+
+      const candidate = (cur.text ?? "").trimEnd();
+      const joined = candidate ? `${candidate} ${pick.word}` : pick.word;
+
+      if (this.measureTextWidthPx(layer.style, joined) <= this.lineCapacityPx(layer, cur)) {
+        cur.text = joined;
+        next.text = pick.rest.trimStart();
+      } else {
+        break;
+      }
+    }
+  }
+
+  // Sync DOM inputs from data (keeps active selection stable)
+  this.syncInputsFromLayer(layer);
+
+  return { advance };
+}
+
+  private syncInputsFromLayer(layer: TextLayer): void {
+    const active = this.el.ownerDocument.activeElement;
+
+    for (const ln of layer.lines ?? []) {
+      const input = this.textInputs.get(ln.id);
+      if (!input) continue;
+
+      const want = ln.text ?? "";
+      if (input.value === want) continue;
+
+      if (active === input) {
+        const selStart = input.selectionStart ?? want.length;
+        const selEnd = input.selectionEnd ?? want.length;
+
+        input.value = want;
+
+        const s = Math.min(selStart, want.length);
+        const e = Math.min(selEnd, want.length);
+        input.setSelectionRange(s, e);
+      } else {
+        input.value = want;
+      }
+    }
+  }
+
+  private onTextDrawLineClick(layer: TextLayer, ev: MouseEvent): void {
+    if (!this.data) return;
+
+    if (layer.locked) {
+      new Notice("Text layer is locked.", 1500);
+      return;
+    }
+
+    const p = this.mouseEventToWorldNorm(ev);
+
+    // Start point
+    if (!this.textLineStart) {
+      this.textLineStart = p;
+      this.textLinePreview = p;
+      this.renderTextDraft();
+      return;
+    }
+
+    // End point
+    const a = this.textLineStart;
+    const b = p;
+
+    const rect = layer.rect;
+    const minX = Math.min(rect.x0, rect.x1);
+    const maxX = Math.max(rect.x0, rect.x1);
+    const minY = Math.min(rect.y0, rect.y1);
+    const maxY = Math.max(rect.y0, rect.y1);
+
+    let x0 = a.x;
+    let y0 = a.y;
+    let x1 = b.x;
+    let y1 = b.y;
+
+    const allowAngled = !!layer.allowAngledBaselines;
+    const freeAngle = allowAngled && ev.ctrlKey;
+
+    if (!freeAngle) {
+      const y = (y0 + y1) / 2;
+      y0 = y;
+      y1 = y;
+    }
+
+    // Keep left->right ordering for consistency
+    if (x1 < x0) {
+      [x0, x1] = [x1, x0];
+      [y0, y1] = [y1, y0];
+    }
+
+    // Clamp endpoints into the layer rect
+    x0 = clamp(x0, minX, maxX);
+    x1 = clamp(x1, minX, maxX);
+    y0 = clamp(y0, minY, maxY);
+    y1 = clamp(y1, minY, maxY);
+
+    const pxLen = Math.hypot((x1 - x0) * this.imgW, (y1 - y0) * this.imgH);
+    if (pxLen < 6) {
+      new Notice("Baseline too short.", 1200);
+      this.textLineStart = null;
+      this.textLinePreview = null;
+      this.renderTextDraft();
+      return;
+    }
+
+    layer.lines ??= [];
+    layer.lines.push({
+      id: generateId("tln"),
+      x0,
+      y0,
+      x1,
+      y1,
+      text: "",
+    });
+
+    // Sort by Y, then X
+    layer.lines.sort((u, v) => {
+      const uy = (u.y0 + u.y1) / 2;
+      const vy = (v.y0 + v.y1) / 2;
+      return uy - vy || u.x0 - v.x0;
+    });
+
+    this.textLineStart = null;
+    this.textLinePreview = null;
+
+    void this.saveDataSoon();
+    this.renderTextLayers();
+  }
+
+  private startDrawNewTextLayer(): void {
+    if (!this.data) return;
+    if (!this.plugin.settings.enableTextLayers) {
+      new Notice("Text layers are disabled in preferences.", 2500);
+      return;
+    }
+
+    this.stopTextEdit(true);
+
+    this.measuring = false;
+    this.calibrating = false;
+    this.drawingMode = null;
+
+    this.textMode = "draw-layer";
+    this.activeTextLayerId = null;
+    this.textDrawStart = null;
+    this.textDrawPreview = null;
+
+    new Notice("Draw text layer: drag to create the box. Press esc to cancel.", 4500);
+  }
+
+  private finishDrawNewTextLayer(): void {
+    if (!this.data || !this.textDrawStart || !this.textDrawPreview) return;
+
+    const a = this.textDrawStart;
+    const b = this.textDrawPreview;
+
+    const rect = {
+      x0: a.x,
+      y0: a.y,
+      x1: b.x,
+      y1: b.y,
+    };
+
+    const pxW = Math.abs(rect.x1 - rect.x0) * this.imgW;
+    const pxH = Math.abs(rect.y1 - rect.y0) * this.imgH;
+    if (pxW < 12 || pxH < 12) {
+      new Notice("Text layer box too small.", 1500);
+      return;
+    }
+
+    const idx = (this.data.textLayers?.length ?? 0) + 1;
+
+    const layer: TextLayer = {
+      id: generateId("txt"),
+      name: `Text layer ${idx}`,
+      locked: false,
+      showGuides: true,
+      rect,
+      lines: [],
+      allowAngledBaselines: false,
+      style: this.defaultTextLayerStyle(),
+    };
+
+    this.data.textLayers ??= [];
+    this.data.textLayers.push(layer);
+
+    this.textMode = null;
+    this.textDrawStart = null;
+    this.textDrawPreview = null;
+
+    this.renderTextLayers();
+    void this.saveDataSoon();
+
+    // Style modal is fine (no text input modal)
+    new TextLayerStyleModal(this.app, layer, (res) => {
+      if (res.action !== "save" || !this.data) return;
+
+      if (res.applyStyleToAll) {
+        for (const l of this.data.textLayers ?? []) {
+          l.style = { ...layer.style };
+        }
+      }
+
+      void this.saveDataSoon();
+      this.renderTextLayers();
+    }).open();
   }
 
   private renderMeasure(): void {
@@ -1266,6 +2251,22 @@ private async applyViewEditorResult(cfg: ViewEditorConfig): Promise<void> {
 
   private onPointerDownViewport(e: PointerEvent): void {
     if (!this.ready) return;
+	
+	if (this.textMode === "draw-layer") {
+      if (e.button !== 0) return;
+
+      const vpRect = this.viewportEl.getBoundingClientRect();
+      const vx = e.clientX - vpRect.left;
+      const vy = e.clientY - vpRect.top;
+      const wx = (vx - this.tx) / this.scale;
+      const wy = (vy - this.ty) / this.scale;
+
+      this.textDrawStart = { x: clamp(wx / this.imgW, 0, 1), y: clamp(wy / this.imgH, 0, 1) };
+      this.textDrawPreview = this.textDrawStart;
+
+      this.renderTextDraft();
+      return;
+    }
 
     this.plugin.setActiveMap(this);
 
@@ -1287,11 +2288,40 @@ private async applyViewEditorResult(cfg: ViewEditorConfig): Promise<void> {
     if (!this.panButtonMatches(e)) return;
 
     this.draggingView = true;
-    this.lastPos = { x: e.clientX, y: e.clientY };
+	this.lastPos = { x: e.clientX, y: e.clientY };
+
+	this.viewDragDist = 0;
+	this.viewDragMoved = false;
   }
 
   private onPointerMove(e: PointerEvent): void {
     if (!this.ready) return;
+	
+	// Text layer draw preview (box)
+    if (this.textMode === "draw-layer" && this.textDrawStart) {
+      const vpRect = this.viewportEl.getBoundingClientRect();
+      const vx = e.clientX - vpRect.left;
+      const vy = e.clientY - vpRect.top;
+      const wx = (vx - this.tx) / this.scale;
+      const wy = (vy - this.ty) / this.scale;
+
+      this.textDrawPreview = { x: clamp(wx / this.imgW, 0, 1), y: clamp(wy / this.imgH, 0, 1) };
+      this.renderTextDraft();
+      return;
+    }
+
+    // Text baseline preview (line)
+    if (this.textMode === "draw-lines" && this.textLineStart) {
+      const vpRect = this.viewportEl.getBoundingClientRect();
+      const vx = e.clientX - vpRect.left;
+      const vy = e.clientY - vpRect.top;
+      const wx = (vx - this.tx) / this.scale;
+      const wy = (vy - this.ty) / this.scale;
+
+      this.textLinePreview = { x: clamp(wx / this.imgW, 0, 1), y: clamp(wy / this.imgH, 0, 1) };
+      this.renderTextDraft();
+      return;
+    }
 	
 	if (this.updateDrawPreview(e)) {
       return;
@@ -1385,6 +2415,8 @@ private async applyViewEditorResult(cfg: ViewEditorConfig): Promise<void> {
     if (!this.draggingView) return;
     const dx = e.clientX - this.lastPos.x;
     const dy = e.clientY - this.lastPos.y;
+	this.viewDragDist += Math.hypot(dx, dy);
+	if (this.viewDragDist > 4) this.viewDragMoved = true;
     this.lastPos = { x: e.clientX, y: e.clientY };
 
     this.panAccDx += dx;
@@ -1393,6 +2425,12 @@ private async applyViewEditorResult(cfg: ViewEditorConfig): Promise<void> {
   }
 
   private onPointerUp(): void {
+	  
+  if (this.textMode === "draw-layer" && this.textDrawStart && this.textDrawPreview) {
+      this.finishDrawNewTextLayer();
+      return;
+    }
+ 
   if (this.draggingMarkerId) {
     const draggedId = this.draggingMarkerId;
     const wasMoved = this.dragMoved;
@@ -1431,6 +2469,15 @@ private async applyViewEditorResult(cfg: ViewEditorConfig): Promise<void> {
     cancelAnimationFrame(this.panRAF);
     this.panRAF = null;
   }
+  if (this.viewDragMoved) {
+  this.suppressTextClickOnce = true;
+  window.setTimeout(() => {
+    this.suppressTextClickOnce = false;
+  }, 0);
+}
+
+this.viewDragMoved = false;
+this.viewDragDist = 0;
 }
 
   private startPinch(): void {
@@ -2469,6 +3516,132 @@ private onContextMenuViewport(e: MouseEvent): void {
         ],
       },
     );
+	
+	// --- Text layers (top-level menu) ---
+if (this.plugin.settings.enableTextLayers && this.data) {
+  this.ensureTextData();
+
+  const textLayerItems: ZMMenuItem[] = (this.data.textLayers ?? []).map((tl) => ({
+    label: tl.name || "(text layer)",
+    children: [
+      {
+        label: "Edit…",
+        action: () => {
+          if (tl.locked) {
+            new Notice("Text layer is locked.", 1500);
+            return;
+          }
+
+          new TextLayerStyleModal(this.app, tl, (res) => {
+            if (res.action !== "save" || !this.data) return;
+
+            if (res.applyStyleToAll) {
+              for (const l of this.data.textLayers ?? []) {
+                l.style = { ...tl.style };
+              }
+            }
+
+            void this.saveDataSoon();
+            this.renderTextLayers();
+
+            if (this.textMode === "edit" && this.activeTextLayerId === tl.id) {
+              this.startTextEdit(tl.id);
+            }
+          }).open();
+
+          this.closeMenu();
+        },
+      },
+      {
+        label: "Lock",
+        checked: !!tl.locked,
+        action: (rowEl) => {
+          tl.locked = !tl.locked;
+          void this.saveDataSoon();
+
+          if (tl.locked && this.textMode === "edit" && this.activeTextLayerId === tl.id) {
+            this.stopTextEdit(true);
+          }
+
+          const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
+          if (chk) chk.textContent = tl.locked ? "✓" : "";
+        },
+      },
+      { type: "separator" },
+      {
+        label: "Draw lines",
+        action: () => {
+          if (tl.locked) {
+            new Notice("Text layer is locked.", 1500);
+            return;
+          }
+          this.stopTextEdit(true);
+          this.textMode = "draw-lines";
+          this.activeTextLayerId = tl.id;
+          this.textLineStart = null;
+          this.textLinePreview = null;
+          this.renderTextLayers();
+
+          new Notice(
+            "Draw baselines: click start + end. Hold ctrl for free angle (if enabled). Esc to exit.",
+            6000,
+          );
+
+          this.closeMenu();
+        },
+      },
+    ],
+  }));
+
+  const deleteChildren: ZMMenuItem[] =
+    (this.data.textLayers ?? []).length > 0
+      ? (this.data.textLayers ?? []).map((tl) => ({
+          label: tl.name || "(text layer)",
+          action: () => {
+            new ConfirmModal(
+              this.app,
+              "Delete text layer",
+              `Delete text layer "${tl.name || tl.id}"? This cannot be undone.`,
+              () => {
+                if (!this.data) return;
+
+                if (this.textMode === "edit" && this.activeTextLayerId === tl.id) {
+                  this.stopTextEdit(false);
+                }
+
+                this.data.textLayers = (this.data.textLayers ?? []).filter((x) => x.id !== tl.id);
+                void this.saveDataSoon();
+                this.renderTextLayers();
+              },
+            ).open();
+
+            this.closeMenu();
+          },
+        }))
+      : [{ label: "(No text layers)", action: () => this.closeMenu() }];
+
+  items.push(
+    { type: "separator" },
+    {
+      label: "Text layers",
+      children: [
+        ...textLayerItems,
+        { type: "separator" },
+        {
+          label: "Add text layer…",
+          action: () => {
+            this.startDrawNewTextLayer();
+            this.closeMenu();
+          },
+        },
+        {
+          label: "Delete layer…",
+          children: deleteChildren,
+        },
+      ],
+    },
+  );
+}
 	
 	if (this.plugin.settings.enableDrawing) {
       items.push(
@@ -3836,6 +5009,21 @@ private onContextMenuViewport(e: MouseEvent): void {
       this.drawEl.style.width = `${this.imgW}px`;
       this.drawEl.style.height = `${this.imgH}px`;
     }
+	
+	if (this.textSvgWrap) {
+      this.textSvgWrap.style.width = `${this.imgW}px`;
+      this.textSvgWrap.style.height = `${this.imgH}px`;
+    }
+
+    if (this.textHitEl) {
+      this.textHitEl.style.width = `${this.imgW}px`;
+      this.textHitEl.style.height = `${this.imgH}px`;
+    }
+
+    if (this.textEditEl) {
+      this.textEditEl.style.width = `${this.imgW}px`;
+      this.textEditEl.style.height = `${this.imgH}px`;
+    }
 
     this.markersEl.empty();
     this.renderMarkersOnly();
@@ -3844,6 +5032,8 @@ private onContextMenuViewport(e: MouseEvent): void {
     this.renderDrawings();
 
     if (this.isCanvas()) this.renderCanvas();
+	
+	this.renderTextLayers();
   }
 
   private renderMarkersOnly(): void {

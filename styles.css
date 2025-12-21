@@ -1001,3 +1001,102 @@ body.zm-cursor-resize-nesw {
   max-width: 8ch;
   flex: 0 0 auto;
 }
+
+/* =======================
+   Text layers (character sheets)
+   ======================= */
+
+.zm-text {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.zm-text__svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* Hitboxes for selecting a text layer (invisible) */
+.zm-text-hitboxes {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.zm-text-hitbox {
+  position: absolute;
+  pointer-events: auto;
+  background: transparent;
+}
+
+/* Guides (only when showGuides=true or during drawing) */
+.zm-text-guide-rect {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1px;
+  stroke-dasharray: 4 4;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.65;
+}
+
+.zm-text-guide-line {
+  stroke: var(--text-accent);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.35;
+}
+
+.zm-text-guide-draft {
+  stroke: var(--text-accent);
+  stroke-width: 2px;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.9;
+}
+
+/* Inline editor (inputs positioned on baselines) */
+.zm-text-edit {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.zm-text-line {
+  position: absolute;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.zm-text-input {
+  pointer-events: auto;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+
+  /* Prevent accidental drag of inputs */
+  user-select: text;
+}
+
+.zm-text-measure {
+  position: absolute;
+  left: -10000px;
+  top: -10000px;
+  visibility: hidden;
+  white-space: pre;
+  pointer-events: none;
+}
