@@ -1269,7 +1269,7 @@ private async applyViewEditorResult(cfg: ViewEditorConfig): Promise<void> {
         t.style.fontFamily = st.fontFamily;
         t.style.fontSize = `${st.fontSize}px`;
         if (st.fontWeight) t.style.fontWeight = st.fontWeight;
-        if (st.italic) t.style.fontStyle = "italic";
+        if (st.italic) t.classList.add("zm-text-italic");
         if (typeof st.letterSpacing === "number") t.style.letterSpacing = `${st.letterSpacing}px`;
 
         // Rotation only if the baseline is angled
@@ -1434,7 +1434,6 @@ private async applyViewEditorResult(cfg: ViewEditorConfig): Promise<void> {
       input.type = "text";
       input.value = ln.text ?? "";
 
-      input.style.boxSizing = "border-box";
       input.style.height = `${lineH}px`;
       input.style.lineHeight = `${lineH}px`;
 
@@ -1442,7 +1441,7 @@ private async applyViewEditorResult(cfg: ViewEditorConfig): Promise<void> {
       input.style.fontSize = `${st.fontSize}px`;
       input.style.color = st.color;
       if (st.fontWeight) input.style.fontWeight = st.fontWeight;
-      if (st.italic) input.style.fontStyle = "italic";
+      if (st.italic) input.classList.add("zm-text-italic");
       if (typeof st.letterSpacing === "number") input.style.letterSpacing = `${st.letterSpacing}px`;
       input.style.paddingLeft = `${st.padLeft ?? 0}px`;
       input.style.paddingRight = `${st.padRight ?? 0}px`;

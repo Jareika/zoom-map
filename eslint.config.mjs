@@ -1,4 +1,3 @@
-// eslint.config.mjs
 import { defineConfig } from "eslint/config";
 import js from "@eslint/js";
 import globals from "globals";
@@ -7,7 +6,6 @@ import tseslint from "@typescript-eslint/eslint-plugin";
 import obsidianmd from "eslint-plugin-obsidianmd";
 
 export default defineConfig([
-  // Global ignores
   {
     ignores: [
       "main.js",
@@ -19,7 +17,6 @@ export default defineConfig([
     ],
   },
 
-  // Hauptkonfiguration für deinen Plugin-Code (TypeScript)
   {
     files: ["src/**/*.{ts,tsx}"],
     languageOptions: {
@@ -31,7 +28,6 @@ export default defineConfig([
       },
       parser: tsparser,
       parserOptions: {
-        // typed linting, nutzt dein tsconfig.json
         project: "./tsconfig.json",
       },
     },
@@ -39,14 +35,10 @@ export default defineConfig([
       obsidianmd,
       "@typescript-eslint": tseslint,
     },
+
     rules: {
-      // Basis-JavaScript-Regeln
       ...js.configs.recommended.rules,
 
-      // Optional: Konsolen-Logging erlauben
-      "no-console": "off",
-
-      // TypeScript-aware unused-vars; disable base rule
       "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": [
         "error",
@@ -56,24 +48,12 @@ export default defineConfig([
         },
       ],
 
-      // Obsidian-spezifische Regeln (minimaler sinnvoller Satz)
-      "obsidianmd/commands/no-command-in-command-id": "error",
-      "obsidianmd/commands/no-command-in-command-name": "error",
-      "obsidianmd/commands/no-default-hotkeys": "warn",
-      "obsidianmd/commands/no-plugin-id-in-command-id": "error",
-      "obsidianmd/commands/no-plugin-name-in-command-name": "error",
+      "no-console": "off",
 
-      "obsidianmd/prefer-file-manager-trash-file": "error",
-      "obsidianmd/no-view-references-in-plugin": "error",
-      "obsidianmd/no-sample-code": "error",
-      "obsidianmd/validate-manifest": "error",
-
-      "obsidianmd/settings-tab/no-manual-html-headings": "warn",
-      "obsidianmd/ui/sentence-case": "warn",
+      ...obsidianmd.configs.recommended.rules,
     },
   },
 
-  // Node-only: esbuild config
   {
     files: ["esbuild.config.mjs"],
     languageOptions: {

@@ -37,7 +37,7 @@ function collectLoadedFontFamilies(): string[] {
     const fs = document.fonts;
     if (fs && typeof fs.forEach === "function") {
       fs.forEach((ff) => {
-        const fam = String((ff as FontFace).family ?? "")
+        const fam = String(ff.family ?? "")
           .replace(/["']/g, "")
           .trim();
         if (!fam) return;

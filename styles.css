@@ -1087,6 +1087,7 @@ body.zm-cursor-resize-nesw {
   padding: 0;
   margin: 0;
   width: 100%;
+  box-sizing: border-box;
 
   /* Prevent accidental drag of inputs */
   user-select: text;
@@ -1099,4 +1100,8 @@ body.zm-cursor-resize-nesw {
   visibility: hidden;
   white-space: pre;
   pointer-events: none;
+}
+
+.zm-text-italic {
+  font-style: italic;
 }
