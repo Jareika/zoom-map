@@ -97,6 +97,7 @@ export class NoteMarkerStore {
         metersPerPixel: undefined,
         scales: {},
         customUnitId: undefined,
+		travelTimePresetIds: [],
       },
       frame: undefined,
       pinSizeOverrides: {},

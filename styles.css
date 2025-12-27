@@ -7,7 +7,7 @@
   background: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
   border-radius: 6px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* Responsive mode: height is derived from the aspect ratio set inline */
@@ -25,7 +25,7 @@
 .zm-viewport {
   position: absolute;
   inset: 0;
-  overflow: hidden;
+  overflow: visible;
   touch-action: none;
   background: var(--background-primary);
 }
@@ -52,6 +52,18 @@
   resize: both;
   min-width: 220px;
   min-height: 220px;
+  
+  overflow: hidden;
+}
+
+.zm-root.zm-root--framepad {
+  background: transparent;
+  border: none;
+}
+
+.zm-root.zm-root--framepad .zm-viewport {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
 }
 
 /* Custom resize handles */
@@ -66,7 +78,7 @@
   box-shadow: var(--shadow-s);
   display: none;
   cursor: nwse-resize;
-  z-index: 5;
+  z-index: 80;
 }
 
 .zm-grip-right {
@@ -112,9 +124,47 @@
 
 /* Compositing + anti-flicker */
 .zm-viewport {
-  contain: layout paint size style;
+  contain: layout size style;
   overscroll-behavior: contain;
   transform: translateZ(0);
+}
+
+.zm-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  contain: layout paint size style;
+  z-index: 0;
+}
+
+.zm-hud-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 40; /* above frame */
+}
+
+.zm-viewport-frame {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  object-position: center;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  z-index: 30; /* above map content, below HUD */
+  transform: translateZ(0);
+  max-width: none !important;
+  max-height: none !important;
+  max-inline-size: none !important;
+  max-block-size: none !important;
+  display: block;
 }
 
 .zm-world {
@@ -299,6 +349,7 @@
   padding: 4px 8px;
   box-shadow: var(--shadow-s);
   font-size: 12px;
+  white-space: pre-line;
   pointer-events: none;
   display: none;
 }
@@ -496,6 +547,27 @@
 .zoommap-settings .zm-row {
   display: contents;
 }
+
+.zoommap-settings .zm-travel-grid-head {
+  display: grid;
+  gap: 8px;
+  align-items: end;
+  grid-template-columns: 14ch 9ch 18ch 9ch 14ch 36px;
+  width: 100%;
+}
+
+.zoommap-settings .zm-travel-grid {
+  display: grid;
+  gap: 8px;
+  align-items: center;
+  grid-template-columns: 14ch 9ch 18ch 9ch 14ch 36px;
+  width: 100%;
+}
+
+.zoommap-settings input.zm-travel-num { width: 9ch; }
+.zoommap-settings input.zm-travel-name { width: 14ch; }
+.zoommap-settings input.zm-travel-timeunit { width: 14ch; }
+.zoommap-settings select.zm-travel-unit { width: 18ch; }
 
 /* Stickers grid (settings) */
 .zoommap-settings .zm-stickers-grid-head {

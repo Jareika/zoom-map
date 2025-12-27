@@ -48,7 +48,7 @@ export default defineConfig([
         },
       ],
 
-      "no-console": "off",
+      "no-console": "warn",
 
       ...obsidianmd.configs.recommended.rules,
     },

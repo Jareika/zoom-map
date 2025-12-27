@@ -24,6 +24,8 @@ export interface ViewEditorConfig {
   align?: AlignMode;
   markerLayers: string[];
   id?: string;
+  viewportFrame?: string;
+  viewportFrameOverhang?: number;
 }
 
 export interface ViewEditorResult {
@@ -51,6 +53,11 @@ export class ViewEditorModal extends Modal {
     this.cfg.height ||= "480px";
     this.cfg.renderMode ||= "dom";
     this.cfg.resizeHandle ||= "right";
+
+    if (typeof this.cfg.viewportFrame !== "string") this.cfg.viewportFrame = "";
+    const over = Number(this.cfg.viewportFrameOverhang ?? 0);
+    this.cfg.viewportFrameOverhang =
+      Number.isFinite(over) && over >= 0 ? Math.round(over) : 0;
   }
   
   private factorToPercentString(f?: number): string {
@@ -434,7 +441,7 @@ export class ViewEditorModal extends Modal {
         });
       });
 	  
-	  // ID
+	// ID
 	new Setting(contentEl)
 	  .setClass("zoommap-view-editor-row")
 	  .setName("ID (optional)")
@@ -447,6 +454,58 @@ export class ViewEditorModal extends Modal {
 		  this.cfg.id = val.length ? val : undefined;
 		});
 	  });
+	  
+    /* -------- Viewport frame -------- */
+    contentEl.createEl("h3", { text: "Viewport frame" });
+
+    let frameInputEl: HTMLInputElement | null = null;
+
+    const frameSetting = new Setting(contentEl)
+      .setClass("zoommap-view-editor-row")
+      .setName("Frame image (optional)")
+      .setDesc("Drawn above the map (does not block mouse). Supports overhang.");
+
+    frameSetting.addText((t) => {
+      t.setPlaceholder("Path to frame image (png/svg) or data:URL");
+      t.setValue(this.cfg.viewportFrame ?? "");
+      frameInputEl = t.inputEl;
+      t.onChange((v) => {
+        const s = v.trim();
+        this.cfg.viewportFrame = s.length ? s : undefined;
+      });
+    });
+
+    frameSetting.addButton((b) =>
+      b.setButtonText("Pick…").onClick(() => {
+        new ImageFileSuggestModal(this.app, (file) => {
+          this.cfg.viewportFrame = file.path;
+          if (frameInputEl) frameInputEl.value = file.path;
+        }).open();
+      }),
+    );
+
+    frameSetting.addButton((b) =>
+      b.setButtonText("Clear").onClick(() => {
+        this.cfg.viewportFrame = undefined;
+        if (frameInputEl) frameInputEl.value = "";
+      }),
+    );
+
+    new Setting(contentEl)
+      .setClass("zoommap-view-editor-row")
+      .setName("Frame overhang (px)")
+      .setDesc("Extra pixels the frame extends beyond the map border.")
+      .addText((t) => {
+        t.inputEl.type = "number";
+        t.inputEl.classList.add("zoommap-view-editor-input--short");
+        t.setPlaceholder("0");
+        t.setValue(String(this.cfg.viewportFrameOverhang ?? 0));
+        t.onChange((v) => {
+          const n = Number(v);
+          this.cfg.viewportFrameOverhang =
+            Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0;
+        });
+      });
 
     /* -------- Footer -------- */
     const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });
@@ -463,9 +522,18 @@ export class ViewEditorModal extends Modal {
       this.normalizeZoomRange();
       this.autoFillMarkersPathFromFirstBase();
 
-      this.close();
-      this.onResult({ action: "save", config: this.cfg });
-    };
+      // Normalize viewport frame values
+      const frame = (this.cfg.viewportFrame ?? "").trim();
+      this.cfg.viewportFrame = frame.length ? frame : undefined;
+	  const over = Number(this.cfg.viewportFrameOverhang ?? 0);
+	  this.cfg.viewportFrameOverhang =
+		this.cfg.viewportFrame && Number.isFinite(over)
+		  ? Math.max(0, Math.round(over))
+		  : 0;
+
+	  this.close();
+	  this.onResult({ action: "save", config: this.cfg });
+	};
 
     cancelBtn.onclick = () => {
       this.close();

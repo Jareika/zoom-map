@@ -64,7 +64,8 @@ var MarkerStore = class {
         displayUnit: "auto-metric",
         metersPerPixel: void 0,
         scales: {},
-        customUnitId: void 0
+        customUnitId: void 0,
+        travelTimePresetIds: []
       },
       frame: void 0,
       pinSizeOverrides: {},
@@ -112,6 +113,9 @@ var MarkerStore = class {
     };
     (_f = (_e = parsed.measurement).scales) != null ? _f : _e.scales = {};
     (_h = (_g = parsed.measurement).displayUnit) != null ? _h : _g.displayUnit = "auto-metric";
+    if (!Array.isArray(parsed.measurement.travelTimePresetIds)) {
+      parsed.measurement.travelTimePresetIds = [];
+    }
     (_i = parsed.pinSizeOverrides) != null ? _i : parsed.pinSizeOverrides = {};
     if (typeof parsed.panClamp !== "boolean") {
       parsed.panClamp = true;
@@ -751,7 +755,8 @@ var NoteMarkerStore = class {
         displayUnit: "auto-metric",
         metersPerPixel: void 0,
         scales: {},
-        customUnitId: void 0
+        customUnitId: void 0,
+        travelTimePresetIds: []
       },
       frame: void 0,
       pinSizeOverrides: {},
@@ -1400,7 +1405,7 @@ var PinSizeEditorModal = class extends import_obsidian9.Modal {
 var import_obsidian10 = require("obsidian");
 var ViewEditorModal = class extends import_obsidian10.Modal {
   constructor(app, initial, onResult) {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
     super(app);
     this.cfg = JSON.parse(JSON.stringify(initial));
     this.onResult = onResult;
@@ -1413,6 +1418,9 @@ var ViewEditorModal = class extends import_obsidian10.Modal {
     (_f = this.cfg).height || (_f.height = "480px");
     (_g = this.cfg).renderMode || (_g.renderMode = "dom");
     (_h = this.cfg).resizeHandle || (_h.resizeHandle = "right");
+    if (typeof this.cfg.viewportFrame !== "string") this.cfg.viewportFrame = "";
+    const over = Number((_i = this.cfg.viewportFrameOverhang) != null ? _i : 0);
+    this.cfg.viewportFrameOverhang = Number.isFinite(over) && over >= 0 ? Math.round(over) : 0;
   }
   factorToPercentString(f) {
     if (typeof f !== "number" || !Number.isFinite(f) || f <= 0) return "";
@@ -1709,11 +1717,49 @@ var ViewEditorModal = class extends import_obsidian10.Modal {
         this.cfg.id = val.length ? val : void 0;
       });
     });
+    contentEl.createEl("h3", { text: "Viewport frame" });
+    let frameInputEl = null;
+    const frameSetting = new import_obsidian10.Setting(contentEl).setClass("zoommap-view-editor-row").setName("Frame image (optional)").setDesc("Drawn above the map (does not block mouse). Supports overhang.");
+    frameSetting.addText((t) => {
+      var _a;
+      t.setPlaceholder("Path to frame image (png/svg) or data:URL");
+      t.setValue((_a = this.cfg.viewportFrame) != null ? _a : "");
+      frameInputEl = t.inputEl;
+      t.onChange((v) => {
+        const s = v.trim();
+        this.cfg.viewportFrame = s.length ? s : void 0;
+      });
+    });
+    frameSetting.addButton(
+      (b) => b.setButtonText("Pick\u2026").onClick(() => {
+        new ImageFileSuggestModal(this.app, (file) => {
+          this.cfg.viewportFrame = file.path;
+          if (frameInputEl) frameInputEl.value = file.path;
+        }).open();
+      })
+    );
+    frameSetting.addButton(
+      (b) => b.setButtonText("Clear").onClick(() => {
+        this.cfg.viewportFrame = void 0;
+        if (frameInputEl) frameInputEl.value = "";
+      })
+    );
+    new import_obsidian10.Setting(contentEl).setClass("zoommap-view-editor-row").setName("Frame overhang (px)").setDesc("Extra pixels the frame extends beyond the map border.").addText((t) => {
+      var _a;
+      t.inputEl.type = "number";
+      t.inputEl.classList.add("zoommap-view-editor-input--short");
+      t.setPlaceholder("0");
+      t.setValue(String((_a = this.cfg.viewportFrameOverhang) != null ? _a : 0));
+      t.onChange((v) => {
+        const n = Number(v);
+        this.cfg.viewportFrameOverhang = Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0;
+      });
+    });
     const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });
     const saveBtn = footer.createEl("button", { text: "Save" });
     const cancelBtn = footer.createEl("button", { text: "Cancel" });
     saveBtn.onclick = () => {
-      var _a, _b;
+      var _a, _b, _c, _d;
       const first = (_b = (_a = this.cfg.imageBases[0]) == null ? void 0 : _a.path) == null ? void 0 : _b.trim();
       if (!first) {
         new import_obsidian10.Notice("Please select at least one base image.", 2500);
@@ -1721,6 +1767,10 @@ var ViewEditorModal = class extends import_obsidian10.Modal {
       }
       this.normalizeZoomRange();
       this.autoFillMarkersPathFromFirstBase();
+      const frame = ((_c = this.cfg.viewportFrame) != null ? _c : "").trim();
+      this.cfg.viewportFrame = frame.length ? frame : void 0;
+      const over = Number((_d = this.cfg.viewportFrameOverhang) != null ? _d : 0);
+      this.cfg.viewportFrameOverhang = this.cfg.viewportFrame && Number.isFinite(over) ? Math.max(0, Math.round(over)) : 0;
       this.close();
       this.onResult({ action: "save", config: this.cfg });
     };
@@ -2606,6 +2656,7 @@ var MapInstance = class extends import_obsidian13.Component {
     this.suppressClickMarkerId = null;
     this.tooltipEl = null;
     this.tooltipHideTimer = null;
+    this.viewportFrameEl = null;
     this.ignoreNextModify = false;
     this.ro = null;
     this.ready = false;
@@ -2639,6 +2690,7 @@ var MapInstance = class extends import_obsidian13.Component {
     this.frameSaveTimer = null;
     this.userResizing = false;
     this.yamlAppliedOnce = false;
+    this.frameOverhangPx = 0;
     this.tintedSvgCache = /* @__PURE__ */ new Map();
     this.saveDataSoon = /* @__PURE__ */ (() => {
       let t = null;
@@ -2671,7 +2723,7 @@ var MapInstance = class extends import_obsidian13.Component {
     }
   }
   openViewEditorFromMap() {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e, _f;
     if (!this.data) return;
     const bases = this.getBasesNormalized();
     const overlays = (_a = this.data.overlays) != null ? _a : [];
@@ -2702,7 +2754,9 @@ var MapInstance = class extends import_obsidian13.Component {
         var _a2;
         return (_a2 = l.name) != null ? _a2 : "Layer";
       }),
-      id: this.cfg.mapId
+      id: this.cfg.mapId,
+      viewportFrame: (_e = this.cfg.viewportFrame) != null ? _e : "",
+      viewportFrameOverhang: (_f = this.cfg.viewportFrameOverhang) != null ? _f : 0
     };
     const modal = new ViewEditorModal(this.app, cfg, (res) => {
       if (res.action !== "save" || !res.config) return;
@@ -2724,6 +2778,19 @@ var MapInstance = class extends import_obsidian13.Component {
     const tx = this.vw / 2 - worldX * z;
     const ty = this.vh / 2 - worldY * z;
     this.applyTransform(z, tx, ty);
+  }
+  getActiveFrameOverhangPx() {
+    var _a, _b;
+    const frame = ((_a = this.cfg.viewportFrame) != null ? _a : "").trim();
+    if (!frame) return 0;
+    return Math.max(0, Math.round((_b = this.cfg.viewportFrameOverhang) != null ? _b : 0));
+  }
+  addPxToCssSize(size, px) {
+    const s = typeof size === "string" ? size.trim() : "";
+    if (!s) return null;
+    if (!px) return s;
+    if (s.toLowerCase() === "auto") return s;
+    return `calc(${s} + ${px}px)`;
   }
   async saveDefaultViewToYaml() {
     if (typeof this.cfg.sectionStart !== "number") {
@@ -2913,6 +2980,9 @@ var MapInstance = class extends import_obsidian13.Component {
     this.el.classList.add("zm-root");
     if (this.isCanvas()) this.el.classList.add("zm-root--canvas-mode");
     if (this.cfg.responsive) this.el.classList.add("zm-root--responsive");
+    this.frameOverhangPx = this.getActiveFrameOverhangPx();
+    const pad2 = this.frameOverhangPx * 2;
+    this.el.classList.toggle("zm-root--framepad", this.frameOverhangPx > 0);
     if (this.cfg.responsive) {
       setCssProps(this.el, {
         width: "100%",
@@ -2920,8 +2990,8 @@ var MapInstance = class extends import_obsidian13.Component {
       });
     } else {
       setCssProps(this.el, {
-        width: (_a = this.cfg.width) != null ? _a : null,
-        height: (_b = this.cfg.height) != null ? _b : null
+        width: this.addPxToCssSize((_a = this.cfg.width) != null ? _a : null, pad2),
+        height: this.addPxToCssSize((_b = this.cfg.height) != null ? _b : null, pad2)
       });
     }
     if (!this.cfg.responsive && this.cfg.resizable) {
@@ -2944,17 +3014,36 @@ var MapInstance = class extends import_obsidian13.Component {
     if (this.cfg.align === "right" && this.cfg.wrap) this.el.classList.add("zm-float-right");
     ((_c = this.cfg.extraClasses) != null ? _c : []).forEach((c) => this.el.classList.add(c));
     this.viewportEl = this.el.createDiv({ cls: "zm-viewport" });
+    if (this.frameOverhangPx > 0) {
+      this.viewportEl.style.inset = `${this.frameOverhangPx}px`;
+    } else {
+      this.viewportEl.style.removeProperty("inset");
+    }
+    this.clipEl = this.viewportEl.createDiv({ cls: "zm-clip" });
     if (this.isCanvas()) {
-      this.baseCanvas = this.viewportEl.createEl("canvas", { cls: "zm-canvas" });
+      this.baseCanvas = this.clipEl.createEl("canvas", { cls: "zm-canvas" });
       this.ctx = this.baseCanvas.getContext("2d");
     }
-    this.worldEl = this.viewportEl.createDiv({ cls: "zm-world" });
+    this.worldEl = this.clipEl.createDiv({ cls: "zm-world" });
     this.imgEl = this.worldEl.createEl("img", { cls: "zm-image" });
     this.overlaysEl = this.worldEl.createDiv({ cls: "zm-overlays" });
     this.markersEl = this.worldEl.createDiv({ cls: "zm-markers" });
-    this.hudMarkersEl = this.viewportEl.createDiv({ cls: "zm-hud-markers" });
-    this.measureHud = this.viewportEl.createDiv({ cls: "zm-measure-hud" });
-    this.zoomHud = this.viewportEl.createDiv({ cls: "zm-zoom-hud" });
+    if (this.cfg.viewportFrame && this.cfg.viewportFrame.trim()) {
+      const over = this.frameOverhangPx;
+      const img = this.viewportEl.createEl("img", { cls: "zm-viewport-frame" });
+      img.decoding = "async";
+      img.draggable = false;
+      img.src = this.resolveResourceUrl(this.cfg.viewportFrame.trim());
+      img.style.left = `${-over}px`;
+      img.style.top = `${-over}px`;
+      img.style.width = `calc(100% + ${over * 2}px)`;
+      img.style.height = `calc(100% + ${over * 2}px)`;
+      this.viewportFrameEl = img;
+    }
+    this.hudClipEl = this.viewportEl.createDiv({ cls: "zm-hud-clip" });
+    this.hudMarkersEl = this.hudClipEl.createDiv({ cls: "zm-hud-markers" });
+    this.measureHud = this.hudClipEl.createDiv({ cls: "zm-measure-hud" });
+    this.zoomHud = this.hudClipEl.createDiv({ cls: "zm-zoom-hud" });
     this.registerDomEvent(this.viewportEl, "wheel", (e) => {
       const t = e.target;
       if (t instanceof Element && t.closest(".popover")) return;
@@ -3080,7 +3169,11 @@ var MapInstance = class extends import_obsidian13.Component {
         }
       }
       if (this.shouldUseSavedFrame() && this.data.frame && this.data.frame.w > 0 && this.data.frame.h > 0) {
-        setCssProps(this.el, { width: `${this.data.frame.w}px`, height: `${this.data.frame.h}px` });
+        const pad22 = this.frameOverhangPx * 2;
+        setCssProps(this.el, {
+          width: `${this.data.frame.w + pad22}px`,
+          height: `${this.data.frame.h + pad22}px`
+        });
       }
     }
     this.ro = new ResizeObserver(() => this.onResize());
@@ -4083,18 +4176,29 @@ var MapInstance = class extends import_obsidian13.Component {
     return m.metersPerPixel;
   }
   ensureMeasurement() {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     if (!this.data) return;
-    (_b = (_a = this.data).measurement) != null ? _b : _a.measurement = { displayUnit: "auto-metric", metersPerPixel: void 0, scales: {} };
+    (_b = (_a = this.data).measurement) != null ? _b : _a.measurement = {
+      displayUnit: "auto-metric",
+      metersPerPixel: void 0,
+      scales: {},
+      travelTimePresetIds: []
+    };
     (_d = (_c = this.data.measurement).scales) != null ? _d : _c.scales = {};
     (_f = (_e = this.data.measurement).displayUnit) != null ? _f : _e.displayUnit = "auto-metric";
+    (_h = (_g = this.data.measurement).travelTimePresetIds) != null ? _h : _g.travelTimePresetIds = [];
   }
   updateMeasureHud() {
     if (!this.measureHud) return;
     const meters = this.computeDistanceMeters();
     if (this.measuring || this.measurePts.length >= 2) {
-      const txt = meters != null ? this.formatDistance(meters) : "No scale";
-      this.measureHud.textContent = `Distance: ${txt}`;
+      const distTxt = meters != null ? this.formatDistance(meters) : "No scale";
+      const lines = [`Distance: ${distTxt}`];
+      if (meters != null) {
+        const tt = this.computeTravelTimeLines(meters);
+        if (tt.length) lines.push(...tt);
+      }
+      this.measureHud.textContent = lines.join("\n");
       this.measureHud.classList.add("zm-measure-hud-visible");
     } else {
       this.measureHud.classList.remove("zm-measure-hud-visible");
@@ -4150,6 +4254,56 @@ var MapInstance = class extends import_obsidian13.Component {
       default:
         return m >= 1e3 ? `${round(m / 1e3, 2)} km` : `${Math.round(m)} m`;
     }
+  }
+  travelDistanceToMeters(value, unit, customUnitId) {
+    var _a, _b;
+    if (!Number.isFinite(value) || value <= 0) return null;
+    switch (unit) {
+      case "km":
+        return value * 1e3;
+      case "mi":
+        return value * 1609.344;
+      case "ft":
+        return value * 0.3048;
+      case "custom": {
+        const defs = (_a = this.plugin.settings.customUnits) != null ? _a : [];
+        const def = (_b = customUnitId ? defs.find((d) => d.id === customUnitId) : void 0) != null ? _b : defs[0];
+        if (!def || !Number.isFinite(def.metersPerUnit) || def.metersPerUnit <= 0) return null;
+        return value * def.metersPerUnit;
+      }
+      case "m":
+      default:
+        return value;
+    }
+  }
+  formatTravelTimeNumber(v) {
+    const abs = Math.abs(v);
+    const decimals = abs < 10 ? 2 : abs < 100 ? 1 : 0;
+    const p = 10 ** decimals;
+    return String(Math.round(v * p) / p);
+  }
+  computeTravelTimeLines(distanceMeters) {
+    var _a, _b, _c, _d, _e, _f;
+    const selected = new Set((_c = (_b = (_a = this.data) == null ? void 0 : _a.measurement) == null ? void 0 : _b.travelTimePresetIds) != null ? _c : []);
+    if (selected.size === 0) return [];
+    const presets = (_d = this.plugin.settings.travelTimePresets) != null ? _d : [];
+    const out = [];
+    for (const p of presets) {
+      if (!(p == null ? void 0 : p.id) || !selected.has(p.id)) continue;
+      const name = ((_e = p.name) != null ? _e : "").trim();
+      const unit = ((_f = p.timeUnit) != null ? _f : "").trim();
+      if (!name || !unit) continue;
+      if (!Number.isFinite(p.timeValue) || p.timeValue <= 0) continue;
+      const refMeters = this.travelDistanceToMeters(
+        p.distanceValue,
+        p.distanceUnit,
+        p.distanceCustomUnitId
+      );
+      if (!refMeters) continue;
+      const t = distanceMeters / refMeters * p.timeValue;
+      out.push(`Time (${name}): ${this.formatTravelTimeNumber(t)} ${unit}`);
+    }
+    return out;
   }
   resolveTFile(pathOrWiki, from) {
     const byPath = this.app.vault.getAbstractFileByPath(pathOrWiki);
@@ -4747,7 +4901,7 @@ var MapInstance = class extends import_obsidian13.Component {
     new import_obsidian13.Notice("Swap pin added.", 900);
   }
   onContextMenuViewport(e) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
     if (!this.ready || !this.data) return;
     this.closeMenu();
     if (this.drawingMode === "polygon" && this.drawPolygonPoints.length >= 2) {
@@ -5245,6 +5399,32 @@ var MapInstance = class extends import_obsidian13.Component {
         ]
       }
     );
+    const travelPresets = (_g = this.plugin.settings.travelTimePresets) != null ? _g : [];
+    const selectedTravel = new Set((_i = (_h = this.data.measurement) == null ? void 0 : _h.travelTimePresetIds) != null ? _i : []);
+    const travelTimeItems = travelPresets.length ? travelPresets.map((p) => ({
+      label: p.name || p.id,
+      checked: selectedTravel.has(p.id),
+      action: (rowEl) => {
+        var _a2, _b2, _c2;
+        this.ensureMeasurement();
+        if (!((_a2 = this.data) == null ? void 0 : _a2.measurement)) return;
+        const arr = (_c2 = (_b2 = this.data.measurement).travelTimePresetIds) != null ? _c2 : _b2.travelTimePresetIds = [];
+        const i = arr.indexOf(p.id);
+        if (i >= 0) arr.splice(i, 1);
+        else arr.push(p.id);
+        void this.saveDataSoon();
+        this.updateMeasureHud();
+        const chk = rowEl.querySelector(".zm-menu__check");
+        if (chk) chk.textContent = i >= 0 ? "" : "\u2713";
+      }
+    })) : [
+      {
+        label: "(No travel presets configured)",
+        action: () => {
+          new import_obsidian13.Notice("Configure presets in Settings \u2192 Travel time.", 3e3);
+        }
+      }
+    ];
     items.push(
       { type: "separator" },
       { label: "Image layers", children: imageLayersChildren },
@@ -5278,6 +5458,7 @@ var MapInstance = class extends import_obsidian13.Component {
           },
           { type: "separator" },
           { label: "Unit", children: unitItems },
+          { label: "Travel time", children: travelTimeItems },
           { type: "separator" },
           {
             label: this.calibrating ? "Stop calibration" : "Calibrate scale\u2026",
@@ -5347,7 +5528,7 @@ var MapInstance = class extends import_obsidian13.Component {
     );
     if (this.plugin.settings.enableTextLayers && this.data) {
       this.ensureTextData();
-      const textLayerItems = ((_g = this.data.textLayers) != null ? _g : []).map((tl) => ({
+      const textLayerItems = ((_j = this.data.textLayers) != null ? _j : []).map((tl) => ({
         label: tl.name || "(text layer)",
         children: [
           {
@@ -5410,7 +5591,7 @@ var MapInstance = class extends import_obsidian13.Component {
           }
         ]
       }));
-      const deleteChildren = ((_h = this.data.textLayers) != null ? _h : []).length > 0 ? ((_i = this.data.textLayers) != null ? _i : []).map((tl) => ({
+      const deleteChildren = ((_k = this.data.textLayers) != null ? _k : []).length > 0 ? ((_l = this.data.textLayers) != null ? _l : []).map((tl) => ({
         label: tl.name || "(text layer)",
         action: () => {
           new ConfirmModal(
@@ -5498,7 +5679,7 @@ var MapInstance = class extends import_obsidian13.Component {
           },
           {
             label: "Allow panning beyond image",
-            checked: !((_k = (_j = this.data) == null ? void 0 : _j.panClamp) != null ? _k : true),
+            checked: !((_n = (_m = this.data) == null ? void 0 : _m.panClamp) != null ? _n : true),
             action: async (rowEl) => {
               var _a2;
               if (!this.data) return;
@@ -6949,7 +7130,7 @@ var MapInstance = class extends import_obsidian13.Component {
     const text = ((_a = m.tooltip) != null ? _a : "").trim();
     if (!text) return;
     if (!this.tooltipEl) {
-      this.tooltipEl = this.viewportEl.createDiv({ cls: "zm-tooltip" });
+      this.tooltipEl = this.hudClipEl.createDiv({ cls: "zm-tooltip" });
       this.tooltipEl.addEventListener(
         "mouseenter",
         () => this.cancelHideTooltip()
@@ -6970,7 +7151,7 @@ var MapInstance = class extends import_obsidian13.Component {
   positionTooltip(clientX, clientY) {
     if (!this.tooltipEl) return;
     const pad = 12;
-    const vpRect = this.viewportEl.getBoundingClientRect();
+    const vpRect = this.hudClipEl.getBoundingClientRect();
     let x = clientX - vpRect.left + pad;
     let y = clientY - vpRect.top + pad;
     const rect = this.tooltipEl.getBoundingClientRect();
@@ -7292,8 +7473,9 @@ var MapInstance = class extends import_obsidian13.Component {
     if (this.cfg.responsive) return;
     if (!this.data || !this.shouldUseSavedFrame()) return;
     if (!this.isFrameVisibleEnough(48)) return;
-    const wNow = this.el.offsetWidth;
-    const hNow = this.el.offsetHeight;
+    const vr = this.viewportEl.getBoundingClientRect();
+    const wNow = Math.round(vr.width);
+    const hNow = Math.round(vr.height);
     if (wNow < 48 || hNow < 48) return;
     const prev = this.data.frame;
     const tol = 1;
@@ -8460,6 +8642,7 @@ var DEFAULT_SETTINGS = {
   libraryFilePath: "ZoomMap/library.json",
   faFolderPath: "ZoomMap/SVGs",
   customUnits: [],
+  travelTimePresets: [],
   defaultScaleLikeSticker: false,
   enableDrawing: false,
   preferActiveLayerInEditor: false,
@@ -8518,6 +8701,20 @@ function parseZoomYaml(value, fallback) {
     const n = Number(s);
     if (Number.isFinite(n) && n > 0) {
       return hasPercent ? n / 100 : n;
+    }
+  }
+  return fallback;
+}
+function parsePxNumber(value, fallback) {
+  var _a;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const s = value.trim();
+    if (!s) return fallback;
+    const m = (_a = /^(-?\d+(?:[.,]\d+)?)\s*px$/i.exec(s)) != null ? _a : /^(-?\d+(?:[.,]\d+)?)$/.exec(s);
+    if (m) {
+      const n = Number(m[1].replace(",", "."));
+      if (Number.isFinite(n)) return n;
     }
   }
   return fallback;
@@ -8586,7 +8783,9 @@ var ZoomMapPlugin = class extends import_obsidian18.Plugin {
           resizeHandle: "native",
           align: void 0,
           markerLayers: ["Default"],
-          id: `map-${Date.now().toString(36)}`
+          id: `map-${Date.now().toString(36)}`,
+          viewportFrame: "",
+          viewportFrameOverhang: 0
         };
         new ViewEditorModal(this.app, initialConfig, (res) => {
           if (res.action !== "save" || !res.config) return;
@@ -8716,7 +8915,9 @@ var ZoomMapPlugin = class extends import_obsidian18.Plugin {
           responsive,
           yamlMarkerLayers: markerLayersFromYaml,
           initialZoom,
-          initialCenter
+          initialCenter,
+          viewportFrame: typeof opts.viewportFrame === "string" ? opts.viewportFrame.trim() : void 0,
+          viewportFrameOverhang: Math.max(0, parsePxNumber(opts.viewportFrameOverhang, 0))
         };
         const inst = new MapInstance(this.app, this, el, cfg);
         ctx.addChild(inst);
@@ -8735,7 +8936,7 @@ var ZoomMapPlugin = class extends import_obsidian18.Plugin {
     };
   }
   async loadSettings() {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
     const savedUnknown = await this.loadData();
     const merged = { ...DEFAULT_SETTINGS };
     if (isPlainObject(savedUnknown)) {
@@ -8748,7 +8949,8 @@ var ZoomMapPlugin = class extends import_obsidian18.Plugin {
     (_d = ext.libraryFilePath) != null ? _d : ext.libraryFilePath = "ZoomMap/library.json";
     (_e = ext.faFolderPath) != null ? _e : ext.faFolderPath = "ZoomMap/SVGs";
     (_g = (_f = this.settings).customUnits) != null ? _g : _f.customUnits = [];
-    (_i = (_h = this.settings).enableTextLayers) != null ? _i : _h.enableTextLayers = false;
+    (_i = (_h = this.settings).travelTimePresets) != null ? _i : _h.travelTimePresets = [];
+    (_k = (_j = this.settings).enableTextLayers) != null ? _k : _j.enableTextLayers = false;
   }
   async saveSettings() {
     await this.saveData(this.settings);
@@ -8882,7 +9084,7 @@ var ZoomMapPlugin = class extends import_obsidian18.Plugin {
     return count;
   }
   buildYamlFromViewConfig(cfg) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const obj = {};
     const bases = ((_a = cfg.imageBases) != null ? _a : []).filter(
       (b) => b.path && b.path.trim().length > 0
@@ -8933,6 +9135,12 @@ var ZoomMapPlugin = class extends import_obsidian18.Plugin {
     if (cfg.align) obj.align = cfg.align;
     if (cfg.id && cfg.id.trim().length > 0) {
       obj.id = cfg.id.trim();
+    }
+    const frame = (_d = cfg.viewportFrame) == null ? void 0 : _d.trim();
+    if (frame) {
+      obj.viewportFrame = frame;
+      const over = typeof cfg.viewportFrameOverhang === "number" ? Math.max(0, Math.round(cfg.viewportFrameOverhang)) : 0;
+      if (over > 0) obj.viewportFrameOverhang = over;
     }
     return (0, import_obsidian18.stringifyYaml)(obj).trimEnd();
   }
@@ -9242,6 +9450,103 @@ var ZoomMapSettingTab = class extends import_obsidian18.PluginSettingTab {
       };
     };
     renderCustomUnits();
+    new import_obsidian18.Setting(containerEl).setName("Travel time (distance \u2192 time)").setHeading();
+    const travelWrap = containerEl.createDiv();
+    const renderTravel = () => {
+      var _a2, _b, _c;
+      travelWrap.empty();
+      const presets = (_b = (_a2 = this.plugin.settings).travelTimePresets) != null ? _b : _a2.travelTimePresets = [];
+      const customDefs = (_c = this.plugin.settings.customUnits) != null ? _c : [];
+      const head = travelWrap.createDiv({ cls: "zm-travel-grid-head" });
+      head.createSpan({ text: "Mode" });
+      head.createSpan({ text: "Dist" });
+      head.createSpan({ text: "Unit" });
+      head.createSpan({ text: "Time" });
+      head.createSpan({ text: "Time unit" });
+      head.createSpan({ text: "" });
+      const grid = travelWrap.createDiv({ cls: "zm-travel-grid" });
+      const addUnitOptions = (sel) => {
+        const add = (value, label) => {
+          const opt = document.createElement("option");
+          opt.value = value;
+          opt.textContent = label;
+          sel.appendChild(opt);
+        };
+        add("m", "m");
+        add("km", "km");
+        add("mi", "mi");
+        add("ft", "ft");
+        for (const def of customDefs) {
+          const label = def.abbreviation ? `${def.name} (${def.abbreviation})` : def.name;
+          add(`custom:${def.id}`, label);
+        }
+      };
+      presets.forEach((p, idx) => {
+        var _a3, _b2, _c2, _d, _e;
+        const name = grid.createEl("input", { type: "text", cls: "zm-travel-name" });
+        name.value = (_a3 = p.name) != null ? _a3 : "";
+        name.oninput = () => {
+          p.name = name.value.trim();
+          void this.plugin.saveSettings();
+        };
+        const distVal = grid.createEl("input", { type: "number", cls: "zm-travel-num" });
+        distVal.value = String((_b2 = p.distanceValue) != null ? _b2 : 1);
+        distVal.oninput = () => {
+          const n = Number(distVal.value);
+          if (Number.isFinite(n) && n > 0) p.distanceValue = n;
+          void this.plugin.saveSettings();
+        };
+        const unitSel = grid.createEl("select", { cls: "zm-travel-unit" });
+        addUnitOptions(unitSel);
+        const current = p.distanceUnit === "custom" ? `custom:${(_c2 = p.distanceCustomUnitId) != null ? _c2 : ""}` : p.distanceUnit;
+        unitSel.value = Array.from(unitSel.options).some((o) => o.value === current) ? current : "km";
+        unitSel.onchange = () => {
+          const v = unitSel.value;
+          if (v.startsWith("custom:")) {
+            p.distanceUnit = "custom";
+            p.distanceCustomUnitId = v.slice("custom:".length) || void 0;
+          } else {
+            p.distanceUnit = v;
+            p.distanceCustomUnitId = void 0;
+          }
+          void this.plugin.saveSettings();
+        };
+        const timeVal = grid.createEl("input", { type: "number", cls: "zm-travel-num" });
+        timeVal.value = String((_d = p.timeValue) != null ? _d : 1);
+        timeVal.oninput = () => {
+          const n = Number(timeVal.value);
+          if (Number.isFinite(n) && n > 0) p.timeValue = n;
+          void this.plugin.saveSettings();
+        };
+        const timeUnit = grid.createEl("input", { type: "text", cls: "zm-travel-timeunit" });
+        timeUnit.value = (_e = p.timeUnit) != null ? _e : "";
+        timeUnit.oninput = () => {
+          p.timeUnit = timeUnit.value.trim();
+          void this.plugin.saveSettings();
+        };
+        const del = grid.createEl("button", { cls: "zm-icon-btn", attr: { title: "Delete" } });
+        (0, import_obsidian18.setIcon)(del, "trash");
+        del.onclick = () => {
+          presets.splice(idx, 1);
+          void this.plugin.saveSettings();
+          renderTravel();
+        };
+      });
+      const addBtn = travelWrap.createEl("button", { text: "Add travel preset" });
+      addBtn.onclick = () => {
+        presets.push({
+          id: `tt-${Math.random().toString(36).slice(2, 8)}`,
+          name: "Donkey",
+          distanceValue: 1,
+          distanceUnit: "mi",
+          timeValue: 4,
+          timeUnit: "h"
+        });
+        void this.plugin.saveSettings();
+        renderTravel();
+      };
+    };
+    renderTravel();
     new import_obsidian18.Setting(containerEl).setName("Collections (base-bound)").setHeading();
     const collectionsWrap = containerEl.createDiv();
     const renderCollections = () => {

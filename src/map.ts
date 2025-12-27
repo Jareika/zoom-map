@@ -109,6 +109,8 @@ export interface ZoomMapConfig {
   yamlMarkerLayers?: string[];
   initialZoom?: number;
   initialCenter?: { x: number; y: number };
+  viewportFrame?: string;
+  viewportFrameOverhang?: number;
 }
 
 export interface IconProfile {
@@ -126,6 +128,16 @@ export interface CustomUnitDef {
   name: string;
   abbreviation: string;
   metersPerUnit: number;
+}
+
+export interface TravelTimePreset {
+  id: string;
+  name: string;
+  distanceValue: number;
+  distanceUnit: "m" | "km" | "mi" | "ft" | "custom";
+  distanceCustomUnitId?: string;
+  timeValue: number;
+  timeUnit: string;
 }
 
 export interface ZoomMapSettings {
@@ -152,6 +164,7 @@ export interface ZoomMapSettings {
   enableDrawing?: boolean;
   preferActiveLayerInEditor?: boolean;
   enableTextLayers?: boolean;
+  travelTimePresets?: TravelTimePreset[];
 }
 
 interface Point { x: number; y: number; }
@@ -207,6 +220,8 @@ export class MapInstance extends Component {
   private el: HTMLElement;
 
   private viewportEl!: HTMLDivElement;
+  private clipEl!: HTMLDivElement;
+  private hudClipEl!: HTMLDivElement;  
   private worldEl!: HTMLDivElement;
 
   private imgEl!: HTMLImageElement;
@@ -293,6 +308,8 @@ export class MapInstance extends Component {
 
   private tooltipEl: HTMLDivElement | null = null;
   private tooltipHideTimer: number | null = null;
+  
+  private viewportFrameEl: HTMLImageElement | null = null;  
 
   private ignoreNextModify = false;
 
@@ -374,6 +391,9 @@ export class MapInstance extends Component {
     markerLayers: this.data.layers.map((l) => l.name ?? "Layer"),
 	
 	id: this.cfg.mapId,
+
+    viewportFrame: this.cfg.viewportFrame ?? "",
+    viewportFrameOverhang: this.cfg.viewportFrameOverhang ?? 0,
   };
 
   const modal = new ViewEditorModal(this.app, cfg, (res) => {
@@ -402,6 +422,22 @@ private applyInitialView(zoom: number, center: { x: number; y: number }): void {
   const ty = this.vh / 2 - worldY * z;
 
   this.applyTransform(z, tx, ty);
+}
+
+private frameOverhangPx = 0;
+
+private getActiveFrameOverhangPx(): number {
+  const frame = (this.cfg.viewportFrame ?? "").trim();
+  if (!frame) return 0;
+  return Math.max(0, Math.round(this.cfg.viewportFrameOverhang ?? 0));
+}
+
+private addPxToCssSize(size: string | null | undefined, px: number): string | null {
+  const s = typeof size === "string" ? size.trim() : "";
+  if (!s) return null;
+  if (!px) return s;
+  if (s.toLowerCase() === "auto") return s; // can't calc auto
+  return `calc(${s} + ${px}px)`;
 }
 
 private async saveDefaultViewToYaml(): Promise<void> {
@@ -638,18 +674,23 @@ private async applyViewEditorResult(cfg: ViewEditorConfig): Promise<void> {
     this.el.classList.add("zm-root");
     if (this.isCanvas()) this.el.classList.add("zm-root--canvas-mode");
     if (this.cfg.responsive) this.el.classList.add("zm-root--responsive");
+	
+	this.frameOverhangPx = this.getActiveFrameOverhangPx();
+	const pad2 = this.frameOverhangPx * 2;
 
-    if (this.cfg.responsive) {
-      setCssProps(this.el, {
-        width: "100%",
-        height: "auto",
-      });
-    } else {
-      setCssProps(this.el, {
-        width: this.cfg.width ?? null,
-        height: this.cfg.height ?? null,
-      });
-    }
+	this.el.classList.toggle("zm-root--framepad", this.frameOverhangPx > 0);
+
+	if (this.cfg.responsive) {
+	  setCssProps(this.el, {
+		width: "100%",
+		height: "auto",
+	  });
+	} else {
+	  setCssProps(this.el, {
+		width: this.addPxToCssSize(this.cfg.width ?? null, pad2),
+		height: this.addPxToCssSize(this.cfg.height ?? null, pad2),
+	  });
+	}
 
     if (!this.cfg.responsive && this.cfg.resizable) {
       if (this.cfg.resizeHandle === "native") {
@@ -673,22 +714,47 @@ private async applyViewEditorResult(cfg: ViewEditorConfig): Promise<void> {
     (this.cfg.extraClasses ?? []).forEach((c) => this.el.classList.add(c));
 
     this.viewportEl = this.el.createDiv({ cls: "zm-viewport" });
+	
+	if (this.frameOverhangPx > 0) {
+	  this.viewportEl.style.inset = `${this.frameOverhangPx}px`;
+	} else {
+	  this.viewportEl.style.removeProperty("inset");
+	}
+
+    // Inner clip layer for all map rendering (keeps rounded corners)
+    this.clipEl = this.viewportEl.createDiv({ cls: "zm-clip" });
 
     if (this.isCanvas()) {
-      this.baseCanvas = this.viewportEl.createEl("canvas", { cls: "zm-canvas" });
+      this.baseCanvas = this.clipEl.createEl("canvas", { cls: "zm-canvas" });
       this.ctx = this.baseCanvas.getContext("2d");
     }
 
-    this.worldEl = this.viewportEl.createDiv({ cls: "zm-world" });
+    this.worldEl = this.clipEl.createDiv({ cls: "zm-world" });
 
     this.imgEl = this.worldEl.createEl("img", { cls: "zm-image" });
     this.overlaysEl = this.worldEl.createDiv({ cls: "zm-overlays" });
     this.markersEl = this.worldEl.createDiv({ cls: "zm-markers" });
 
-    this.hudMarkersEl = this.viewportEl.createDiv({ cls: "zm-hud-markers" });
+    // Viewport frame (overhang allowed; pointer-events none)
+    if (this.cfg.viewportFrame && this.cfg.viewportFrame.trim()) {
+      const over = this.frameOverhangPx;
+      const img = this.viewportEl.createEl("img", { cls: "zm-viewport-frame" });
+      img.decoding = "async";
+      img.draggable = false;
+      img.src = this.resolveResourceUrl(this.cfg.viewportFrame.trim());
+      img.style.left = `${-over}px`;
+      img.style.top = `${-over}px`;
+      img.style.width = `calc(100% + ${over * 2}px)`;
+      img.style.height = `calc(100% + ${over * 2}px)`;
+      this.viewportFrameEl = img;
+    }
 
-    this.measureHud = this.viewportEl.createDiv({ cls: "zm-measure-hud" });
-    this.zoomHud = this.viewportEl.createDiv({ cls: "zm-zoom-hud" });
+    // HUD clip (so tooltips/HUD don’t spill into the page)
+    this.hudClipEl = this.viewportEl.createDiv({ cls: "zm-hud-clip" });
+
+    this.hudMarkersEl = this.hudClipEl.createDiv({ cls: "zm-hud-markers" });
+    this.measureHud = this.hudClipEl.createDiv({ cls: "zm-measure-hud" });
+    this.zoomHud = this.hudClipEl.createDiv({ cls: "zm-zoom-hud" });
 
     this.registerDomEvent(this.viewportEl, "wheel", (e: WheelEvent) => {
       const t = e.target;
@@ -830,9 +896,13 @@ private async applyViewEditorResult(cfg: ViewEditorConfig): Promise<void> {
         }
       }
       if (this.shouldUseSavedFrame() && this.data.frame && this.data.frame.w > 0 && this.data.frame.h > 0) {
-        setCssProps(this.el, { width: `${this.data.frame.w}px`, height: `${this.data.frame.h}px` });
-      }
-    }
+	  const pad2 = this.frameOverhangPx * 2;
+	  setCssProps(this.el, {
+		width: `${this.data.frame.w + pad2}px`,
+		height: `${this.data.frame.h + pad2}px`,
+	  });
+	}
+  }
 
     this.ro = new ResizeObserver(() => this.onResize());
     this.ro.observe(this.el);
@@ -2102,17 +2172,33 @@ private async applyViewEditorResult(cfg: ViewEditorConfig): Promise<void> {
 
   private ensureMeasurement(): void {
     if (!this.data) return;
-    this.data.measurement ??= { displayUnit: "auto-metric", metersPerPixel: undefined, scales: {} };
+    this.data.measurement ??= {
+      displayUnit: "auto-metric",
+      metersPerPixel: undefined,
+      scales: {},
+      travelTimePresetIds: [],
+    };
     this.data.measurement.scales ??= {};
     this.data.measurement.displayUnit ??= "auto-metric";
+    this.data.measurement.travelTimePresetIds ??= [];
   }
 
   private updateMeasureHud(): void {
     if (!this.measureHud) return;
+
     const meters = this.computeDistanceMeters();
+
     if (this.measuring || this.measurePts.length >= 2) {
-      const txt = meters != null ? this.formatDistance(meters) : "No scale";
-      this.measureHud.textContent = `Distance: ${txt}`;
+      const distTxt = meters != null ? this.formatDistance(meters) : "No scale";
+
+      const lines: string[] = [`Distance: ${distTxt}`];
+
+      if (meters != null) {
+        const tt = this.computeTravelTimeLines(meters);
+        if (tt.length) lines.push(...tt);
+      }
+
+      this.measureHud.textContent = lines.join("\n");
       this.measureHud.classList.add("zm-measure-hud-visible");
     } else {
       this.measureHud.classList.remove("zm-measure-hud-visible");
@@ -2182,6 +2268,68 @@ private async applyViewEditorResult(cfg: ViewEditorConfig): Promise<void> {
           ? `${round(m / 1000, 2)} km`
           : `${Math.round(m)} m`;
     }
+  }
+  
+  private travelDistanceToMeters(
+  value: number,
+  unit: "m" | "km" | "mi" | "ft" | "custom",
+  customUnitId?: string,
+): number | null {
+  if (!Number.isFinite(value) || value <= 0) return null;
+
+  switch (unit) {
+    case "km": return value * 1000;
+    case "mi": return value * 1609.344;
+    case "ft": return value * 0.3048;
+    case "custom": {
+      const defs = this.plugin.settings.customUnits ?? [];
+      const def =
+        (customUnitId ? defs.find((d) => d.id === customUnitId) : undefined) ??
+        defs[0];
+      if (!def || !Number.isFinite(def.metersPerUnit) || def.metersPerUnit <= 0) return null;
+      return value * def.metersPerUnit;
+    }
+    case "m":
+    default:
+      return value;
+  }
+}
+
+  private formatTravelTimeNumber(v: number): string {
+    const abs = Math.abs(v);
+    const decimals = abs < 10 ? 2 : abs < 100 ? 1 : 0;
+    const p = 10 ** decimals;
+    return String(Math.round(v * p) / p);
+  }
+
+  private computeTravelTimeLines(distanceMeters: number): string[] {
+    const selected = new Set(this.data?.measurement?.travelTimePresetIds ?? []);
+    if (selected.size === 0) return [];
+
+    const presets = this.plugin.settings.travelTimePresets ?? [];
+    const out: string[] = [];
+
+    for (const p of presets) {
+      if (!p?.id || !selected.has(p.id)) continue;
+
+      const name = (p.name ?? "").trim();
+      const unit = (p.timeUnit ?? "").trim();
+      if (!name || !unit) continue;
+
+      if (!Number.isFinite(p.timeValue) || p.timeValue <= 0) continue;
+
+      const refMeters = this.travelDistanceToMeters(
+        p.distanceValue,
+        p.distanceUnit,
+        p.distanceCustomUnitId,
+      );
+      if (!refMeters) continue;
+
+      const t = (distanceMeters / refMeters) * p.timeValue;
+      out.push(`Time (${name}): ${this.formatTravelTimeNumber(t)} ${unit}`);
+    }
+
+    return out;
   }
 
   private resolveTFile(pathOrWiki: string, from: string): TFile | null {
@@ -3414,6 +3562,38 @@ private onContextMenuViewport(e: MouseEvent): void {
 		],
 	  },
 	);
+	
+	const travelPresets = this.plugin.settings.travelTimePresets ?? [];
+	const selectedTravel = new Set(this.data.measurement?.travelTimePresetIds ?? []);
+
+	const travelTimeItems: ZMMenuItem[] =
+      travelPresets.length
+        ? travelPresets.map((p) => ({
+            label: p.name || p.id,
+            checked: selectedTravel.has(p.id),
+            action: (rowEl) => {
+             this.ensureMeasurement();
+              if (!this.data?.measurement) return;
+              const arr = (this.data.measurement.travelTimePresetIds ??= []);
+              const i = arr.indexOf(p.id);
+              if (i >= 0) arr.splice(i, 1);
+              else arr.push(p.id);
+
+              void this.saveDataSoon();
+              this.updateMeasureHud();
+
+              const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
+              if (chk) chk.textContent = i >= 0 ? "" : "✓";
+            },
+          }))
+        : [
+            {
+              label: "(No travel presets configured)",
+              action: () => {
+                new Notice("Configure presets in Settings → Travel time.", 3000);
+              },
+            },
+          ];
 
     items.push(
       { type: "separator" },
@@ -3448,6 +3628,7 @@ private onContextMenuViewport(e: MouseEvent): void {
           },
           { type: "separator" },
           { label: "Unit", children: unitItems },
+		  { label: "Travel time", children: travelTimeItems },
           { type: "separator" },
           {
             label: this.calibrating ? "Stop calibration" : "Calibrate scale…",
@@ -5453,7 +5634,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     if (!text) return;
 
     if (!this.tooltipEl) {
-      this.tooltipEl = this.viewportEl.createDiv({ cls: "zm-tooltip" });
+      this.tooltipEl = this.hudClipEl.createDiv({ cls: "zm-tooltip" });
       this.tooltipEl.addEventListener("mouseenter", () =>
         this.cancelHideTooltip(),
       );
@@ -5481,7 +5662,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
   private positionTooltip(clientX: number, clientY: number): void {
     if (!this.tooltipEl) return;
     const pad = 12;
-    const vpRect = this.viewportEl.getBoundingClientRect();
+    const vpRect = this.hudClipEl.getBoundingClientRect();
     let x = clientX - vpRect.left + pad;
     let y = clientY - vpRect.top + pad;
 
@@ -5878,8 +6059,9 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     if (!this.data || !this.shouldUseSavedFrame()) return;
     if (!this.isFrameVisibleEnough(48)) return;
 
-    const wNow = this.el.offsetWidth;
-    const hNow = this.el.offsetHeight;
+    const vr = this.viewportEl.getBoundingClientRect();
+	const wNow = Math.round(vr.width);
+	const hNow = Math.round(vr.height);
     if (wNow < 48 || hNow < 48) return;
 
     const prev = this.data.frame;

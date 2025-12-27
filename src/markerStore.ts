@@ -183,6 +183,7 @@ export interface MeasurementConfig {
   metersPerPixel?: number;
   scales?: Record<string, number>;
   customUnitId?: string;
+  travelTimePresetIds?: string[];
 }
 
 export interface MarkerFileData {
@@ -259,6 +260,7 @@ export class MarkerStore {
         metersPerPixel: undefined,
         scales: {},
         customUnitId: undefined,
+		travelTimePresetIds: [],
       },
       frame: undefined,
       pinSizeOverrides: {},
@@ -322,6 +324,9 @@ export class MarkerStore {
   };
   parsed.measurement.scales ??= {};
   parsed.measurement.displayUnit ??= "auto-metric";
+  if (!Array.isArray(parsed.measurement.travelTimePresetIds)) {
+  parsed.measurement.travelTimePresetIds = [];
+}
 
   // Per-map pin size overrides
   parsed.pinSizeOverrides ??= {};

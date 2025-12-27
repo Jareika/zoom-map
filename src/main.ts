@@ -121,6 +121,7 @@ const DEFAULT_SETTINGS: ZoomMapSettingsExtended = {
   libraryFilePath: "ZoomMap/library.json",
   faFolderPath: "ZoomMap/SVGs",
   customUnits: [],
+  travelTimePresets: [],
   defaultScaleLikeSticker: false,
   enableDrawing: false,
   preferActiveLayerInEditor: false,
@@ -172,7 +173,11 @@ interface YamlOptions {
     centerX?: number;
     centerY?: number;
   };
-  
+
+
+  viewportFrame?: string;
+  viewportFrameOverhang?: number | string;
+
 }
 
 function parseBasesYaml(v: unknown): YamlBase[] {
@@ -245,6 +250,20 @@ function parseZoomYaml(value: unknown, fallback: number): number {
     const n = Number(s);
     if (Number.isFinite(n) && n > 0) {
       return hasPercent ? n / 100 : n;
+    }
+  }
+  return fallback;
+}
+
+function parsePxNumber(value: unknown, fallback: number): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const s = value.trim();
+    if (!s) return fallback;
+    const m = /^(-?\d+(?:[.,]\d+)?)\s*px$/i.exec(s) ?? /^(-?\d+(?:[.,]\d+)?)$/.exec(s);
+    if (m) {
+      const n = Number(m[1].replace(",", "."));
+      if (Number.isFinite(n)) return n;
     }
   }
   return fallback;
@@ -332,6 +351,9 @@ export default class ZoomMapPlugin extends Plugin {
         align: undefined,
         markerLayers: ["Default"],
 		id: `map-${Date.now().toString(36)}`,
+
+        viewportFrame: "",
+        viewportFrameOverhang: 0,
       };
 
       new ViewEditorModal(this.app, initialConfig, (res) => {
@@ -519,6 +541,8 @@ export default class ZoomMapPlugin extends Plugin {
 		  yamlMarkerLayers: markerLayersFromYaml,
 		  initialZoom,
 		  initialCenter,
+          viewportFrame: typeof opts.viewportFrame === "string" ? opts.viewportFrame.trim() : undefined,
+          viewportFrameOverhang: Math.max(0, parsePxNumber(opts.viewportFrameOverhang, 0)),
 		};
 
         const inst = new MapInstance(this.app, this, el, cfg);
@@ -556,6 +580,7 @@ export default class ZoomMapPlugin extends Plugin {
     ext.libraryFilePath ??= "ZoomMap/library.json";
     ext.faFolderPath ??= "ZoomMap/SVGs";
     this.settings.customUnits ??= [];
+	this.settings.travelTimePresets ??= [];
 	this.settings.enableTextLayers ??= false;
   }
 
@@ -777,6 +802,16 @@ export default class ZoomMapPlugin extends Plugin {
 
     if (cfg.id && cfg.id.trim().length > 0) {
       obj.id = cfg.id.trim();
+    }
+
+    const frame = cfg.viewportFrame?.trim();
+    if (frame) {
+      obj.viewportFrame = frame;
+      const over =
+        typeof cfg.viewportFrameOverhang === "number"
+          ? Math.max(0, Math.round(cfg.viewportFrameOverhang))
+          : 0;
+      if (over > 0) obj.viewportFrameOverhang = over;
     }
 
     return stringifyYaml(obj).trimEnd();
@@ -1179,6 +1214,123 @@ class ZoomMapSettingTab extends PluginSettingTab {
       };
     };
     renderCustomUnits();
+	
+	new Setting(containerEl).setName("Travel time (distance → time)").setHeading();
+
+	const travelWrap = containerEl.createDiv();
+
+	const renderTravel = () => {
+	  travelWrap.empty();
+
+	  const presets = (this.plugin.settings.travelTimePresets ??= []);
+	  const customDefs = this.plugin.settings.customUnits ?? [];
+
+	  const head = travelWrap.createDiv({ cls: "zm-travel-grid-head" });
+	  head.createSpan({ text: "Mode" });
+	  head.createSpan({ text: "Dist" });
+	  head.createSpan({ text: "Unit" });
+	  head.createSpan({ text: "Time" });
+	  head.createSpan({ text: "Time unit" });
+	  head.createSpan({ text: "" });
+
+	  const grid = travelWrap.createDiv({ cls: "zm-travel-grid" });
+
+	  const addUnitOptions = (sel: HTMLSelectElement) => {
+		const add = (value: string, label: string) => {
+		  const opt = document.createElement("option");
+		  opt.value = value;
+		  opt.textContent = label;
+		  sel.appendChild(opt);
+		};
+
+		add("m", "m");
+		add("km", "km");
+		add("mi", "mi");
+		add("ft", "ft");
+
+		for (const def of customDefs) {
+		  const label = def.abbreviation ? `${def.name} (${def.abbreviation})` : def.name;
+		  add(`custom:${def.id}`, label);
+		}
+	  };
+
+	  presets.forEach((p, idx) => {
+		const name = grid.createEl("input", { type: "text", cls: "zm-travel-name" });
+		name.value = p.name ?? "";
+		name.oninput = () => {
+		  p.name = name.value.trim();
+		  void this.plugin.saveSettings();
+		};
+
+		const distVal = grid.createEl("input", { type: "number", cls: "zm-travel-num" });
+		distVal.value = String(p.distanceValue ?? 1);
+		distVal.oninput = () => {
+		  const n = Number(distVal.value);
+		  if (Number.isFinite(n) && n > 0) p.distanceValue = n;
+		  void this.plugin.saveSettings();
+		};
+
+		const unitSel = grid.createEl("select", { cls: "zm-travel-unit" });
+		addUnitOptions(unitSel);
+
+		const current =
+		  p.distanceUnit === "custom" ? `custom:${p.distanceCustomUnitId ?? ""}` : p.distanceUnit;
+
+		unitSel.value =
+		  Array.from(unitSel.options).some((o) => o.value === current) ? current : "km";
+
+		unitSel.onchange = () => {
+		  const v = unitSel.value;
+		  if (v.startsWith("custom:")) {
+			p.distanceUnit = "custom";
+			p.distanceCustomUnitId = v.slice("custom:".length) || undefined;
+		  } else {
+			p.distanceUnit = v as "m" | "km" | "mi" | "ft";
+			p.distanceCustomUnitId = undefined;
+		  }
+		  void this.plugin.saveSettings();
+		};
+
+		const timeVal = grid.createEl("input", { type: "number", cls: "zm-travel-num" });
+		timeVal.value = String(p.timeValue ?? 1);
+		timeVal.oninput = () => {
+		  const n = Number(timeVal.value);
+		  if (Number.isFinite(n) && n > 0) p.timeValue = n;
+		  void this.plugin.saveSettings();
+		};
+
+		const timeUnit = grid.createEl("input", { type: "text", cls: "zm-travel-timeunit" });
+		timeUnit.value = p.timeUnit ?? "";
+		timeUnit.oninput = () => {
+		  p.timeUnit = timeUnit.value.trim();
+		  void this.plugin.saveSettings();
+		};
+
+		const del = grid.createEl("button", { cls: "zm-icon-btn", attr: { title: "Delete" } });
+		setIcon(del, "trash");
+		del.onclick = () => {
+		  presets.splice(idx, 1);
+		  void this.plugin.saveSettings();
+		  renderTravel();
+		};
+	  });
+
+	  const addBtn = travelWrap.createEl("button", { text: "Add travel preset" });
+	  addBtn.onclick = () => {
+		presets.push({
+		  id: `tt-${Math.random().toString(36).slice(2, 8)}`,
+		  name: "Donkey",
+		  distanceValue: 1,
+		  distanceUnit: "mi",
+		  timeValue: 4,
+		  timeUnit: "h",
+		});
+		void this.plugin.saveSettings();
+		renderTravel();
+	  };
+	};
+
+	renderTravel();
 
     /* ---------------- Collections ---------------- */
 
