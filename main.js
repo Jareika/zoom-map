@@ -46,9 +46,9 @@ function sanitizeMarkerFileDataForSave(data) {
   return out;
 }
 var MarkerStore = class {
-  constructor(app, sourcePath, markersFilePath) {
+  constructor(app, sourcePath2, markersFilePath) {
     this.app = app;
-    this.sourcePath = sourcePath;
+    this.sourcePath = sourcePath2;
     this.markersFilePath = (0, import_obsidian.normalizePath)(markersFilePath);
   }
   getPath() {
@@ -1386,6 +1386,7 @@ var import_obsidian6 = require("obsidian");
 var ImageFileSuggestModal = class extends import_obsidian6.FuzzySuggestModal {
   constructor(app, onChoose) {
     super(app);
+    this.urlEntry = null;
     this.appRef = app;
     this.onChoose = onChoose;
     const exts = /* @__PURE__ */ new Set(["png", "jpg", "jpeg", "gif", "svg", "webp"]);
@@ -1394,16 +1395,29 @@ var ImageFileSuggestModal = class extends import_obsidian6.FuzzySuggestModal {
       const m = (_a = f.extension) == null ? void 0 : _a.toLowerCase();
       return exts.has(m);
     });
-    this.setPlaceholder("Choose image file\u2026");
+    this.setPlaceholder("Choose image file or paste URL (http:// or https://)\u2026");
   }
   getItems() {
+    const input = this.inputEl.value.trim();
+    if (/^https?:\/\//i.test(input)) {
+      this.urlEntry = input;
+      return [input, ...this.files];
+    }
+    this.urlEntry = null;
     return this.files;
   }
   getItemText(item) {
+    if (typeof item === "string") {
+      return `\u{1F310} ${item}`;
+    }
     return item.path;
   }
   onChooseItem(item) {
-    this.onChoose(item);
+    if (typeof item === "string") {
+      this.onChoose(item);
+    } else {
+      this.onChoose(item.path);
+    }
   }
 };
 
@@ -4681,6 +4695,21 @@ var MapInstance = class extends import_obsidian16.Component {
     this.overlayLoading.clear();
   }
   async loadBitmapFromPath(path) {
+    if (this.isNetworkUrl(path)) {
+      const img2 = new Image();
+      img2.crossOrigin = "anonymous";
+      img2.decoding = "async";
+      img2.src = path;
+      try {
+        await img2.decode();
+      } catch (e) {
+      }
+      try {
+        return await createImageBitmap(img2);
+      } catch (e) {
+        return null;
+      }
+    }
     const f = this.resolveTFile(path, this.cfg.sourcePath);
     if (!f) return null;
     const url = this.app.vault.getResourcePath(f);
@@ -4699,6 +4728,60 @@ var MapInstance = class extends import_obsidian16.Component {
   }
   async loadBaseSourceByPath(path) {
     this.updateSvgBaseFlag(path);
+    if (this.isNetworkUrl(path)) {
+      const cache2 = this.plugin.imageCache;
+      if (cache2) {
+        if (!this.acquiredSessionPaths.has(path)) {
+          await cache2.acquire(path);
+          this.acquiredSessionPaths.add(path);
+        }
+        const src = await cache2.acquire(path);
+        cache2.release(path);
+        this.baseSource = src;
+        if (isImageBitmapLike(src)) {
+          this.imgW = src.width;
+          this.imgH = src.height;
+        } else if (src instanceof HTMLImageElement) {
+          this.imgW = src.naturalWidth;
+          this.imgH = src.naturalHeight;
+        }
+        this.currentBasePath = path;
+        return;
+      }
+      const tryLoad = async (useCors) => {
+        const img = new Image();
+        if (useCors) img.crossOrigin = "anonymous";
+        img.decoding = "async";
+        img.src = path;
+        try {
+          await img.decode();
+        } catch (e) {
+        }
+        try {
+          const bmp2 = await createImageBitmap(img);
+          return { source: bmp2, width: bmp2.width, height: bmp2.height };
+        } catch (e) {
+          return { source: img, width: img.naturalWidth, height: img.naturalHeight };
+        }
+      };
+      try {
+        const result = await tryLoad(false);
+        this.baseSource = result.source;
+        this.imgW = result.width;
+        this.imgH = result.height;
+      } catch (firstError) {
+        try {
+          const result = await tryLoad(true);
+          this.baseSource = result.source;
+          this.imgW = result.width;
+          this.imgH = result.height;
+        } catch (e) {
+          throw new Error(`Failed to load image from URL: ${path}. Check the URL and network connection.`);
+        }
+      }
+      this.currentBasePath = path;
+      return;
+    }
     if (this.isCanvas() && this.baseIsSvg) {
       const bmp1 = await this.ensureSvgLod(path, 1);
       if (!bmp1) throw new Error(`Failed to load SVG base: ${path}`);
@@ -4737,6 +4820,38 @@ var MapInstance = class extends import_obsidian16.Component {
   }
   async loadBaseImageByPath(path) {
     this.updateSvgBaseFlag(path);
+    if (this.isNetworkUrl(path)) {
+      const tryLoad = (useCors) => {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            this.imgEl.src = img.src;
+            this.imgW = img.naturalWidth;
+            this.imgH = img.naturalHeight;
+            this.imgEl.onload = () => resolve();
+            this.imgEl.onerror = () => resolve();
+            if (useCors) this.imgEl.crossOrigin = "anonymous";
+            this.imgEl.src = img.src;
+          };
+          img.onerror = (e) => {
+            reject(new Error(`Failed to load image from URL: ${path}${useCors ? " (with CORS)" : ""}. Check the URL and network connection.`));
+          };
+          if (useCors) img.crossOrigin = "anonymous";
+          img.src = path;
+        });
+      };
+      try {
+        await tryLoad(false);
+      } catch (firstError) {
+        try {
+          await tryLoad(true);
+        } catch (e) {
+          throw firstError;
+        }
+      }
+      this.currentBasePath = path;
+      return;
+    }
     const imgFile = this.resolveTFile(path, this.cfg.sourcePath);
     if (!imgFile) throw new Error(`Image not found: ${path}`);
     const url = this.app.vault.getResourcePath(imgFile);
@@ -4757,6 +4872,21 @@ var MapInstance = class extends import_obsidian16.Component {
     else await this.loadBaseImageByPath(path);
   }
   async loadCanvasSourceFromPath(path) {
+    if (this.isNetworkUrl(path)) {
+      const img2 = new Image();
+      img2.crossOrigin = "anonymous";
+      img2.decoding = "async";
+      img2.src = path;
+      try {
+        await img2.decode();
+      } catch (e) {
+      }
+      try {
+        return await createImageBitmap(img2);
+      } catch (e) {
+        return img2;
+      }
+    }
     const f = this.resolveTFile(path, this.cfg.sourcePath);
     if (!f) return null;
     const url = this.app.vault.getResourcePath(f);
@@ -6193,6 +6323,9 @@ var MapInstance = class extends import_obsidian16.Component {
     if (byPath instanceof import_obsidian16.TFile) return byPath;
     const dest = this.app.metadataCache.getFirstLinkpathDest(pathOrWiki, from);
     return dest instanceof import_obsidian16.TFile ? dest : null;
+  }
+  isNetworkUrl(path) {
+    return /^https?:\/\//i.test(path);
   }
   resolveResourceUrl(pathOrData) {
     if (!pathOrData) return "";
@@ -10770,12 +10903,14 @@ ${baseYaml}
     this.schedulePingUpdate();
   }
   promptAddLayer(kind) {
-    new ImageFileSuggestModal(this.app, (file) => {
-      const base = file.name.replace(/\.[^.]+$/, "");
+    new ImageFileSuggestModal(this.app, (pathOrUrl) => {
+      var _a, _b;
+      const isUrl = /^https?:\/\//i.test(pathOrUrl);
+      const defaultName = isUrl ? ((_a = new URL(pathOrUrl).pathname.split("/").pop()) == null ? void 0 : _a.replace(/\.[^.]+$/, "")) || "Network Image" : ((_b = pathOrUrl.split("/").pop()) == null ? void 0 : _b.replace(/\.[^.]+$/, "")) || "";
       const title = kind === "base" ? "Name for base layer" : "Name for overlay";
-      new NamePromptModal(this.app, title, base, (name) => {
-        if (kind === "base") void this.addBaseByPath(file.path, name);
-        else void this.addOverlayByPath(file.path, name);
+      new NamePromptModal(this.app, title, defaultName, (name) => {
+        if (kind === "base") void this.addBaseByPath(pathOrUrl, name);
+        else void this.addOverlayByPath(pathOrUrl, name);
       }).open();
     }).open();
   }
@@ -10791,7 +10926,8 @@ ${baseYaml}
     this.data.bases.push({ path, name: (name != null ? name : "") || void 0 });
     await this.saveDataSoon();
     void this.appendLayerToYaml("base", path, name != null ? name : "");
-    new import_obsidian16.Notice("Base added.", 1200);
+    const isUrl = /^https?:\/\//i.test(path);
+    new import_obsidian16.Notice(isUrl ? "Base from URL added." : "Base added.", 1200);
   }
   async addOverlayByPath(path, name) {
     var _a;
@@ -10812,7 +10948,8 @@ ${baseYaml}
       await this.updateOverlayVisibility();
     }
     void this.appendLayerToYaml("overlay", path, name != null ? name : "");
-    new import_obsidian16.Notice("Overlay added.", 1200);
+    const isUrl = /^https?:\/\//i.test(path);
+    new import_obsidian16.Notice(isUrl ? "Overlay from URL added." : "Overlay added.", 1200);
   }
   confirmDeleteBase(path) {
     var _a, _b;
@@ -11874,10 +12011,11 @@ var ImageCache = class {
    * Acquire a cached image for the session.
    * - Increments refcount (must be paired with release()).
    * - Loads and decodes at most once per session (per path), unless evicted.
+   * - Supports both TFile and network URLs.
    */
-  async acquire(file) {
+  async acquire(fileOrUrl) {
     var _a;
-    const key = file.path;
+    const key = typeof fileOrUrl === "string" ? fileOrUrl : fileOrUrl.path;
     this.refs.set(key, ((_a = this.refs.get(key)) != null ? _a : 0) + 1);
     const existing = this.entries.get(key);
     if (existing) {
@@ -11886,7 +12024,7 @@ var ImageCache = class {
     }
     const inflight = this.loading.get(key);
     if (inflight) return inflight;
-    const p = this.loadSource(file).then((src) => {
+    const p = this.loadSource(fileOrUrl).then((src) => {
       const bytes = approxBytesForSource(src);
       this.entries.set(key, { src, bytes, lastUsed: Date.now() });
       this.loading.delete(key);
@@ -11911,19 +12049,46 @@ var ImageCache = class {
     else this.refs.set(path, cur - 1);
     this.evictIfNeeded();
   }
-  async loadSource(file) {
-    const url = this.app.vault.getResourcePath(file);
-    const img = new Image();
-    img.decoding = "async";
-    img.src = url;
-    try {
-      await img.decode();
-    } catch (e) {
-    }
-    try {
-      return await createImageBitmap(img);
-    } catch (e) {
-      return img;
+  async loadSource(fileOrUrl) {
+    let url;
+    if (typeof fileOrUrl === "string" && /^https?:\/\//i.test(fileOrUrl)) {
+      url = fileOrUrl;
+      const tryLoad = async (useCors) => {
+        const img = new Image();
+        img.decoding = "async";
+        if (useCors) img.crossOrigin = "anonymous";
+        img.src = url;
+        try {
+          await img.decode();
+        } catch (e) {
+        }
+        try {
+          return await createImageBitmap(img);
+        } catch (e) {
+          return img;
+        }
+      };
+      try {
+        return await tryLoad(false);
+      } catch (e) {
+        return await tryLoad(true);
+      }
+    } else if (typeof fileOrUrl === "string") {
+      throw new Error("Invalid input: expected TFile or URL");
+    } else {
+      url = this.app.vault.getResourcePath(fileOrUrl);
+      const img = new Image();
+      img.decoding = "async";
+      img.src = url;
+      try {
+        await img.decode();
+      } catch (e) {
+      }
+      try {
+        return await createImageBitmap(img);
+      } catch (e) {
+        return img;
+      }
     }
   }
   evictIfNeeded() {
@@ -12793,7 +12958,7 @@ var ZoomMapPlugin = class extends import_obsidian22.Plugin {
         const markersPathRaw = typeof opts.markers === "string" ? opts.markers : void 0;
         const minZoom = responsive ? 1e-6 : parseZoomYaml(opts.minZoom, 0.25);
         const maxZoom = responsive ? 1e6 : parseZoomYaml(opts.maxZoom, 8);
-        const markersPath = (0, import_obsidian22.normalizePath)(markersPathRaw != null ? markersPathRaw : `${image}.markers.json`);
+        const markersPath = markersPathRaw ? (0, import_obsidian22.normalizePath)(markersPathRaw) : (0, import_obsidian22.normalizePath)(getSafeMarkersPath(image, sourcePath));
         const align = parseAlign(opts.align);
         const wrap = !!opts.wrap;
         const classesValue = opts.classes;
@@ -13172,10 +13337,7 @@ var ZoomMapPlugin = class extends import_obsidian22.Plugin {
     }
     let markersPath = (_c = cfg.markersPath) == null ? void 0 : _c.trim();
     if ((!markersPath || !markersPath.length) && bases.length > 0) {
-      const first = bases[0].path;
-      const dot = first.lastIndexOf(".");
-      const base = dot >= 0 ? first.slice(0, dot) : first;
-      markersPath = `${base}.markers.json`;
+      markersPath = getSafeMarkersPath(bases[0].path, this.sourcePath);
     }
     if (markersPath) obj.markers = markersPath;
     if (cfg.markerLayers && cfg.markerLayers.length > 0) {

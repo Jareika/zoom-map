@@ -157,6 +157,8 @@ imageBases:
     name: Base A
   - path: Assets/BaseB.png
     name: Base B
+  - path: https://example.com/map.png
+    name: Network Map
 
 imageOverlays:
   - path: Assets/overlay-roads.png
@@ -165,6 +167,8 @@ imageOverlays:
   - path: Assets/overlay-labels.png
     name: Labels
     visible: false
+
+**Note:** Network URLs (starting with `http://` or `https://`) are automatically detected and loaded directly from the network.
 
 ### Scale / calibration
 - scale:

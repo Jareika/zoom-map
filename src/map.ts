@@ -1759,6 +1759,25 @@ export class MapInstance extends Component {
   }
 
  private async loadBitmapFromPath(path: string): Promise<ImageBitmap | null> {
+  // Handle network URLs
+  if (this.isNetworkUrl(path)) {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.decoding = "async";
+    img.src = path;
+
+    try {
+      await img.decode();
+    } catch { //empty.
+    }
+
+    try {
+      return await createImageBitmap(img);
+    } catch {
+      return null;
+    }
+  }
+
   const f = this.resolveTFile(path, this.cfg.sourcePath);
     if (!f) return null;
 
@@ -1781,6 +1800,77 @@ export class MapInstance extends Component {
 
   private async loadBaseSourceByPath(path: string): Promise<void> {
     this.updateSvgBaseFlag(path);
+
+    // Handle network URLs with cache
+    if (this.isNetworkUrl(path)) {
+      const cache = this.plugin.imageCache;
+      if (cache) {
+        if (!this.acquiredSessionPaths.has(path)) {
+          await cache.acquire(path);
+          this.acquiredSessionPaths.add(path);
+        }
+
+        // We still need a CanvasImageSource reference to draw; acquire() returns the cached source
+        const src = await cache.acquire(path);
+        // Balance the extra acquire() above:
+        cache.release(path);
+
+        this.baseSource = src as CanvasImageSource;
+        // Determine size
+        if (isImageBitmapLike(src)) {
+          this.imgW = src.width;
+          this.imgH = src.height;
+        } else if (src instanceof HTMLImageElement) {
+          this.imgW = src.naturalWidth;
+          this.imgH = src.naturalHeight;
+        }
+
+        this.currentBasePath = path;
+        return;
+      }
+
+      // No cache: load directly (try without CORS first)
+      const tryLoad = async (useCors: boolean): Promise<{ source: CanvasImageSource; width: number; height: number }> => {
+        const img = new Image();
+        if (useCors) img.crossOrigin = "anonymous";
+        img.decoding = "async";
+        img.src = path;
+
+        try {
+          await img.decode();
+        } catch {
+          // decode() can fail even when the image later renders; do not treat as fatal here.
+        }
+
+        try {
+          const bmp = await createImageBitmap(img);
+          return { source: bmp, width: bmp.width, height: bmp.height };
+        } catch {
+          // Fallback for cases where createImageBitmap is not supported for a format.
+          return { source: img, width: img.naturalWidth, height: img.naturalHeight };
+        }
+      };
+
+      try {
+        const result = await tryLoad(false);
+        this.baseSource = result.source;
+        this.imgW = result.width;
+        this.imgH = result.height;
+      } catch (firstError) {
+        // Retry with CORS
+        try {
+          const result = await tryLoad(true);
+          this.baseSource = result.source;
+          this.imgW = result.width;
+          this.imgH = result.height;
+        } catch {
+          throw new Error(`Failed to load image from URL: ${path}. Check the URL and network connection.`);
+        }
+      }
+
+      this.currentBasePath = path;
+      return;
+    }
 
     // Canvas + SVG base: progressive LOD.
     // Start with 1× quickly, then upgrade on demand during zoom.
@@ -1834,6 +1924,45 @@ export class MapInstance extends Component {
 
   private async loadBaseImageByPath(path: string): Promise<void> {
     this.updateSvgBaseFlag(path);
+
+    // Handle network URLs
+    if (this.isNetworkUrl(path)) {
+      // Try loading without CORS first, then retry with CORS if it fails
+      const tryLoad = (useCors: boolean): Promise<void> => {
+        return new Promise<void>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            this.imgEl.src = img.src;
+            this.imgW = img.naturalWidth;
+            this.imgH = img.naturalHeight;
+            // Copy to the actual imgEl for DOM rendering
+            this.imgEl.onload = () => resolve();
+            this.imgEl.onerror = () => resolve(); // Already loaded in temp img
+            if (useCors) this.imgEl.crossOrigin = "anonymous";
+            this.imgEl.src = img.src;
+          };
+          img.onerror = (e) => {
+            reject(new Error(`Failed to load image from URL: ${path}${useCors ? ' (with CORS)' : ''}. Check the URL and network connection.`));
+          };
+          if (useCors) img.crossOrigin = "anonymous";
+          img.src = path;
+        });
+      };
+
+      try {
+        await tryLoad(false);
+      } catch (firstError) {
+        // Retry with CORS
+        try {
+          await tryLoad(true);
+        } catch {
+          throw firstError; // Use the first error message
+        }
+      }
+      this.currentBasePath = path;
+      return;
+    }
+
     const imgFile = this.resolveTFile(path, this.cfg.sourcePath);
     if (!imgFile) throw new Error(`Image not found: ${path}`);
     const url = this.app.vault.getResourcePath(imgFile);
@@ -1852,6 +1981,25 @@ export class MapInstance extends Component {
   }
 
   private async loadCanvasSourceFromPath(path: string): Promise<CanvasImageSource | null> {
+    // Handle network URLs
+    if (this.isNetworkUrl(path)) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.decoding = "async";
+      img.src = path;
+
+      try {
+        await img.decode();
+      } catch { //empty.
+      }
+
+      try {
+        return await createImageBitmap(img);
+      } catch {
+        return img;
+      }
+    }
+
     const f = this.resolveTFile(path, this.cfg.sourcePath);
     if (!f) return null;
 
@@ -3696,6 +3844,10 @@ export class MapInstance extends Component {
     if (byPath instanceof TFile) return byPath;
     const dest = this.app.metadataCache.getFirstLinkpathDest(pathOrWiki, from);
     return dest instanceof TFile ? dest : null;
+  }
+
+  private isNetworkUrl(path: string): boolean {
+    return /^https?:\/\//i.test(path);
   }
 
   private resolveResourceUrl(pathOrData: string): string {
@@ -9164,12 +9316,17 @@ if (this.plugin.settings.enableTextLayers && this.data) {
   }
 
   private promptAddLayer(kind: "base" | "overlay"): void {
-    new ImageFileSuggestModal(this.app, (file: TFile) => {
-      const base = file.name.replace(/\.[^.]+$/, "");
+    new ImageFileSuggestModal(this.app, (pathOrUrl: string) => {
+      // Auto-detect if it's a URL or file path
+      const isUrl = /^https?:\/\//i.test(pathOrUrl);
+      const defaultName = isUrl 
+        ? new URL(pathOrUrl).pathname.split('/').pop()?.replace(/\.[^.]+$/, "") || "Network Image"
+        : pathOrUrl.split('/').pop()?.replace(/\.[^.]+$/, "") || "";
+      
       const title = kind === "base" ? "Name for base layer" : "Name for overlay";
-      new NamePromptModal(this.app, title, base, (name) => {
-        if (kind === "base") void this.addBaseByPath(file.path, name);
-        else void this.addOverlayByPath(file.path, name);
+      new NamePromptModal(this.app, title, defaultName, (name) => {
+        if (kind === "base") void this.addBaseByPath(pathOrUrl, name);
+        else void this.addOverlayByPath(pathOrUrl, name);
       }).open();
     }).open();
   }
@@ -9182,7 +9339,8 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     this.data.bases.push({ path, name: (name ?? "") || undefined });
     await this.saveDataSoon();
     void this.appendLayerToYaml("base", path, name ?? "");
-    new Notice("Base added.", 1200);
+    const isUrl = /^https?:\/\//i.test(path);
+    new Notice(isUrl ? "Base from URL added." : "Base added.", 1200);
   }
 
   private async addOverlayByPath(path: string, name?: string): Promise<void> {
@@ -9202,7 +9360,8 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     }
 
     void this.appendLayerToYaml("overlay", path, name ?? "");
-    new Notice("Overlay added.", 1200);
+    const isUrl = /^https?:\/\//i.test(path);
+    new Notice(isUrl ? "Overlay from URL added." : "Overlay added.", 1200);
   }
   
   private confirmDeleteBase(path: string): void {

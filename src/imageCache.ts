@@ -69,9 +69,10 @@ export class ImageCache {
    * Acquire a cached image for the session.
    * - Increments refcount (must be paired with release()).
    * - Loads and decodes at most once per session (per path), unless evicted.
+   * - Supports both TFile and network URLs.
    */
-  async acquire(file: TFile): Promise<CachedImageSource> {
-    const key = file.path;
+  async acquire(fileOrUrl: TFile | string): Promise<CachedImageSource> {
+    const key = typeof fileOrUrl === "string" ? fileOrUrl : fileOrUrl.path;
 
     // refcount first (so even inflight loads are "owned")
     this.refs.set(key, (this.refs.get(key) ?? 0) + 1);
@@ -85,7 +86,7 @@ export class ImageCache {
     const inflight = this.loading.get(key);
     if (inflight) return inflight;
 
-    const p = this.loadSource(file)
+    const p = this.loadSource(fileOrUrl)
       .then((src) => {
         const bytes = approxBytesForSource(src);
         this.entries.set(key, { src, bytes, lastUsed: Date.now() });
@@ -116,23 +117,63 @@ export class ImageCache {
     this.evictIfNeeded();
   }
 
-  private async loadSource(file: TFile): Promise<CachedImageSource> {
-    const url = this.app.vault.getResourcePath(file);
-    const img = new Image();
-    img.decoding = "async";
-    img.src = url;
+  private async loadSource(fileOrUrl: TFile | string): Promise<CachedImageSource> {
+    let url: string;
 
-    try {
-      await img.decode();
-    } catch {
-      // decode() can fail even when the image later renders; do not treat as fatal here.
-    }
+    // Handle network URLs directly
+    if (typeof fileOrUrl === "string" && /^https?:\/\//i.test(fileOrUrl)) {
+      url = fileOrUrl;
+      
+      // Try loading without CORS first
+      const tryLoad = async (useCors: boolean): Promise<CachedImageSource> => {
+        const img = new Image();
+        img.decoding = "async";
+        if (useCors) img.crossOrigin = "anonymous";
+        img.src = url;
 
-    try {
-      return await createImageBitmap(img);
-    } catch {
-      // Fallback for cases where createImageBitmap is not supported for a format.
-      return img;
+        try {
+          await img.decode();
+        } catch {
+          // decode() can fail even when the image later renders; do not treat as fatal here.
+        }
+
+        try {
+          return await createImageBitmap(img);
+        } catch {
+          // Fallback for cases where createImageBitmap is not supported for a format.
+          return img;
+        }
+      };
+
+      try {
+        return await tryLoad(false);
+      } catch {
+        // Retry with CORS if first attempt fails
+        return await tryLoad(true);
+      }
+    } else if (typeof fileOrUrl === "string") {
+      // String but not a URL - shouldn't happen in normal usage
+      throw new Error("Invalid input: expected TFile or URL");
+    } else {
+      // TFile - get vault resource path
+      url = this.app.vault.getResourcePath(fileOrUrl);
+      
+      const img = new Image();
+      img.decoding = "async";
+      img.src = url;
+
+      try {
+        await img.decode();
+      } catch {
+        // decode() can fail even when the image later renders; do not treat as fatal here.
+      }
+
+      try {
+        return await createImageBitmap(img);
+      } catch {
+        // Fallback for cases where createImageBitmap is not supported for a format.
+        return img;
+      }
     }
   }
 

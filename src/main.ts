@@ -557,7 +557,9 @@ export default class ZoomMapPlugin extends Plugin {
         const minZoom = responsive ? 1e-6 : parseZoomYaml(opts.minZoom, 0.25);
         const maxZoom = responsive ? 1e6 : parseZoomYaml(opts.maxZoom, 8);
 
-        const markersPath = normalizePath(markersPathRaw ?? `${image}.markers.json`);
+        const markersPath = markersPathRaw 
+          ? normalizePath(markersPathRaw)
+          : normalizePath(getSafeMarkersPath(image, sourcePath));
 
         const align = parseAlign(opts.align);
         const wrap = !!opts.wrap;
@@ -1007,10 +1009,7 @@ export default class ZoomMapPlugin extends Plugin {
 
     let markersPath = cfg.markersPath?.trim();
     if ((!markersPath || !markersPath.length) && bases.length > 0) {
-      const first = bases[0].path;
-      const dot = first.lastIndexOf(".");
-      const base = dot >= 0 ? first.slice(0, dot) : first;
-      markersPath = `${base}.markers.json`;
+      markersPath = getSafeMarkersPath(bases[0].path, this.sourcePath);
     }
     if (markersPath) obj.markers = markersPath;
 
