@@ -63,7 +63,7 @@ export class PreferencesModal extends Modal {
           this.plugin.settings.keepOverlaysLoaded = value;
           await this.plugin.saveSettings();
         });
-        keepOverlayToggle = toggle.toggleEl;
+        keepOverlayToggle = toggle.toggleEl as HTMLInputElement;
       });
 
     new Setting(contentEl)
@@ -74,7 +74,7 @@ export class PreferencesModal extends Modal {
           this.plugin.settings.preferCanvasImagesWhenCaching = value;
           await this.plugin.saveSettings();
         });
-        hybridToggle = toggle.toggleEl;
+        hybridToggle = toggle.toggleEl as HTMLInputElement;
       });
 
     // Other preferences
@@ -196,6 +196,19 @@ export class PreferencesModal extends Modal {
           applySecondScreenState();
         });
       });
+
+    new Setting(contentEl)
+    .setName('Plugin for Player Screen')
+    .setDesc('Which plugin to use for sending content to the second screen.')
+    .addDropdown(dropdown => {
+        dropdown.addOption('ttrpg-tools-screen', 'TTRPG Tools Screen');
+        dropdown.addOption('mimic-rtt', 'DnD Interactive Table');
+        dropdown.setValue(this.plugin.settings.secondScreenPlugin || 'mimic-rtt');
+        dropdown.onChange(async (value) => {
+            this.plugin.settings.secondScreenPlugin = value as any;
+            await this.plugin.saveSettings();
+        });
+    });
 
     new Setting(contentEl)
       .setName("Second screen note folder")

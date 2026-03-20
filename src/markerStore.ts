@@ -75,6 +75,7 @@ export interface TextLayerStyle {
   fontWeight?: string;
   italic?: boolean;
   letterSpacing?: number;
+  baselineOffset?: number;
 
   lineHeight?: number;
 
@@ -325,10 +326,11 @@ export class MarkerStore {
         metersPerPixel: undefined,
         scales: {},
         customUnitId: undefined,
-		customUnitPxPerUnit: {},
+        customUnitPxPerUnit: {},
         travelTimePresetIds: [],
         travelDaysEnabled: false,
-		travelDayPresetId: undefined,
+        travelDayPresetId: undefined,
+        displayUnit: "m"
       },
       frame: undefined,
       pinSizeOverrides: {},
