@@ -13703,8 +13703,8 @@ var PreferencesModal = class extends import_obsidian22.Modal {
     });
     new import_obsidian22.Setting(contentEl).setName("Plugin for Player Screen").setDesc("Which plugin to use for sending content to the second screen.").addDropdown((dropdown) => {
       dropdown.addOption("ttrpg-tools-screen", "TTRPG Tools Screen");
-      dropdown.addOption("mimic-prod-screen", "DnD Interactive Table");
-      dropdown.setValue(this.plugin.settings.secondScreenPlugin || "mimic-prod-screen");
+      dropdown.addOption("mimic-rtt", "DnD Interactive Table");
+      dropdown.setValue(this.plugin.settings.secondScreenPlugin || "mimic-rtt");
       dropdown.onChange(async (value) => {
         this.plugin.settings.secondScreenPlugin = value;
         await this.plugin.saveSettings();
@@ -15590,7 +15590,7 @@ var ZoomMapPlugin = class extends import_obsidian25.Plugin {
     (_R = (_Q = this.settings).middleClickOpensLinkInNewTab) != null ? _R : _Q.middleClickOpensLinkInNewTab = false;
     (_T = (_S = this.settings).enableSecondScreen) != null ? _T : _S.enableSecondScreen = false;
     (_V = (_U = this.settings).secondScreenFolder) != null ? _V : _U.secondScreenFolder = "ZoomMap/SecondScreen";
-    (_X = (_W = this.settings).secondScreenPlugin) != null ? _X : _W.secondScreenPlugin = "mimic-prod-screen";
+    (_X = (_W = this.settings).secondScreenPlugin) != null ? _X : _W.secondScreenPlugin = "mimic-rtt";
     for (const ico of (_Y = this.settings.icons) != null ? _Y : []) {
       if (typeof ico.inCollections !== "boolean") {
         ico.inCollections = true;
