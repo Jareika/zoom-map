@@ -75,8 +75,8 @@ export interface TextLayerStyle {
   fontWeight?: string;
   italic?: boolean;
   letterSpacing?: number;
-  baselineOffset?: number;
 
+  baselineOffset?: number;
   lineHeight?: number;
 
   padLeft?: number;
@@ -92,19 +92,54 @@ export interface TextBaseline {
   text?: string;
 }
 
+export interface TextBoxAutoConfig {
+  lineGapPx: number;
+  padLeft: number;
+  padRight: number;
+  padTop: number;
+  padBottom: number;
+}
+
+export interface TextBox {
+  id: string;
+  name: string;
+  mode: "custom" | "auto";
+  rect: { x0: number; y0: number; x1: number; y1: number };
+  lines: TextBaseline[];
+  auto?: TextBoxAutoConfig;
+  sourceDrawingId?: string;
+  sourceDrawingKind?: DrawingKind;
+
+  style?: TextLayerStyle;
+  locked?: boolean;
+  autoFlow?: boolean;
+  allowAngledBaselines?: boolean;
+}
+
 export interface TextLayer {
   id: string;
   name: string;
-  locked: boolean;
+  visible: boolean;
   boundBase?: string;
-
-  rect: { x0: number; y0: number; x1: number; y1: number };
-  lines: TextBaseline[];
   
-  autoFlow?: boolean;
+  /** Legacy layer-level options, kept for migration/back-compat. */
+  locked?: boolean;
 
+  autoFlow?: boolean;
   allowAngledBaselines?: boolean;
-  style: TextLayerStyle;
+  
+  /** Legacy layer-level style, kept for migration/back-compat. */
+  style?: TextLayerStyle;
+  boxes: TextBox[];
+}
+
+interface LegacyTextLayerData {
+  rect?: TextBox["rect"];
+  lines?: TextBaseline[];
+  mode?: TextBox["mode"];
+  auto?: TextBoxAutoConfig;
+  sourceDrawingId?: string;
+  sourceDrawingKind?: DrawingKind;
 }
 
 export type MarkerKind = "pin" | "sticker" | "swap" | "switch" | "dice";
@@ -215,7 +250,7 @@ export type DistanceUnit =
   | "custom";
 
 export interface MeasurementConfig {
-  displayUnit: DistanceUnit;
+  displayUnit?: DistanceUnit;
   metersPerPixel?: number;
   scales?: Record<string, number>;
   customUnitId?: string;
@@ -323,14 +358,14 @@ export class MarkerStore {
       overlays: [],
       activeBase: initialImagePath ?? "",
       measurement: {
+        //displayUnit:
         metersPerPixel: undefined,
         scales: {},
         customUnitId: undefined,
         customUnitPxPerUnit: {},
         travelTimePresetIds: [],
         travelDaysEnabled: false,
-        travelDayPresetId: undefined,
-        displayUnit: "m"
+		    travelDayPresetId: undefined,
       },
       frame: undefined,
       pinSizeOverrides: {},
@@ -338,7 +373,7 @@ export class MarkerStore {
       drawLayers: [],
       drawings: [],
       secondScreen: {},
-	  textLayers: [],
+	    textLayers: [],
     };
 
     await this.create(this.serialize(data));
@@ -425,6 +460,37 @@ export class MarkerStore {
   parsed.drawings ??= [];
   
   parsed.textLayers ??= [];
+  parsed.textLayers = parsed.textLayers.map((layer) => {
+    const legacy = layer as TextLayer & LegacyTextLayerData;
+    const boxes = Array.isArray(layer.boxes) ? layer.boxes : [];
+
+    const migratedLegacyBox =
+      boxes.length === 0 ? buildLegacyTextBoxFromLayer(legacy) : null;
+
+    return {
+      id: layer.id,
+      name: layer.name ?? "Text layer",
+      visible: typeof layer.visible === "boolean" ? layer.visible : true,
+      locked: !!layer.locked,
+      boundBase:
+        typeof layer.boundBase === "string" && layer.boundBase.trim()
+          ? layer.boundBase
+          : undefined,
+      autoFlow:
+        typeof layer.autoFlow === "boolean" ? layer.autoFlow : undefined,
+      allowAngledBaselines:
+        typeof layer.allowAngledBaselines === "boolean"
+          ? layer.allowAngledBaselines
+          : undefined,
+      style: layer.style,
+      boxes:
+        boxes.length > 0
+          ? boxes
+          : migratedLegacyBox
+            ? [migratedLegacyBox]
+            : [],
+    };
+  });
   
   parsed.secondScreen ??= {};
   if (!Array.isArray(parsed.secondScreen.markerLayerIds)) delete parsed.secondScreen.markerLayerIds;
@@ -482,6 +548,90 @@ export class MarkerStore {
     }
     await this.app.vault.create(this.markersFilePath, content);
   }
+}
+
+function buildLegacyTextBoxFromLayer(layer: LegacyTextLayerData & Partial<TextLayer>): TextBox | null {
+  const rect = normalizeLegacyRect(layer.rect);
+  const lines = normalizeLegacyLines(layer.lines);
+
+  const finalRect = rect ?? deriveRectFromLegacyLines(lines);
+  if (!finalRect) return null;
+
+  const mode: TextBox["mode"] = layer.mode === "auto" ? "auto" : "custom";
+
+  return {
+    id: generateId("tbox"),
+    name: typeof layer.name === "string" && layer.name.trim()
+      ? `${layer.name} box`
+      : "Text box",
+    mode,
+    rect: finalRect,
+    lines,
+    auto: mode === "auto" ? layer.auto : undefined,
+    sourceDrawingId:
+      typeof layer.sourceDrawingId === "string" && layer.sourceDrawingId.trim()
+        ? layer.sourceDrawingId
+        : undefined,
+    sourceDrawingKind:
+      layer.sourceDrawingKind === "polygon" ||
+      layer.sourceDrawingKind === "polyline" ||
+      layer.sourceDrawingKind === "rect" ||
+      layer.sourceDrawingKind === "circle"
+        ? layer.sourceDrawingKind
+        : undefined,
+    style: layer.style,
+    locked: typeof layer.locked === "boolean" ? layer.locked : undefined,
+    autoFlow: typeof layer.autoFlow === "boolean" ? layer.autoFlow : undefined,
+    allowAngledBaselines:
+      typeof layer.allowAngledBaselines === "boolean"
+        ? layer.allowAngledBaselines
+        : undefined,
+  };
+}
+
+function normalizeLegacyRect(rect: LegacyTextLayerData["rect"]): TextBox["rect"] | null {
+  if (!rect) return null;
+  if (
+    !Number.isFinite(rect.x0) ||
+    !Number.isFinite(rect.y0) ||
+    !Number.isFinite(rect.x1) ||
+    !Number.isFinite(rect.y1)
+  ) {
+    return null;
+  }
+
+  return {
+    x0: rect.x0,
+    y0: rect.y0,
+    x1: rect.x1,
+    y1: rect.y1,
+  };
+}
+
+function normalizeLegacyLines(lines: LegacyTextLayerData["lines"]): TextBaseline[] {
+  if (!Array.isArray(lines)) return [];
+
+  return lines.filter((ln): ln is TextBaseline => {
+    return !!ln &&
+      Number.isFinite(ln.x0) &&
+      Number.isFinite(ln.y0) &&
+      Number.isFinite(ln.x1) &&
+      Number.isFinite(ln.y1);
+  });
+}
+
+function deriveRectFromLegacyLines(lines: TextBaseline[]): TextBox["rect"] | null {
+  if (!lines.length) return null;
+
+  const xs = lines.flatMap((ln) => [ln.x0, ln.x1]);
+  const ys = lines.flatMap((ln) => [ln.y0, ln.y1]);
+
+  return {
+    x0: Math.min(...xs),
+    y0: Math.min(...ys),
+    x1: Math.max(...xs),
+    y1: Math.max(...ys),
+  };
 }
 
 function isBaseImage(x: unknown): x is BaseImage {

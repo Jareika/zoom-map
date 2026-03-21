@@ -422,21 +422,14 @@ button.zm-btn-sm {
   display: none !important;
 }
 
-:root {
-  --zm-hover-popover-max-width: 360px;
-  --zm-hover-popover-max-height: 260px;
-  --popover-width: 360px;
-  --popover-height: 260px;
-  --popover-max-height: 260px;
-}
-body {
+body.zm-global-hover-popover-size {
   --popover-width: var(--zm-hover-popover-max-width, 360px);
   --popover-height: var(--zm-hover-popover-max-height, 260px);
   --popover-max-height: var(--zm-hover-popover-max-height, 260px);
 }
 
-.popover.hover-popover,
-.hover-popover {
+body.zm-global-hover-popover-size .popover.hover-popover,
+body.zm-global-hover-popover-size .hover-popover {
   --popover-width: min(var(--zm-hover-popover-max-width, 360px), 92vw);
   width: var(--popover-width) !important;
   max-width: var(--popover-width) !important;
@@ -450,10 +443,10 @@ body {
   flex-direction: column !important;
 }
 
-.popover.hover-popover .hover-popover-content,
-.hover-popover .hover-popover-content,
-.popover.hover-popover .popover-content,
-.hover-popover .popover-content {
+body.zm-global-hover-popover-size .popover.hover-popover .hover-popover-content,
+body.zm-global-hover-popover-size .hover-popover .hover-popover-content,
+body.zm-global-hover-popover-size .popover.hover-popover .popover-content,
+body.zm-global-hover-popover-size .hover-popover .popover-content {
   width: 100% !important;
   height: 100% !important;
   min-height: 0 !important;
@@ -464,10 +457,10 @@ body {
   flex: 1 1 auto !important;
 }
 
-.popover.hover-popover .markdown-preview-view,
-.hover-popover .markdown-preview-view,
-.popover.hover-popover .markdown-preview-section,
-.hover-popover .markdown-preview-section {
+body.zm-global-hover-popover-size .popover.hover-popover .markdown-preview-view,
+body.zm-global-hover-popover-size .hover-popover .markdown-preview-view,
+body.zm-global-hover-popover-size .popover.hover-popover .markdown-preview-section,
+body.zm-global-hover-popover-size .hover-popover .markdown-preview-section {
   max-width: 100% !important;
   max-height: 100% !important;
   min-height: 0 !important;

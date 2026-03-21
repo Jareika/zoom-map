@@ -202,8 +202,8 @@ export class PreferencesModal extends Modal {
     .setDesc('Which plugin to use for sending content to the second screen.')
     .addDropdown(dropdown => {
         dropdown.addOption('ttrpg-tools-screen', 'TTRPG Tools Screen');
-        dropdown.addOption('mimic-rtt', 'DnD Interactive Table');
-        dropdown.setValue(this.plugin.settings.secondScreenPlugin || 'mimic-rtt');
+        dropdown.addOption('mimic-rtt', 'Real Tabletop');
+        dropdown.setValue(this.plugin.settings.secondScreenPlugin || 'ttrpg-tools-screen');
         dropdown.onChange(async (value) => {
             this.plugin.settings.secondScreenPlugin = value as any;
             await this.plugin.saveSettings();

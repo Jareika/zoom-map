@@ -1,6 +1,6 @@
 import { Modal, Setting } from "obsidian";
 import type { App } from "obsidian";
-import type { Drawing, DrawingStyle, FillPatternKind } from "./markerStore";
+import type { Drawing, DrawingStyle, FillPatternKind, DrawLayer } from "./markerStore";
 
 export interface DrawingEditorResult {
   action: "save" | "cancel" | "delete";
@@ -9,16 +9,19 @@ export interface DrawingEditorResult {
 
 type DrawingEditorCallback = (result: DrawingEditorResult) => void;
 
+type DrawingLayerOption = Pick<DrawLayer, "id" | "name">;
+
 export class DrawingEditorModal extends Modal {
   private original: Drawing;
   private working: Drawing;
+  private drawLayers: DrawingLayerOption[];
   private onResult: DrawingEditorCallback;
 
-  constructor(app: App, drawing: Drawing, onResult: DrawingEditorCallback) {
+  constructor(app: App, drawing: Drawing, drawLayers: DrawingLayerOption[], onResult: DrawingEditorCallback) {
     super(app);
     this.original = drawing;
+	this.drawLayers = Array.isArray(drawLayers) ? drawLayers.map((l) => ({ id: l.id, name: l.name })) : [];
 
-    // Deep clone so we can edit without mutating the original object.
     this.working = JSON.parse(JSON.stringify(drawing)) as Drawing;
 
     this.onResult = onResult;
@@ -27,6 +30,13 @@ export class DrawingEditorModal extends Modal {
       strokeColor: "#ff0000",
       strokeWidth: 2,
     } as DrawingStyle;
+
+    if (
+      this.working.layerId &&
+      !this.drawLayers.some((l) => l.id === this.working.layerId)
+    ) {
+      this.drawLayers.unshift({ id: this.working.layerId, name: "Current layer" });
+    }
 
     const s = this.working.style;
 	const isPolyline = this.working.kind === "polyline";
@@ -86,6 +96,8 @@ export class DrawingEditorModal extends Modal {
         });
       });
     }
+	
+	this.renderLayerSetting(contentEl);
 
     // Stroke heading
     const strokeHeading = contentEl.createDiv({
@@ -201,8 +213,7 @@ export class DrawingEditorModal extends Modal {
       saveBtn.onclick = () => {
         this.normalizeStyle(this.working);
         this.working.id = this.original.id;
-        this.working.layerId = this.original.layerId;
-        this.working.kind = this.original.kind;
+		this.working.kind = this.original.kind;
         this.working.rect = this.original.rect;
         this.working.circle = this.original.circle;
         this.working.polygon = this.original.polygon;
@@ -374,7 +385,6 @@ export class DrawingEditorModal extends Modal {
 
       // Preserve geometry metadata from the original
       this.working.id = this.original.id;
-      this.working.layerId = this.original.layerId;
       this.working.kind = this.original.kind;
       this.working.rect = this.original.rect;
       this.working.circle = this.original.circle;
@@ -409,6 +419,26 @@ export class DrawingEditorModal extends Modal {
       return `#${r}${r}${g}${g}${b}${b}`;
     }
     return v;
+  }
+  
+  private renderLayerSetting(container: HTMLElement): void {
+    if (!this.drawLayers.length) return;
+
+    new Setting(container)
+      .setName("Draw layer")
+      .setDesc("Choose the draw layer for this drawing.")
+      .addDropdown((dd) => {
+        for (const layer of this.drawLayers) {
+          dd.addOption(layer.id, layer.name || layer.id);
+        }
+
+        const fallback = this.drawLayers[0]?.id ?? this.working.layerId;
+        dd.setValue(this.working.layerId || fallback);
+
+        dd.onChange((v) => {
+          this.working.layerId = v;
+        });
+      });
   }
 
   private clamp(v: number, min: number, max: number): number {

@@ -14,8 +14,10 @@ import type {
   FillPatternKind,
   TextLayer,
   TextBaseline,
+  TextBox,
+  TextBoxAutoConfig,
   TextLayerStyle,
-  DiceRollSpec,
+  DiceRollSpec
 } from "./markerStore";
 import type ZoomMapPlugin from "./main";
 import { DEFAULT_SETTINGS } from "./main";
@@ -29,11 +31,11 @@ import { RenameLayerModal, DeleteLayerModal } from "./layerManageModals";
 import { PinSizeEditorModal, type PinSizeEditorRow } from "./pinSizeEditorModal";
 import { ViewEditorModal, type ViewEditorConfig } from "./viewEditorModal";
 import { SwapFramesEditorModal } from "./collectionsModals";
-import { TextLayerStyleModal } from "./textLayerStyleModal";
 import { SvgRasterExportModal } from "./svgRasterExportModal";
 import { SwapLinksEditorModal, type SwapLinksEditorResult } from "./swapLinksEditorModal";
 import { MeasureTerrainModal, type MeasureTerrainSegment } from "./measureTerrainModal";
 import { SwitchPinModal, type SwitchPinModalResult } from "./switchPinModal";
+import { TextBoxConfigModal } from "./textBoxConfigModal";
 import { SecondScreenLayersModal } from "./secondScreenLayersModal";
 import { DicePinModal } from "./dicePinModal";
 import type { ScaleUnitValue } from "./scaleCalibrateModal";
@@ -175,7 +177,7 @@ export interface IconProfile {
   anchorY: number;
   defaultLink?: string;
   rotationDeg?: number;
-	inCollections: boolean,
+  inCollections?: boolean;
 }
 
 export interface CustomUnitDef {
@@ -231,6 +233,7 @@ export interface ZoomMapSettings {
   wheelZoomFactor: number;
   panMouseButton: "left" | "middle" | "right";
   hoverMaxWidth: number;
+  applyHoverPopoverSizeGlobally: boolean,
   hoverMaxHeight: number;
   presets?: MarkerPreset[];
   stickerPresets?: StickerPreset[];
@@ -545,8 +548,9 @@ export class MapInstance extends MarkdownRenderChild {
   private textHitEl!: HTMLDivElement;
   private textEditEl!: HTMLDivElement;
 
-  private textMode: null | "draw-layer" | "draw-lines" | "move" | "edit" = null;
+  private textMode: null | "draw-box" | "draw-lines" | "edit" | "move" = null;
   private activeTextLayerId: string | null = null;
+  private activeTextBoxId: string | null = null;
 
   private textDrawStart: Point | null = null;
   private textDrawPreview: Point | null = null;
@@ -562,8 +566,9 @@ export class MapInstance extends MarkdownRenderChild {
   
   private textMoveDragging = false;
   private textMovePointerId: number | null = null;
+  private textDrawBoxMode: "custom" | "auto" = "custom";
   private textMoveStart: Point | null = null;
-  private textMoveOrig: { rect: TextLayer["rect"]; lines: TextBaseline[] } | null = null;
+  private textMoveOrig: { rect: TextBox["rect"]; lines: TextBaseline[] } | null = null;
 
   private textMeasureSpan: HTMLSpanElement | null = null;
   
@@ -1309,7 +1314,7 @@ export class MapInstance extends MarkdownRenderChild {
         plugins?: { plugins?: Record<string, unknown> };
       }).plugins?.plugins ?? {};
 
-    const pluginId = this.plugin.settings.secondScreenPlugin || 'mimic-rtt';
+    const pluginId = this.plugin.settings.secondScreenPlugin || 'ttrpg-tools-screen';
     const raw = registry[pluginId] as
       | { sendNoteByPath?: (path: string) => Promise<void> }
       | undefined;
@@ -1943,21 +1948,21 @@ export class MapInstance extends MarkdownRenderChild {
   private async bootstrap(): Promise<void> {
     this.el.classList.add("zm-root");
     this.el.classList.toggle("zm-root--framepad", this.hasViewportFrame());
-	this.applyGlobalHoverPopoverStyleVars();
+	  this.applyGlobalHoverPopoverStyleVars();
     if (this.isCanvas()) this.el.classList.add("zm-root--canvas-mode");
     if (this.cfg.responsive) this.el.classList.add("zm-root--responsive");
 
-	if (this.cfg.responsive) {
-	  setCssProps(this.el, {
-		width: "100%",
-		height: "auto",
-	  });
-	} else {
-	  setCssProps(this.el, {
-		width: this.cfg.width ?? null,
-		height: this.cfg.height ?? null,
-	  });
-	}
+    if (this.cfg.responsive) {
+      setCssProps(this.el, {
+      width: "100%",
+      height: "auto",
+      });
+    } else {
+      setCssProps(this.el, {
+      width: this.cfg.width ?? null,
+      height: this.cfg.height ?? null,
+      });
+    }
 
     if (!this.cfg.responsive && this.cfg.resizable) {
       if (this.cfg.resizeHandle === "native") {
@@ -2025,7 +2030,7 @@ export class MapInstance extends MarkdownRenderChild {
 
     this.hudMarkersEl = this.hudClipEl.createDiv({ cls: "zm-hud-markers" });
     this.measureHud = this.hudClipEl.createDiv({ cls: "zm-measure-hud" });
-	this.drawEditHudEl = this.hudClipEl.createDiv({ cls: "zm-draw-edit" });
+	  this.drawEditHudEl = this.hudClipEl.createDiv({ cls: "zm-draw-edit" });
     this.zoomHud = this.hudClipEl.createDiv({ cls: "zm-zoom-hud" });
 
     this.registerDomEvent(this.viewportEl, "wheel", (e: WheelEvent) => {
@@ -2099,9 +2104,10 @@ export class MapInstance extends MarkdownRenderChild {
       if (e.key !== "Escape") return;
 	  
       if (this.textMode === "move") {
-        this.finishTextLayerMove(false);
+        this.finishTextBoxMove(false);
         this.textMode = null;
         this.activeTextLayerId = null;
+		this.activeTextBoxId = null;
         this.renderTextDraft();
         this.renderTextLayers();
         this.closeMenu();
@@ -2119,9 +2125,10 @@ export class MapInstance extends MarkdownRenderChild {
         this.closeMenu();
         return;
       }
-      if (this.textMode === "draw-layer" || this.textMode === "draw-lines") {
+      if (this.textMode === "draw-box" || this.textMode === "draw-lines") {
         this.textMode = null;
         this.activeTextLayerId = null;
+		this.activeTextBoxId = null;
         this.textDrawStart = null;
         this.textDrawPreview = null;
         this.textLineStart = null;
@@ -2179,10 +2186,10 @@ export class MapInstance extends MarkdownRenderChild {
 
 
     await this.store.ensureExists(
-    this.cfg.imagePath,
-    { w: this.imgW, h: this.imgH },
-    this.cfg.yamlMarkerLayers,
-  );
+      this.cfg.imagePath,
+      { w: this.imgW, h: this.imgH },
+      this.cfg.yamlMarkerLayers,
+    );
     this.data = await this.store.load();
 
     await this.applyYamlOnFirstLoad();
@@ -2194,11 +2201,10 @@ export class MapInstance extends MarkdownRenderChild {
         this.data.measurement.metersPerPixel = this.cfg.yamlMetersPerPixel;
       if (this.data?.measurement?.scales) {
         this.data.measurement.scales[base] = this.cfg.yamlMetersPerPixel;
-      }
-      if (await this.store.wouldChange(this.data)) {
-        this.ignoreNextModify = true;
-        await this.store.save(this.data);
-      }
+        if (await this.store.wouldChange(this.data)) {
+          this.ignoreNextModify = true;
+          await this.store.save(this.data);
+        }
       }
     }
 
@@ -2233,14 +2239,15 @@ export class MapInstance extends MarkdownRenderChild {
     await this.applyActiveBaseAndOverlays();
     this.setupMeasureOverlay();
     this.setupDrawOverlay();
-	this.setupTextOverlay();
+	  this.setupTextOverlay();
 
     this.applyMeasureStyle();
 
     this.renderAll();
     this.ready = true;
+    }
   }
-
+  
   private updateResponsiveAspectRatio(): void {
     if (!this.imgW || !this.imgH) return;
     this.el.style.aspectRatio = `${this.imgW} / ${this.imgH}`;
@@ -2714,22 +2721,7 @@ export class MapInstance extends MarkdownRenderChild {
   }
   
   private applyGlobalHoverPopoverStyleVars(): void {
-    const doc = this.el.ownerDocument;
-    const root = doc?.documentElement;
-    const body = doc?.body;
-    if (!root || !body) return;
-
-    const maxW = Math.max(200, this.plugin.settings.hoverMaxWidth ?? 360);
-    const maxH = Math.max(120, this.plugin.settings.hoverMaxHeight ?? 260);
-
-    root.style.setProperty("--zm-hover-popover-max-width", `${maxW}px`);
-    root.style.setProperty("--zm-hover-popover-max-height", `${maxH}px`);
-    root.style.setProperty("--popover-width", `${maxW}px`);
-    root.style.setProperty("--popover-height", `${maxH}px`);
-    root.style.setProperty("--popover-max-height", `${maxH}px`);
-    body.style.setProperty("--popover-width", `${maxW}px`);
-    body.style.setProperty("--popover-height", `${maxH}px`);
-    body.style.setProperty("--popover-max-height", `${maxH}px`);
+	this.plugin.applyGlobalHoverPopoverSettings();
   }
 
   private getEditableDrawingPoints(d: Drawing): { x: number; y: number }[] | null {
@@ -2753,7 +2745,7 @@ export class MapInstance extends MarkdownRenderChild {
     }
 
     this.stopTextEdit(true);
-    this.finishTextLayerMove(false);
+    this.finishTextBoxMove(false);
 	this.stopEditDrawingGeometry(true);
     this.measuring = false;
     this.calibrating = false;
@@ -3060,11 +3052,150 @@ export class MapInstance extends MarkdownRenderChild {
     }
   }
   
+  private getTextLayerById(id: string | null): TextLayer | null {
+    if (!id || !this.data) return null;
+    return (this.data.textLayers ?? []).find((l) => l.id === id) ?? null;
+  }
+
+  private getTextBoxById(layerId: string | null, boxId: string | null): { layer: TextLayer; box: TextBox } | null {
+    const layer = this.getTextLayerById(layerId);
+    if (!layer || !boxId) return null;
+    const box = (layer.boxes ?? []).find((b) => b.id === boxId) ?? null;
+    if (!box) return null;
+    return { layer, box };
+  }
+  
+  private isTextLayerVisible(layer: TextLayer): boolean {
+    return layer.visible !== false;
+  }
+
+  private getTextBoxStyle(box: TextBox, layer?: TextLayer | null): TextLayerStyle {
+    const style = this.normalizeTextLayerStyle(box.style ?? layer?.style);
+    if (!box.style) box.style = { ...style };
+    return style;
+  }
+
+  private isTextBoxLocked(box: TextBox, layer?: TextLayer | null): boolean {
+    if (typeof box.locked === "boolean") return box.locked;
+    return !!layer?.locked;
+  }
+
+  private isTextBoxAutoFlow(box: TextBox, layer?: TextLayer | null): boolean {
+    if (typeof box.autoFlow === "boolean") return box.autoFlow;
+    return layer?.autoFlow !== false;
+  }
+
+  private isTextBoxAllowAngled(box: TextBox, layer?: TextLayer | null): boolean {
+    if (typeof box.allowAngledBaselines === "boolean") return box.allowAngledBaselines;
+    return !!layer?.allowAngledBaselines;
+  }
+
+  private defaultTextBoxAutoConfig(): TextBoxAutoConfig {
+    return {
+      lineGapPx: Math.round(this.defaultTextLayerStyle().fontSize * 1.35),
+      padLeft: 0,
+      padRight: 0,
+      padTop: 4,
+      padBottom: 4,
+    };
+  }
+
+  private buildAutoTextBoxLines(
+    rect: TextBox["rect"],
+    style: TextLayerStyle,
+    autoCfg: TextBoxAutoConfig,
+    existing?: TextBaseline[],
+  ): TextBaseline[] {
+    const minX = Math.min(rect.x0, rect.x1) * this.imgW;
+    const maxX = Math.max(rect.x0, rect.x1) * this.imgW;
+    const minY = Math.min(rect.y0, rect.y1) * this.imgH;
+    const maxY = Math.max(rect.y0, rect.y1) * this.imgH;
+
+    const padLeft = Math.max(0, autoCfg.padLeft ?? 0);
+    const padRight = Math.max(0, autoCfg.padRight ?? 0);
+    const padTop = Math.max(0, autoCfg.padTop ?? 0);
+    const padBottom = Math.max(0, autoCfg.padBottom ?? 0);
+
+    const x0Px = minX + padLeft;
+    const x1Px = maxX - padRight;
+    const usableTop = minY + padTop;
+    const usableBottom = maxY - padBottom;
+
+    const fontSize = style.fontSize;
+    const lineH =
+      Number.isFinite(autoCfg.lineGapPx) && autoCfg.lineGapPx > 1
+        ? autoCfg.lineGapPx
+        : (typeof style.lineHeight === "number" && style.lineHeight > 1
+            ? style.lineHeight
+            : Math.round(fontSize * 1.35));
+
+    const leading = Math.max(0, lineH - fontSize);
+    const ascent = Math.round(fontSize * 0.8);
+    const rise = ascent + Math.round(leading / 2);
+
+    const out: TextBaseline[] = [];
+    let y = usableTop + rise;
+    let idx = 0;
+
+    while (y <= usableBottom) {
+      out.push({
+        id: existing?.[idx]?.id ?? generateId("tln"),
+        x0: x0Px / this.imgW,
+        y0: y / this.imgH,
+        x1: x1Px / this.imgW,
+        y1: y / this.imgH,
+        text: existing?.[idx]?.text ?? "",
+      });
+      y += lineH;
+      idx += 1;
+    }
+
+    if (out.length === 0) {
+      const fallbackY = (minY + maxY) / 2;
+      out.push({
+        id: existing?.[0]?.id ?? generateId("tln"),
+        x0: x0Px / this.imgW,
+        y0: fallbackY / this.imgH,
+        x1: x1Px / this.imgW,
+        y1: fallbackY / this.imgH,
+        text: existing?.[0]?.text ?? "",
+      });
+    }
+
+    return out;
+  }
+
+  private regenerateAutoTextBoxLines(layer: TextLayer, box: TextBox): void {
+    if (box.mode !== "auto") return;
+    if (box.sourceDrawingKind === "polyline") return;
+	box.style = this.getTextBoxStyle(box, layer);
+    box.auto ??= this.defaultTextBoxAutoConfig();
+    box.lines = this.buildAutoTextBoxLines(box.rect, box.style, box.auto, box.lines);
+  }
+  
   private ensureTextData(): void {
     if (!this.data) return;
     this.data.textLayers ??= [];
+    for (const layer of this.data.textLayers) {
+      layer.boxes ??= [];
+      if (typeof layer.visible !== "boolean") layer.visible = true;
+      const legacyStyle = this.normalizeTextLayerStyle(layer.style);
+      for (const box of layer.boxes) {
+        box.style = this.normalizeTextLayerStyle(box.style ?? legacyStyle);
+        if (typeof box.autoFlow !== "boolean" && typeof layer.autoFlow === "boolean") {
+          box.autoFlow = layer.autoFlow;
+        }
+        if (typeof box.allowAngledBaselines !== "boolean" && typeof layer.allowAngledBaselines === "boolean") {
+          box.allowAngledBaselines = layer.allowAngledBaselines;
+        }
+        if (typeof box.locked !== "boolean" && typeof layer.locked === "boolean") {
+          box.locked = layer.locked;
+        }
+        if (box.mode === "auto") box.auto ??= this.defaultTextBoxAutoConfig();
+      }
+    }
   }
-
+  
   private defaultTextLayerStyle(): TextLayerStyle {
     return {
       fontFamily: "var(--font-text)",
@@ -3078,7 +3209,7 @@ export class MapInstance extends MarkdownRenderChild {
   }
 
   private normalizeTextLayerStyle(style?: Partial<TextLayerStyle>): TextLayerStyle {
-    const s = { ...this.defaultTextLayerStyle(), ...(style ?? {}) };
+    const s: TextLayerStyle = { ...this.defaultTextLayerStyle(), ...(style ?? {}) };
 
     s.fontFamily = (s.fontFamily ?? "").trim() || "var(--font-text)";
     s.color = (s.color ?? "").trim() || "var(--text-normal)";
@@ -3098,6 +3229,29 @@ export class MapInstance extends MarkdownRenderChild {
     }
 
     return s;
+  }
+  
+  private openTextBoxConfigModal(layer: TextLayer, box: TextBox): void {
+	box.style = this.getTextBoxStyle(box, layer);
+    new TextBoxConfigModal(this.app, box, (res) => {
+      if (res.action !== "save" || !this.data) return;
+      const target = (layer.boxes ?? []).find((b) => b.id === box.id);
+      if (!target) return;
+
+      target.name = res.box.name;
+      target.auto = res.box.auto;
+      target.style = this.normalizeTextLayerStyle(res.box.style ?? target.style ?? layer.style);
+      target.autoFlow = res.box.autoFlow !== false;
+      target.allowAngledBaselines = !!res.box.allowAngledBaselines;
+      target.locked = !!res.box.locked;
+
+      if (target.mode === "auto" && target.sourceDrawingKind !== "polyline") {
+        this.regenerateAutoTextBoxLines(layer, target);
+      }
+
+      void this.saveDataSoon();
+      this.renderTextLayers();
+    }).open();
   }
 
   private setupTextOverlay(): void {
@@ -3164,129 +3318,154 @@ export class MapInstance extends MarkdownRenderChild {
 
     const layers = this.data.textLayers ?? [];
     for (const layer of layers) {
+	  if (!this.isTextLayerVisible(layer)) continue;
       const activeBase = this.getActiveBasePath();
       if (layer.boundBase && layer.boundBase !== activeBase) continue;
-      layer.style = this.normalizeTextLayerStyle(layer.style);
+	  const boxes = layer.boxes ?? [];
 
-      // Hitbox for selecting / editing
-      const r = rectAbs(layer.rect);
-      const hb = this.textHitEl.createDiv({ cls: "zm-text-hitbox" });
-      hb.dataset.id = layer.id;
-      hb.style.left = `${r.x}px`;
-      hb.style.top = `${r.y}px`;
-      hb.style.width = `${r.w}px`;
-      hb.style.height = `${r.h}px`;
-      hb.ondragstart = (ev) => ev.preventDefault();
-	  
-      const moveActive = this.textMode === "move" && this.activeTextLayerId === layer.id;
-      if (moveActive) hb.classList.add("zm-text-hitbox--move");
-      else hb.classList.remove("zm-text-hitbox--move");
+      for (const box of boxes) {
+        const r = rectAbs(box.rect);
+        const hb = this.textHitEl.createDiv({ cls: "zm-text-hitbox" });
+        hb.dataset.layerId = layer.id;
+        hb.dataset.boxId = box.id;
+        hb.style.left = `${r.x}px`;
+        hb.style.top = `${r.y}px`;
+        hb.style.width = `${r.w}px`;
+        hb.style.height = `${r.h}px`;
+        hb.ondragstart = (ev) => ev.preventDefault();
 
-      hb.addEventListener("pointerdown", (e: PointerEvent) => {
-        if (!this.data) return;
-        if (e.button !== 0) return;
-        if (!(this.plugin.settings.enableTextLayers)) return;
-        if (layer.locked) return;
-        if (!(this.textMode === "move" && this.activeTextLayerId === layer.id)) return;
-        e.preventDefault();
-        e.stopPropagation();
-        this.plugin.setActiveMap(this);
-        const p = this.mouseEventToWorldNorm(e as unknown as MouseEvent);
-        this.startTextLayerMove(layer.id, p, e.pointerId, hb);
-      });
-      
-      hb.addEventListener("dblclick", (e) => {
-        e.stopPropagation();
-      });
+        const moveActive =
+          this.textMode === "move" &&
+          this.activeTextLayerId === layer.id &&
+          this.activeTextBoxId === box.id;
+        if (moveActive) hb.classList.add("zm-text-hitbox--move");
+        else hb.classList.remove("zm-text-hitbox--move");
 
-      hb.addEventListener("click", (e: MouseEvent) => {
-        e.stopPropagation();
+        hb.addEventListener("pointerdown", (e: PointerEvent) => {
+          if (!this.data) return;
+          if (e.button !== 0) return;
+          if (!this.plugin.settings.enableTextLayers) return;
+          if (this.isTextBoxLocked(box, layer)) return;
+          if (!(this.textMode === "move" && this.activeTextLayerId === layer.id && this.activeTextBoxId === box.id)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          this.plugin.setActiveMap(this);
+          const p = this.mouseEventToWorldNorm(e as unknown as MouseEvent);
+          this.startTextBoxMove(layer.id, box.id, p, e.pointerId, hb);
+        });
+
+        hb.addEventListener("dblclick", (e: MouseEvent) => {
+          if (this.drawingMode) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.onDblClickViewport(e);
+            return;
+          }
+          e.stopPropagation();
+        });
+
+        hb.addEventListener("click", (e: MouseEvent) => {
+          if (this.drawingMode) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.handleDrawClick(e);
+            return;
+          }
+
+          e.stopPropagation();
+          if (this.suppressTextClickOnce) return;
+
+          if (this.textMode === "move" && this.activeTextLayerId === layer.id && this.activeTextBoxId === box.id) {
+            return;
+          }
+
+          if (this.textMode === "draw-lines" && this.activeTextLayerId === layer.id && this.activeTextBoxId === box.id) {
+            this.onTextDrawLineClick(layer, box, e);
+            return;
+          }
+
+          this.onTextBoxClick(layer, box, e);
+        });
 		
-		if (this.suppressTextClickOnce) return;
-		
-        if (this.textMode === "move" && this.activeTextLayerId === layer.id) {
-          return;
+        hb.addEventListener("contextmenu", (e: MouseEvent) => {
+          // Text hitboxes should not have their own context menu.
+          // Instead, forward the right click to whatever is underneath
+          // (drawings, markers, or the viewport itself).
+          e.preventDefault();
+          e.stopPropagation();
+          this.forwardContextMenuPastTextHitbox(e);
+        });
+
+        const showNow =
+          (this.textMode === "draw-lines" || this.textMode === "move") &&
+          this.activeTextLayerId === layer.id &&
+          this.activeTextBoxId === box.id;
+
+        if (showNow) {
+          const rect = document.createElementNS(ns, "rect");
+          rect.classList.add("zm-text-guide-rect");
+          rect.classList.add("zm-text-guide--active");
+          rect.setAttribute("x", String(r.x));
+          rect.setAttribute("y", String(r.y));
+          rect.setAttribute("width", String(r.w));
+          rect.setAttribute("height", String(r.h));
+          this.textGuidesLayer.appendChild(rect);
+
+          for (const ln of box.lines ?? []) {
+            const a = abs(ln.x0, ln.y0);
+            const b = abs(ln.x1, ln.y1);
+
+            const line = document.createElementNS(ns, "line");
+            line.classList.add("zm-text-guide-line");
+            line.classList.add("zm-text-guide--active");
+            line.setAttribute("x1", String(a.x));
+            line.setAttribute("y1", String(a.y));
+            line.setAttribute("x2", String(b.x));
+            line.setAttribute("y2", String(b.y));
+            this.textGuidesLayer.appendChild(line);
+          }
         }
 
-        // Draw lines mode: clicks inside the layer define baselines
-        if (this.textMode === "draw-lines" && this.activeTextLayerId === layer.id) {
-          this.onTextDrawLineClick(layer, e);
-          return;
-        }
+        const isEditingThis =
+          this.textMode === "edit" &&
+          this.activeTextLayerId === layer.id &&
+          this.activeTextBoxId === box.id;
+        if (isEditingThis) continue;
 
-        // Normal edit mode
-        this.onTextLayerClick(layer, e);
-      });
+        const st = this.getTextBoxStyle(box, layer);
+        for (const ln of box.lines ?? []) {
+          const txt = (ln.text ?? "").trimEnd();
+          if (!txt) continue;
 
-      // Guides
-      const showNow =
-        (this.textMode === "draw-lines" || this.textMode === "move") &&
-        this.activeTextLayerId === layer.id;
-
-      if (showNow) {
-        const rect = document.createElementNS(ns, "rect");
-        rect.classList.add("zm-text-guide-rect");
-		rect.classList.add("zm-text-guide--active");
-        rect.setAttribute("x", String(r.x));
-        rect.setAttribute("y", String(r.y));
-        rect.setAttribute("width", String(r.w));
-        rect.setAttribute("height", String(r.h));
-        this.textGuidesLayer.appendChild(rect);
-
-        for (const ln of layer.lines ?? []) {
           const a = abs(ln.x0, ln.y0);
           const b = abs(ln.x1, ln.y1);
 
-          const line = document.createElementNS(ns, "line");
-          line.classList.add("zm-text-guide-line");
-		  line.classList.add("zm-text-guide--active");
-          line.setAttribute("x1", String(a.x));
-          line.setAttribute("y1", String(a.y));
-          line.setAttribute("x2", String(b.x));
-          line.setAttribute("y2", String(b.y));
-          this.textGuidesLayer.appendChild(line);
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+
+          const padLeft = st.padLeft ?? 0;
+          const x = a.x + padLeft;
+          const y = a.y;
+
+          const t = document.createElementNS(ns, "text");
+          t.setAttribute("x", String(x));
+          t.setAttribute("y", String(y));
+          t.textContent = txt;
+
+          t.style.fill = st.color;
+          t.style.fontFamily = st.fontFamily;
+          t.style.fontSize = `${st.fontSize}px`;
+          if (st.fontWeight) t.style.fontWeight = st.fontWeight;
+          if (st.italic) t.classList.add("zm-text-italic");
+          if (typeof st.letterSpacing === "number") t.style.letterSpacing = `${st.letterSpacing}px`;
+
+          if (Math.abs(angleDeg) > 0.01) {
+            t.setAttribute("transform", `rotate(${angleDeg} ${x} ${y})`);
+          }
+
+          this.textTextLayer.appendChild(t);
         }
-      }
-
-      // Static text (hidden while editing this layer)
-      const isEditingThis = this.textMode === "edit" && this.activeTextLayerId === layer.id;
-      if (isEditingThis) continue;
-
-      const st = layer.style;
-      for (const ln of layer.lines ?? []) {
-        const txt = (ln.text ?? "").trimEnd();
-        if (!txt) continue;
-
-        const a = abs(ln.x0, ln.y0);
-        const b = abs(ln.x1, ln.y1);
-
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
-
-        const padLeft = st.padLeft ?? 0;
-        const x = a.x + padLeft;
-        const y = a.y;
-
-        const t = document.createElementNS(ns, "text");
-        t.setAttribute("x", String(x));
-        t.setAttribute("y", String(y));
-        t.textContent = txt;
-
-        // Styling
-        t.style.fill = st.color;
-        t.style.fontFamily = st.fontFamily;
-        t.style.fontSize = `${st.fontSize}px`;
-        if (st.fontWeight) t.style.fontWeight = st.fontWeight;
-        if (st.italic) t.classList.add("zm-text-italic");
-        if (typeof st.letterSpacing === "number") t.style.letterSpacing = `${st.letterSpacing}px`;
-
-        // Rotation only if the baseline is angled
-        if (Math.abs(angleDeg) > 0.01) {
-          t.setAttribute("transform", `rotate(${angleDeg} ${x} ${y})`);
-        }
-
-        this.textTextLayer.appendChild(t);
       }
     }
 
@@ -3303,8 +3482,8 @@ export class MapInstance extends MarkdownRenderChild {
     const ns = "http://www.w3.org/2000/svg";
     const abs = (nx: number, ny: number) => ({ x: nx * this.imgW, y: ny * this.imgH });
 
-    // Box preview while creating a new text layer
-    if (this.textMode === "draw-layer" && this.textDrawStart && this.textDrawPreview) {
+    // Box preview while creating a new text box
+    if (this.textMode === "draw-box" && this.textDrawStart && this.textDrawPreview) {
       const a = abs(this.textDrawStart.x, this.textDrawStart.y);
       const b = abs(this.textDrawPreview.x, this.textDrawPreview.y);
       const x = Math.min(a.x, b.x);
@@ -3338,23 +3517,23 @@ export class MapInstance extends MarkdownRenderChild {
     }
   }
 
-  private onTextLayerClick(layer: TextLayer, ev: MouseEvent): void {
+  private onTextBoxClick(layer: TextLayer, box: TextBox, ev: MouseEvent): void {
     if (!this.data) return;
     if (!this.plugin.settings.enableTextLayers) return;
 
-    if (layer.locked) {
-      new Notice("Text layer is locked.", 1500);
+    if (this.isTextBoxLocked(box, layer)) {
+      new Notice("Text box is locked.", 1500);
       return;
     }
 
-    const lines = layer.lines ?? [];
+    const lines = box.lines ?? [];
     if (lines.length === 0) {
-      new Notice("No baselines in this layer yet. Use 'draw lines' first.", 3000);
+      new Notice("No baselines in this text box yet. Use 'draw lines' first.", 3000);
       return;
     }
 
     const p = this.mouseEventToWorldNorm(ev);
-    this.startTextEdit(layer.id, p);
+    this.startTextEdit(layer.id, box.id, p);
   }
 
   private mouseEventToWorldNorm(ev: MouseEvent): Point {
@@ -3369,8 +3548,8 @@ export class MapInstance extends MarkdownRenderChild {
     };
   }
   
-  private clampTextLayerDelta(
-    rect: { x0: number; y0: number; x1: number; y1: number },
+  private clampTextBoxDelta(
+    rect: TextBox["rect"],
     dx: number,
     dy: number,
   ): { dx: number; dy: number } {
@@ -3384,29 +3563,28 @@ export class MapInstance extends MarkdownRenderChild {
     return { dx: dxClamped, dy: dyClamped };
   }
 
-  private startTextLayerMove(layerId: string, start: Point, pointerId: number, host: HTMLElement): void {
-    if (!this.data) return;
-    const layer = (this.data.textLayers ?? []).find((l) => l.id === layerId);
-    if (!layer) return;
-    if (layer.locked) {
-      new Notice("Text layer is locked.", 1500);
-      return;
-    }
+  private startTextBoxMove(layerId: string, boxId: string, start: Point, pointerId: number, host: HTMLElement): void {
+    const found = this.getTextBoxById(layerId, boxId);
+    if (!found) return;
+    const { layer, box } = found;
+    if (layer.visible === false) layer.visible = true;
 
     this.stopTextEdit(true);
+	this.finishTextBoxMove(false);
     this.measuring = false;
     this.calibrating = false;
     this.drawingMode = null;
 
     this.textMode = "move";
     this.activeTextLayerId = layerId;
+	this.activeTextBoxId = boxId;
 
     this.textMoveDragging = true;
     this.textMovePointerId = pointerId;
     this.textMoveStart = start;
     this.textMoveOrig = {
-      rect: { ...layer.rect },
-      lines: (layer.lines ?? []).map((ln) => ({ ...ln })),
+      rect: { ...box.rect },
+      lines: (box.lines ?? []).map((ln) => ({ ...ln })),
     };
 
     host.classList.add("zm-text-hitbox--dragging");
@@ -3414,19 +3592,20 @@ export class MapInstance extends MarkdownRenderChild {
     host.setPointerCapture?.(pointerId);
   }
 
-  private updateTextLayerMove(cur: Point): void {
+  private updateTextBoxMove(cur: Point): void {
     if (!this.data) return;
-    if (!this.textMoveDragging || !this.textMoveStart || !this.textMoveOrig || !this.activeTextLayerId) return;
+    if (!this.textMoveDragging || !this.textMoveStart || !this.textMoveOrig || !this.activeTextLayerId || !this.activeTextBoxId) return;
 
-    const layer = (this.data.textLayers ?? []).find((l) => l.id === this.activeTextLayerId);
-    if (!layer) return;
-    if (layer.locked) return;
+    const found = this.getTextBoxById(this.activeTextLayerId, this.activeTextBoxId);
+    if (!found) return;
+    const { layer, box } = found;
+    if (this.isTextBoxLocked(box, layer)) return;
 
     const dxRaw = cur.x - this.textMoveStart.x;
     const dyRaw = cur.y - this.textMoveStart.y;
-    const { dx, dy } = this.clampTextLayerDelta(this.textMoveOrig.rect, dxRaw, dyRaw);
+    const { dx, dy } = this.clampTextBoxDelta(this.textMoveOrig.rect, dxRaw, dyRaw);
 
-    layer.rect = {
+    box.rect = {
       x0: this.textMoveOrig.rect.x0 + dx,
       y0: this.textMoveOrig.rect.y0 + dy,
       x1: this.textMoveOrig.rect.x1 + dx,
@@ -3434,10 +3613,10 @@ export class MapInstance extends MarkdownRenderChild {
     };
 
     const srcLines = this.textMoveOrig.lines;
-    layer.lines ??= [];
-    if (layer.lines.length !== srcLines.length) {
-      const byId = new Map(layer.lines.map((ln) => [ln.id, ln]));
-      layer.lines = srcLines.map((s) => {
+    box.lines ??= [];
+    if (box.lines.length !== srcLines.length) {
+      const byId = new Map(box.lines.map((ln) => [ln.id, ln]));
+      box.lines = srcLines.map((s) => {
         const existing = byId.get(s.id);
         return existing ?? { ...s };
       });
@@ -3445,7 +3624,7 @@ export class MapInstance extends MarkdownRenderChild {
 
     for (let i = 0; i < srcLines.length; i += 1) {
       const s = srcLines[i];
-      const ln = layer.lines[i];
+      const ln = box.lines[i];
       ln.x0 = s.x0 + dx;
       ln.y0 = s.y0 + dy;
       ln.x1 = s.x1 + dx;
@@ -3455,7 +3634,7 @@ export class MapInstance extends MarkdownRenderChild {
     this.renderTextLayers();
   }
 
-  private finishTextLayerMove(commit: boolean): void {
+  private finishTextBoxMove(commit: boolean): void {
     if (!this.textMoveDragging) return;
     this.textMoveDragging = false;
     this.textMovePointerId = null;
@@ -3470,42 +3649,48 @@ export class MapInstance extends MarkdownRenderChild {
     }
   }
 
-  private startTextEdit(layerId: string, focus?: Point): void {
+  private startTextEdit(layerId: string, boxId: string, focus?: Point): void {
     if (!this.data) return;
 
     // Close other modes
     this.measuring = false;
     this.calibrating = false;
     this.drawingMode = null;
-	this.finishTextLayerMove(false);
+	this.finishTextBoxMove(false);
 
     this.stopTextEdit(true);
 
     this.textMode = "edit";
     this.activeTextLayerId = layerId;
+	this.activeTextBoxId = boxId;
     this.textDirty = false;
 
-    const layer = (this.data.textLayers ?? []).find((l) => l.id === layerId);
-    if (!layer) return;
-	
-    if (typeof layer.autoFlow !== "boolean") layer.autoFlow = true;
+    const found = this.getTextBoxById(layerId, boxId);
+    if (!found) return;
+    const { layer, box } = found;
 
-    layer.style = this.normalizeTextLayerStyle(layer.style);
+    if (this.isTextBoxLocked(box, layer)) return;
+
+	box.lines ??= [];
+	
+    if (typeof box.autoFlow !== "boolean") box.autoFlow = this.isTextBoxAutoFlow(box, layer);
+    if (typeof box.allowAngledBaselines !== "boolean") box.allowAngledBaselines = this.isTextBoxAllowAngled(box, layer);
+    box.style = this.getTextBoxStyle(box, layer);
 
     this.textEditEl.empty();
     this.textInputs.clear();
 
-    const st = layer.style;
+    const st = box.style;
 
-    const sorted = [...(layer.lines ?? [])].sort((a, b) => {
+    const sorted = [...(box.lines ?? [])].sort((a, b) => {
       const ay = (a.y0 + a.y1) / 2;
       const by = (b.y0 + b.y1) / 2;
       return ay - by || a.x0 - b.x0;
     });
-    layer.lines = sorted;
+    box.lines = sorted;
 
-    for (let i = 0; i < layer.lines.length; i += 1) {
-      const ln = layer.lines[i];
+    for (let i = 0; i < box.lines.length; i += 1) {
+      const ln = box.lines[i];
 
       const ax0 = ln.x0 * this.imgW;
       const ay0 = ln.y0 * this.imgH;
@@ -3575,7 +3760,7 @@ export class MapInstance extends MarkdownRenderChild {
           return;
         }
 		
-		if (e.key === "Backspace" && layer.autoFlow !== false) {
+		if (e.key === "Backspace" && this.isTextBoxAutoFlow(box, layer)) {
         const selStart = input.selectionStart ?? 0;
         const selEnd = input.selectionEnd ?? selStart;
 
@@ -3596,7 +3781,7 @@ export class MapInstance extends MarkdownRenderChild {
           // Try to pull words up from this line into the previous one
           // (removes the "implicit newline" as much as it fits).
           this.textDirty = true;
-          this.reflowTextLayer(layer, i - 1, { advanceFocus: false });
+          this.reflowTextBox(box, st, i - 1, { advanceFocus: false });
           this.scheduleTextSave();
 
           // Ensure caret stays at the join position after reflow updates values.
@@ -3639,14 +3824,14 @@ export class MapInstance extends MarkdownRenderChild {
       });
 
       input.addEventListener("input", () => {
-	  if (layer.locked) {
+	  if (this.isTextBoxLocked(box, layer)) {
 		input.value = ln.text ?? "";
-		new Notice("Text layer is locked.", 1200);
+		new Notice("Text box is locked.", 1200);
 		return;
 	  }
 	  
         // Fixed-lines mode: do NOT reflow between baselines.
-        if (layer.autoFlow === false) {
+        if (!this.isTextBoxAutoFlow(box, layer)) {
           ln.text = input.value;
           this.textDirty = true;
           this.scheduleTextSave();
@@ -3662,7 +3847,7 @@ export class MapInstance extends MarkdownRenderChild {
 	  ln.text = input.value;
 	  this.textDirty = true;
 
-	  const move = this.reflowTextLayer(layer, i, { advanceFocus: atEnd });
+	  const move = this.reflowTextBox(box, st, i, { advanceFocus: atEnd });
 	  this.scheduleTextSave();
 
 	  if (move.advance) {
@@ -3686,7 +3871,7 @@ export class MapInstance extends MarkdownRenderChild {
 
     // Focus nearest line (or first)
     if (focus) {
-      this.focusNearestBaseline(layer, focus);
+      this.focusNearestBaseline(box, focus);
     } else {
       this.getTextInputByIndex(0)?.focus();
     }
@@ -3700,6 +3885,7 @@ export class MapInstance extends MarkdownRenderChild {
 
     this.textMode = null;
     this.activeTextLayerId = null;
+    this.activeTextBoxId = null;
 
     this.textInputs.clear();
     this.textEditEl.empty();
@@ -3734,9 +3920,9 @@ export class MapInstance extends MarkdownRenderChild {
 
       if (this.textEditEl.contains(t)) return;
 
-      if (this.activeTextLayerId) {
+      if (this.activeTextLayerId && this.activeTextBoxId) {
         const hb = this.textHitEl.querySelector(
-          `.zm-text-hitbox[data-id="${this.activeTextLayerId}"]`,
+          `.zm-text-hitbox[data-layer-id="${this.activeTextLayerId}"][data-box-id="${this.activeTextBoxId}"]`,
         );
         if (hb && hb.contains(t)) return;
       }
@@ -3751,23 +3937,22 @@ export class MapInstance extends MarkdownRenderChild {
   }
 
   private getTextInputByIndex(index: number): HTMLInputElement | null {
-    if (!this.data || !this.activeTextLayerId) return null;
-    const layer = (this.data.textLayers ?? []).find((l) => l.id === this.activeTextLayerId);
-    if (!layer) return null;
-    const ln = layer.lines?.[index];
+    const found = this.getTextBoxById(this.activeTextLayerId, this.activeTextBoxId);
+    if (!found) return null;
+    const ln = found.box.lines?.[index];
     if (!ln) return null;
     return this.textInputs.get(ln.id) ?? null;
   }
 
-  private focusNearestBaseline(layer: TextLayer, p: Point): void {
-    if (!layer.lines?.length) return;
+  private focusNearestBaseline(box: TextBox, p: Point): void {
+    if (!box.lines?.length) return;
 
     const py = p.y;
     let bestIdx = 0;
     let bestDist = Infinity;
 
-    for (let i = 0; i < layer.lines.length; i += 1) {
-      const ln = layer.lines[i];
+    for (let i = 0; i < box.lines.length; i += 1) {
+      const ln = box.lines[i];
       const y = (ln.y0 + ln.y1) / 2;
       const d = Math.abs(y - py);
       if (d < bestDist) {
@@ -3813,7 +3998,6 @@ export class MapInstance extends MarkdownRenderChild {
     span.style.fontFamily = style.fontFamily;
     span.style.fontSize = `${style.fontSize}px`;
     span.style.fontWeight = style.fontWeight ?? "400";
-    span.style.fontStyle = style.italic ? "italic" : "normal";
     span.style.letterSpacing =
       typeof style.letterSpacing === "number" ? `${style.letterSpacing}px` : "normal";
 
@@ -3821,23 +4005,28 @@ export class MapInstance extends MarkdownRenderChild {
     return span.getBoundingClientRect().width;
   }
 
-  private lineCapacityPx(layer: TextLayer, ln: TextBaseline): number {
-    const st = layer.style;
-    const ax0 = ln.x0 * this.imgW;
+  private lineCapacityPx(style: TextLayerStyle, ln: TextBaseline): number {
+	const ax0 = ln.x0 * this.imgW;
     const ay0 = ln.y0 * this.imgH;
     const ax1 = ln.x1 * this.imgW;
     const ay1 = ln.y1 * this.imgH;
     const len = Math.hypot(ax1 - ax0, ay1 - ay0);
 
-    const cap = len - (st.padLeft ?? 0) - (st.padRight ?? 0);
+    const cap = len - (style.padLeft ?? 0) - (style.padRight ?? 0);
     return Math.max(10, cap);
   }
 
-  private splitToFit(layer: TextLayer, ln: TextBaseline, text: string): { fit: string; rest: string } {
-    const cap = this.lineCapacityPx(layer, ln);
-    const st = layer.style;
+  private splitToFit(
+    style: TextLayerStyle,
+    ln: TextBaseline,
+    text: string,
+  ): { fit: string; rest: string; overflowed: boolean; boundaryOnly: boolean } {
+    const cap = this.lineCapacityPx(style, ln);
+    const st = style;
 
-    if (this.measureTextWidthPx(st, text) <= cap) return { fit: text, rest: "" };
+    if (this.measureTextWidthPx(st, text) <= cap) {
+      return { fit: text, rest: "", overflowed: false, boundaryOnly: false };
+    }
 
     // Try to split on spaces (word wrap)
     for (let i = text.length - 1; i >= 0; i -= 1) {
@@ -3847,11 +4036,11 @@ export class MapInstance extends MarkdownRenderChild {
       if (!left) continue;
 
       if (this.measureTextWidthPx(st, left) <= cap) {
-        return { fit: left, rest: right };
+        return { fit: left, rest: right, overflowed: true, boundaryOnly: right.length === 0 };
       }
     }
 
-    // Fallback: character wrap (binary search)
+    // Character wrap
     let lo = 0;
     let hi = text.length;
     while (lo < hi) {
@@ -3863,7 +4052,7 @@ export class MapInstance extends MarkdownRenderChild {
 
     const fit = text.slice(0, lo).trimEnd();
     const rest = text.slice(lo).trimStart();
-    return { fit, rest };
+    return { fit, rest, overflowed: true, boundaryOnly: false };
   }
 
   private pullWord(text: string): { word: string; rest: string } | null {
@@ -3876,47 +4065,50 @@ export class MapInstance extends MarkdownRenderChild {
     return { word: m[1] ?? "", rest: m[2] ?? "" };
   }
 
-  private reflowTextLayer(
-  layer: TextLayer,
+  private reflowTextBox(
+  box: TextBox,
+  style: TextLayerStyle,
   startIndex: number,
   opts?: { advanceFocus?: boolean },
 ): { advance?: { toIndex: number; caret: number } } {
-  if (!layer.lines?.length) return {};
+  if (!box.lines?.length) return {};
 
   let advance: { toIndex: number; caret: number } | undefined;
 
   // 1) Push overflow forward from startIndex
-  for (let i = startIndex; i < layer.lines.length; i += 1) {
-    const ln = layer.lines[i];
+  for (let i = startIndex; i < box.lines.length; i += 1) {
+    const ln = box.lines[i];
     const txt = ln.text ?? "";
-    const { fit, rest } = this.splitToFit(layer, ln, txt);
+	const { fit, rest, overflowed, boundaryOnly } = this.splitToFit(style, ln, txt);
 
-    if (!rest) {
+    if (!overflowed) {
       ln.text = fit;
       continue;
     }
 
     ln.text = fit;
 
-    const next = layer.lines[i + 1];
+    const next = box.lines[i + 1];
     if (!next) {
-      new Notice("No more baselines in this text layer.", 1500);
+      new Notice("No more baselines in this text box.", 1500);
       continue;
     }
 
-    const nextTxt = (next.text ?? "").trimStart();
-    next.text = (rest + (nextTxt ? " " + nextTxt : "")).trimEnd();
+    if (rest) {
+      const nextTxt = (next.text ?? "").trimStart();
+      next.text = (rest + (nextTxt ? " " + nextTxt : "")).trimEnd();
+    }
 
     // Suggest focus move only for the line that the user is actively typing in
     if (!advance && i === startIndex && opts?.advanceFocus) {
-      advance = { toIndex: i + 1, caret: rest.length };
+      advance = { toIndex: i + 1, caret: boundaryOnly ? 0 : rest.length };
     }
   }
 
   // 2) Pull words up to fill gaps
-  for (let i = startIndex; i < layer.lines.length - 1; i += 1) {
-    const cur = layer.lines[i];
-    const next = layer.lines[i + 1];
+  for (let i = startIndex; i < box.lines.length - 1; i += 1) {
+    const cur = box.lines[i];
+    const next = box.lines[i + 1];
     if (!next) continue;
 
     while (true) {
@@ -3926,7 +4118,7 @@ export class MapInstance extends MarkdownRenderChild {
       const candidate = (cur.text ?? "").trimEnd();
       const joined = candidate ? `${candidate} ${pick.word}` : pick.word;
 
-      if (this.measureTextWidthPx(layer.style, joined) <= this.lineCapacityPx(layer, cur)) {
+      if (this.measureTextWidthPx(style, joined) <= this.lineCapacityPx(style, cur)) {
         cur.text = joined;
         next.text = pick.rest.trimStart();
       } else {
@@ -3936,15 +4128,15 @@ export class MapInstance extends MarkdownRenderChild {
   }
 
   // Sync DOM inputs from data (keeps active selection stable)
-  this.syncInputsFromLayer(layer);
+  this.syncInputsFromBox(box);
 
   return { advance };
 }
 
-  private syncInputsFromLayer(layer: TextLayer): void {
+  private syncInputsFromBox(box: TextBox): void {
     const active = this.el.ownerDocument.activeElement;
 
-    for (const ln of layer.lines ?? []) {
+    for (const ln of box.lines ?? []) {
       const input = this.textInputs.get(ln.id);
       if (!input) continue;
 
@@ -3966,11 +4158,11 @@ export class MapInstance extends MarkdownRenderChild {
     }
   }
 
-  private onTextDrawLineClick(layer: TextLayer, ev: MouseEvent): void {
+  private onTextDrawLineClick(layer: TextLayer, box: TextBox, ev: MouseEvent): void {
     if (!this.data) return;
 
-    if (layer.locked) {
-      new Notice("Text layer is locked.", 1500);
+    if (this.isTextBoxLocked(box, layer)) {
+      new Notice("Text box is locked.", 1500);
       return;
     }
 
@@ -3988,7 +4180,7 @@ export class MapInstance extends MarkdownRenderChild {
     const a = this.textLineStart;
     const b = p;
 
-    const rect = layer.rect;
+    const rect = box.rect;
     const minX = Math.min(rect.x0, rect.x1);
     const maxX = Math.max(rect.x0, rect.x1);
     const minY = Math.min(rect.y0, rect.y1);
@@ -3999,7 +4191,7 @@ export class MapInstance extends MarkdownRenderChild {
     let x1 = b.x;
     let y1 = b.y;
 
-    const allowAngled = !!layer.allowAngledBaselines;
+    const allowAngled = this.isTextBoxAllowAngled(box, layer);
     const freeAngle = allowAngled && ev.ctrlKey;
 
     if (!freeAngle) {
@@ -4029,8 +4221,8 @@ export class MapInstance extends MarkdownRenderChild {
       return;
     }
 
-    layer.lines ??= [];
-    layer.lines.push({
+    box.lines ??= [];
+    box.lines.push({
       id: generateId("tln"),
       x0,
       y0,
@@ -4040,7 +4232,7 @@ export class MapInstance extends MarkdownRenderChild {
     });
 
     // Sort by Y, then X
-    layer.lines.sort((u, v) => {
+    box.lines.sort((u, v) => {
       const uy = (u.y0 + u.y1) / 2;
       const vy = (v.y0 + v.y1) / 2;
       return uy - vy || u.x0 - v.x0;
@@ -4053,34 +4245,45 @@ export class MapInstance extends MarkdownRenderChild {
     this.renderTextLayers();
   }
 
-  private startDrawNewTextLayer(): void {
+  private startDrawNewTextBox(layerId: string, mode: "custom" | "auto"): void {
     if (!this.data) return;
     if (!this.plugin.settings.enableTextLayers) {
       new Notice("Text layers are disabled in preferences.", 2500);
       return;
     }
+    const layer = this.getTextLayerById(layerId);
+    if (!layer) return;
+    if (layer.locked) {
+      new Notice("Text layer is locked.", 1500);
+      return;
+    }
 
     this.stopTextEdit(true);
+	this.finishTextBoxMove(false);
 
     this.measuring = false;
     this.calibrating = false;
     this.drawingMode = null;
 
-    this.textMode = "draw-layer";
-    this.activeTextLayerId = null;
+    this.textMode = "draw-box";
+    this.activeTextLayerId = layerId;
+    this.activeTextBoxId = null;
+    this.textDrawBoxMode = mode;
     this.textDrawStart = null;
     this.textDrawPreview = null;
 
-    new Notice("Draw text layer: drag to create the box. Press esc to cancel.", 4500);
+    new Notice(`Draw ${mode} text box: drag to create the box. Press esc to cancel.`, 4500);
   }
 
-  private finishDrawNewTextLayer(): void {
+  private finishDrawNewTextBox(): void {
     if (!this.data || !this.textDrawStart || !this.textDrawPreview) return;
+    const layer = this.getTextLayerById(this.activeTextLayerId);
+    if (!layer) return;
 
     const a = this.textDrawStart;
     const b = this.textDrawPreview;
 
-    const rect = {
+   const rect: TextBox["rect"] = {
       x0: a.x,
       y0: a.y,
       x1: b.x,
@@ -4090,25 +4293,28 @@ export class MapInstance extends MarkdownRenderChild {
     const pxW = Math.abs(rect.x1 - rect.x0) * this.imgW;
     const pxH = Math.abs(rect.y1 - rect.y0) * this.imgH;
     if (pxW < 12 || pxH < 12) {
-      new Notice("Text layer box too small.", 1500);
+      new Notice("Text box too small.", 1500);
       return;
     }
 
-    const idx = (this.data.textLayers?.length ?? 0) + 1;
-
-    const layer: TextLayer = {
-      id: generateId("txt"),
-      name: `Text layer ${idx}`,
-      locked: false,
+    const box: TextBox = {
+      id: generateId("tbox"),
+      name: `Text box ${(layer.boxes?.length ?? 0) + 1}`,
+      mode: this.textDrawBoxMode,
       rect,
       lines: [],
-	  autoFlow: true,
+      style: this.normalizeTextLayerStyle(layer.style),
+      autoFlow: true,
       allowAngledBaselines: false,
-      style: this.defaultTextLayerStyle(),
+      locked: false,
     };
 
-    this.data.textLayers ??= [];
-    this.data.textLayers.push(layer);
+    if (box.mode === "auto") {
+      box.auto = this.defaultTextBoxAutoConfig();
+      box.lines = this.buildAutoTextBoxLines(box.rect, box.style!, box.auto);
+    }
+    layer.boxes ??= [];
+    layer.boxes.push(box);
 
     this.textMode = null;
     this.textDrawStart = null;
@@ -4117,19 +4323,15 @@ export class MapInstance extends MarkdownRenderChild {
     this.renderTextLayers();
     void this.saveDataSoon();
 
-    // Style modal is fine (no text input modal)
-    new TextLayerStyleModal(this.app, layer, (res) => {
-      if (res.action !== "save" || !this.data) return;
-
-      if (res.applyStyleToAll) {
-        for (const l of this.data.textLayers ?? []) {
-          l.style = { ...layer.style };
-        }
-      }
-
-      void this.saveDataSoon();
+    if (box.mode === "custom") {
+      this.textMode = "draw-lines";
+      this.activeTextLayerId = layer.id;
+      this.activeTextBoxId = box.id;
       this.renderTextLayers();
-    }).open();
+      new Notice("Draw baselines: click start + end. Hold ctrl for free angle (if enabled). Esc to exit.", 6000);
+      return;
+    }
+    this.openTextBoxConfigModal(layer, box);
   }
 
   private renderMeasure(): void {
@@ -4822,7 +5024,7 @@ export class MapInstance extends MarkdownRenderChild {
   private onPointerDownViewport(e: PointerEvent): void {
     if (!this.ready) return;
 	
-	if (this.textMode === "draw-layer") {
+	if (this.textMode === "draw-box") {
       if (e.button !== 0) return;
 
       const vpRect = this.viewportEl.getBoundingClientRect();
@@ -4868,7 +5070,7 @@ export class MapInstance extends MarkdownRenderChild {
   private onPointerMove(e: PointerEvent): void {
     if (!this.ready) return;
 	
-    // Text layer move drag
+    // Text box move drag
     if (this.textMoveDragging) {
       e.preventDefault();
       e.stopPropagation();
@@ -4879,7 +5081,7 @@ export class MapInstance extends MarkdownRenderChild {
       const wx = (vx - this.tx) / this.scale;
       const wy = (vy - this.ty) / this.scale;
       const p = { x: clamp(wx / this.imgW, 0, 1), y: clamp(wy / this.imgH, 0, 1) };
-      this.updateTextLayerMove(p);
+      this.updateTextBoxMove(p);
       return;
     }
 	
@@ -4904,7 +5106,7 @@ export class MapInstance extends MarkdownRenderChild {
     }
 	
 	// Text layer draw preview (box)
-    if (this.textMode === "draw-layer" && this.textDrawStart) {
+    if (this.textMode === "draw-box" && this.textDrawStart) {
       const vpRect = this.viewportEl.getBoundingClientRect();
       const vx = e.clientX - vpRect.left;
       const vy = e.clientY - vpRect.top;
@@ -5048,12 +5250,12 @@ export class MapInstance extends MarkdownRenderChild {
     }
 	  
   if (this.textMoveDragging) {
-      this.finishTextLayerMove(true);
+      this.finishTextBoxMove(true);
       return;
     }
 	  
-  if (this.textMode === "draw-layer" && this.textDrawStart && this.textDrawPreview) {
-      this.finishDrawNewTextLayer();
+  if (this.textMode === "draw-box" && this.textDrawStart && this.textDrawPreview) {
+      this.finishDrawNewTextBox();
       return;
     }
  
@@ -5798,6 +6000,105 @@ this.viewDragDist = 0;
         new Notice("Dice pin added.", 900);
       },
     ).open();
+  }
+  
+  private getPreferredTextLayer(): TextLayer | null {
+    if (!this.data) return null;
+    const activeBase = this.getActiveBasePath();
+
+    const current = this.getTextLayerById(this.activeTextLayerId);
+    if (current && this.isTextLayerVisible(current) && (!current.boundBase || current.boundBase === activeBase)) {
+      return current;
+    }
+
+    return (
+      (this.data.textLayers ?? []).find((l) => this.isTextLayerVisible(l) && (!l.boundBase || l.boundBase === activeBase)) ??
+      null
+    );
+  }
+
+  private drawingToTextBoxRect(d: Drawing): TextBox["rect"] | null {
+    if (d.kind === "rect" && d.rect) {
+      return { ...d.rect };
+    }
+    if (d.kind === "polyline" && d.polyline && d.polyline.length >= 2) {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const p of d.polyline) {
+        minX = Math.min(minX, p.x);
+        minY = Math.min(minY, p.y);
+        maxX = Math.max(maxX, p.x);
+        maxY = Math.max(maxY, p.y);
+      }
+      const padX = 8 / this.imgW;
+      const padY = 8 / this.imgH;
+      return {
+        x0: clamp(minX - padX, 0, 1),
+        y0: clamp(minY - padY, 0, 1),
+        x1: clamp(maxX + padX, 0, 1),
+        y1: clamp(maxY + padY, 0, 1),
+      };
+    }
+    return null;
+  }
+
+  private polylineToBaselines(points: { x: number; y: number }[]): TextBaseline[] {
+    const out: TextBaseline[] = [];
+    for (let i = 1; i < points.length; i += 1) {
+      const a = points[i - 1];
+      const b = points[i];
+      out.push({
+        id: generateId("tln"),
+        x0: a.x,
+        y0: a.y,
+        x1: b.x,
+        y1: b.y,
+        text: "",
+      });
+    }
+    return out;
+  }
+
+  private applyDrawingAsTextBox(d: Drawing, mode: "custom" | "auto"): void {
+    if (!this.data) return;
+    const layer = this.getPreferredTextLayer();
+    if (!layer) {
+      new Notice("Create a visible text layer first.", 2500);
+      return;
+    }
+    const rect = this.drawingToTextBoxRect(d);
+    if (!rect) {
+      new Notice("This drawing cannot be converted to a text box.", 2500);
+      return;
+    }
+
+    const box: TextBox = {
+      id: generateId("tbox"),
+      name: `${d.kind} text box`,
+      mode,
+      rect,
+      lines: [],
+      style: this.normalizeTextLayerStyle(layer.style),
+      autoFlow: true,
+      allowAngledBaselines: false,
+      locked: false,
+      sourceDrawingId: d.id,
+      sourceDrawingKind: d.kind,
+    };
+
+    if (d.kind === "polyline" && d.polyline) {
+      box.lines = this.polylineToBaselines(d.polyline);
+    } else if (mode === "auto") {
+      box.auto = this.defaultTextBoxAutoConfig();
+      box.lines = this.buildAutoTextBoxLines(rect, box.style!, box.auto);
+    }
+
+    layer.boxes ??= [];
+    layer.boxes.push(box);
+    void this.saveDataSoon();
+    this.renderTextLayers();
   }
 
 private onContextMenuViewport(e: MouseEvent): void {
@@ -6683,156 +6984,212 @@ private onContextMenuViewport(e: MouseEvent): void {
       },
     );
 	
-	// --- Text layers (top-level menu) ---
+// --- Text layers (top-level menu) ---
 if (this.plugin.settings.enableTextLayers && this.data) {
   this.ensureTextData();
 
-  const textLayerItems: ZMMenuItem[] = (this.data.textLayers ?? []).map((tl) => ({
-    label: tl.name || "(text layer)",
-    children: [
-      {
-        label: "Edit…",
-        action: () => {
-          if (tl.locked) {
-            new Notice("Text layer is locked.", 1500);
-            return;
-          }
-		  
-            // If move mode is active on this layer, leave it before editing style.
-            if (this.textMode === "move" && this.activeTextLayerId === tl.id) {
-              this.finishTextLayerMove(true);
-              this.textMode = null;
-              this.activeTextLayerId = null;
-            }
+  const stopTextInteractionForLayer = (layerId: string): void => {
+    if (this.textMode === "edit" && this.activeTextLayerId === layerId) {
+      this.stopTextEdit(false);
+    }
 
-          new TextLayerStyleModal(this.app, tl, (res) => {
-            if (res.action !== "save" || !this.data) return;
+    if (this.textMode === "move" && this.activeTextLayerId === layerId) {
+      this.finishTextBoxMove(false);
+      this.textMode = null;
+      this.activeTextLayerId = null;
+      this.activeTextBoxId = null;
+    }
 
-            if (res.applyStyleToAll) {
-              for (const l of this.data.textLayers ?? []) {
-                l.style = { ...tl.style };
-              }
-            }
+    if (
+      (this.textMode === "draw-lines" || this.textMode === "draw-box") &&
+      this.activeTextLayerId === layerId
+    ) {
+      this.textMode = null;
+      this.activeTextLayerId = null;
+      this.activeTextBoxId = null;
+      this.textLineStart = null;
+      this.textLinePreview = null;
+      this.renderTextDraft();
+    }
+  };
 
-            void this.saveDataSoon();
-            this.renderTextLayers();
-
-            if (this.textMode === "edit" && this.activeTextLayerId === tl.id) {
-              this.startTextEdit(tl.id);
-            }
-          }).open();
-
-          this.closeMenu();
-        },
-      },
-      {
-        label: "Lock",
-        checked: !!tl.locked,
-        action: (rowEl) => {
-          tl.locked = !tl.locked;
-          void this.saveDataSoon();
-
-          if (tl.locked && this.textMode === "edit" && this.activeTextLayerId === tl.id) {
-            this.stopTextEdit(true);
-          }
-
-          const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
-          if (chk) chk.textContent = tl.locked ? "✓" : "";
-        },
-      },
-      {
-        label: "Move",
-        checked: this.textMode === "move" && this.activeTextLayerId === tl.id,
-        action: (rowEl) => {
-          if (tl.locked) {
-            new Notice("Text layer is locked.", 1500);
-            return;
-          }
-
-          const isOn = this.textMode === "move" && this.activeTextLayerId === tl.id;
-          if (isOn) {
-            // turn off
-            this.finishTextLayerMove(true);
-            this.textMode = null;
-            this.activeTextLayerId = null;
-          } else {
-            this.stopTextEdit(true);
-            this.finishTextLayerMove(false);
-            this.textMode = "move";
-            this.activeTextLayerId = tl.id;
-            new Notice("Move mode: drag the box to move the text layer. Toggle move again to stop.", 4000);
-          }
-
-          this.renderTextDraft();
-          this.renderTextLayers();
-
-          const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
-          if (chk) chk.textContent = isOn ? "" : "✓";
-        },
-      },
-      { type: "separator" },
-      {
-        label: "Draw lines",
-        action: () => {
-          if (tl.locked) {
-            new Notice("Text layer is locked.", 1500);
-            return;
-          }
-          // leave move mode if active
-          this.finishTextLayerMove(true);
-          if (this.textMode === "move" && this.activeTextLayerId === tl.id) {
-            this.textMode = null;
-            this.activeTextLayerId = null;
-          }
-          this.stopTextEdit(true);
-          this.textMode = "draw-lines";
-          this.activeTextLayerId = tl.id;
-          this.textLineStart = null;
-          this.textLinePreview = null;
-          this.renderTextLayers();
-
-          new Notice(
-            "Draw baselines: click start + end. Hold ctrl for free angle (if enabled). Esc to exit.",
-            6000,
-          );
-
-          this.closeMenu();
-        },
-      },
-      { type: "separator" },
-      {
-        label: `Bind to base${tl.boundBase ? ` → ${labelForBase(tl.boundBase)}` : " → None"}`,
+  const textLayerItems: ZMMenuItem[] = (this.data.textLayers ?? []).map((tl) => {
+    const boxChildren: ZMMenuItem[] = (tl.boxes ?? []).map((box) => {
+      const boxLocked = this.isTextBoxLocked(box, tl);
+      return {
+        label: box.name || "(text box)",
         children: [
           {
-            label: "None",
-            checked: !tl.boundBase,
-            action: (rowEl) => {
-              tl.boundBase = undefined;
-              void this.saveDataSoon();
-              this.renderTextLayers();
-              const menu = rowEl.parentElement;
-              menu?.querySelectorAll<HTMLElement>(".zm-menu__check").forEach((c) => (c.textContent = ""));
-              rowEl.querySelector<HTMLElement>(".zm-menu__check")!.textContent = "✓";
+            label: "Edit box…",
+            action: () => {
+              this.closeMenu();
+              this.openTextBoxConfigModal(tl, box);
             },
           },
-          { type: "separator" },
-          ...bases.map<ZMMenuItem>((b) => ({
-            label: b.name ?? basename(b.path),
-            checked: tl.boundBase === b.path,
+          {
+            label: "Move",
+            checked:
+              this.textMode === "move" &&
+              this.activeTextLayerId === tl.id &&
+              this.activeTextBoxId === box.id,
             action: (rowEl) => {
-              tl.boundBase = b.path;
-              void this.applyBoundBaseVisibility();
+              if (boxLocked) {
+                new Notice("Text box is locked.", 1500);
+                return;
+              }
+
+              const isOn =
+                this.textMode === "move" &&
+                this.activeTextLayerId === tl.id &&
+                this.activeTextBoxId === box.id;
+
+              if (isOn) {
+                this.finishTextBoxMove(true);
+                this.textMode = null;
+                this.activeTextLayerId = null;
+                this.activeTextBoxId = null;
+              } else {
+                this.stopTextEdit(true);
+                this.finishTextBoxMove(false);
+                this.textMode = "move";
+                this.activeTextLayerId = tl.id;
+                this.activeTextBoxId = box.id;
+                new Notice("Move mode: drag the text box to move it. Toggle move again to stop.", 4000);
+              }
+
+              this.renderTextDraft();
+              this.renderTextLayers();
+              const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
+              if (chk) chk.textContent = isOn ? "" : "✓";
+            }
+          },
+          {
+            label: "Delete box",
+            action: () => {
+              tl.boxes = (tl.boxes ?? []).filter((b) => b.id !== box.id);
+              if (
+                this.textMode === "edit" &&
+                this.activeTextLayerId === tl.id &&
+                this.activeTextBoxId === box.id
+              ) {
+                this.stopTextEdit(false);
+              }
+              if (
+                this.textMode === "move" &&
+                this.activeTextLayerId === tl.id &&
+                this.activeTextBoxId === box.id
+              ) {
+                this.finishTextBoxMove(false);
+                this.textMode = null;
+                this.activeTextLayerId = null;
+                this.activeTextBoxId = null;
+              }
               void this.saveDataSoon();
               this.renderTextLayers();
-              const menu = rowEl.parentElement;
-              menu?.querySelectorAll<HTMLElement>(".zm-menu__check").forEach((c) => (c.textContent = ""));
-              rowEl.querySelector<HTMLElement>(".zm-menu__check")!.textContent = "✓";
+              this.closeMenu();
             },
-          })),
+          },
         ],
-      },
-    ],
-  }));
+      };
+    });
+
+    return {
+      label: tl.name || "(text layer)",
+      children: [
+        {
+          label: "State",
+          children: [
+            {
+              label: "Visible",
+              checked: this.isTextLayerVisible(tl),
+              action: (rowEl) => {
+                tl.visible = !this.isTextLayerVisible(tl);
+                if (!tl.visible) stopTextInteractionForLayer(tl.id);
+                void this.saveDataSoon();
+                this.renderTextLayers();
+
+                const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
+                if (chk) chk.textContent = tl.visible ? "✓" : "";
+              },
+            },
+            {
+              label: "Locked",
+              checked: !!tl.locked,
+              action: (rowEl) => {
+                tl.locked = !tl.locked;
+                if (tl.locked) stopTextInteractionForLayer(tl.id);
+                void this.saveDataSoon();
+                this.renderTextLayers();
+
+                const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
+                if (chk) chk.textContent = tl.locked ? "✓" : "";
+              },
+            },
+          ],
+        },
+        {
+          label: "Add text box",
+          children: [
+            {
+              label: "Custom",
+              action: () => {
+                this.startDrawNewTextBox(tl.id, "custom");
+                this.closeMenu();
+              },
+            },
+            {
+              label: "Auto",
+              action: () => {
+                this.startDrawNewTextBox(tl.id, "auto");
+                this.closeMenu();
+              },
+            },
+          ],
+        },
+        {
+          label: `Bind to base${tl.boundBase ? ` → ${labelForBase(tl.boundBase)}` : " → None"}`,
+          children: [
+            {
+              label: "None",
+              checked: !tl.boundBase,
+              action: (rowEl) => {
+                tl.boundBase = undefined;
+                void this.saveDataSoon();
+                this.renderTextLayers();
+
+                const menu = rowEl.parentElement;
+                menu?.querySelectorAll<HTMLElement>(".zm-menu__check").forEach((c) => {
+                  c.textContent = "";
+                });
+                const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
+                if (chk) chk.textContent = "✓";
+              },
+            },
+            { type: "separator" as const },
+            ...bases.map<ZMMenuItem>((b) => ({
+              label: b.name ?? basename(b.path),
+              checked: tl.boundBase === b.path,
+              action: (rowEl) => {
+                tl.boundBase = b.path;
+                void this.saveDataSoon();
+                this.renderTextLayers();
+
+                const menu = rowEl.parentElement;
+                menu?.querySelectorAll<HTMLElement>(".zm-menu__check").forEach((c) => {
+                  c.textContent = "";
+                });
+                const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
+                if (chk) chk.textContent = "✓";
+              },
+            })),
+          ],
+        },
+        ...(boxChildren.length
+          ? [{ type: "separator" } as ZMMenuItem, ...boxChildren]
+          : []),
+      ],
+    };
+  });
 
   const deleteChildren: ZMMenuItem[] =
     (this.data.textLayers ?? []).length > 0
@@ -6845,17 +7202,20 @@ if (this.plugin.settings.enableTextLayers && this.data) {
               `Delete text layer "${tl.name || tl.id}"? This cannot be undone.`,
               () => {
                 if (!this.data) return;
-
                 if (this.textMode === "edit" && this.activeTextLayerId === tl.id) {
                   this.stopTextEdit(false);
                 }
-
+                if (this.textMode === "move" && this.activeTextLayerId === tl.id) {
+                  this.finishTextBoxMove(false);
+                  this.textMode = null;
+                  this.activeTextLayerId = null;
+                  this.activeTextBoxId = null;
+                }
                 this.data.textLayers = (this.data.textLayers ?? []).filter((x) => x.id !== tl.id);
                 void this.saveDataSoon();
                 this.renderTextLayers();
               },
             ).open();
-
             this.closeMenu();
           },
         }))
@@ -6866,12 +7226,34 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     {
       label: "Text layers",
       children: [
-        ...textLayerItems,
+		...textLayerItems,
         { type: "separator" },
         {
           label: "Add text layer…",
           action: () => {
-            this.startDrawNewTextLayer();
+            if (!this.data) return;
+
+            const idx = (this.data.textLayers?.length ?? 0) + 1;
+            const defaultName = `Text layer ${idx}`;
+
+            new NamePromptModal(
+              this.app,
+              "Name for text layer",
+              defaultName,
+              (value) => {
+                if (!this.data) return;
+                const name = (value || defaultName).trim() || defaultName;
+                this.data.textLayers ??= [];
+                this.data.textLayers.push({
+                  id: generateId("txt"),
+                  name,
+                  visible: true,
+                  boxes: [],
+                });
+                void this.saveDataSoon();
+                this.renderTextLayers();
+              },
+            ).open();
             this.closeMenu();
           },
         },
@@ -7074,6 +7456,59 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       doc.removeEventListener("keydown", keyClose, true);
     });
   }
+  
+  private forwardContextMenuPastTextHitbox(ev: MouseEvent): void {
+    const doc = this.el.ownerDocument;
+    const stack = typeof doc.elementsFromPoint === "function"
+      ? doc.elementsFromPoint(ev.clientX, ev.clientY)
+      : [];
+
+    for (const el of stack) {
+      // Ignore text hitboxes themselves
+      if (el.closest(".zm-text-hitbox")) continue;
+
+      // Drawings first
+      const drawEl = el.closest(".zm-draw__shape");
+      if (drawEl instanceof SVGElement) {
+        const id = drawEl.dataset.id ?? drawEl.getAttribute("data-id") ?? "";
+        if (id) {
+          const drawing = this.getDrawingById(id);
+          if (drawing) {
+            this.onDrawingContextMenu(ev, drawing);
+            return;
+          }
+        }
+      }
+
+      // Then markers
+      const markerEl = el.closest(".zm-marker");
+      if (markerEl instanceof HTMLElement) {
+        markerEl.dispatchEvent(
+          new MouseEvent("contextmenu", {
+            bubbles: true,
+            cancelable: true,
+            clientX: ev.clientX,
+            clientY: ev.clientY,
+            button: 2,
+            buttons: 2,
+            ctrlKey: ev.ctrlKey,
+            shiftKey: ev.shiftKey,
+            altKey: ev.altKey,
+            metaKey: ev.metaKey,
+          }),
+        );
+        return;
+      }
+
+      // Otherwise, if it's still inside the viewport, open the normal map menu
+      if (el === this.viewportEl || (el instanceof Node && this.viewportEl.contains(el))) {
+        this.onContextMenuViewport(ev);
+        return;
+      }
+    }
+
+    this.onContextMenuViewport(ev);
+  }
 
   private closeMenu(): void {
     if (this.openMenu) {
@@ -7202,6 +7637,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     }
 
     // Desktop-only adapter API
+    //// @ts-expect-error writeBinary exists on desktop adapters
     await this.app.vault.adapter.writeBinary(finalPath, await blob.arrayBuffer());
 
     return finalPath;
@@ -9215,6 +9651,9 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 
   private onDrawingContextMenu(ev: MouseEvent, d: Drawing): void {
     this.closeMenu();
+
+    const canApplyTextBox =
+      d.kind === "rect" || d.kind === "polyline";
 	
     const canEditGeometry =
       d.kind === "polygon" || d.kind === "polyline" ||
@@ -9226,7 +9665,11 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       action: () => {
         this.closeMenu();
         if (!this.data) return;
-        const modal = new DrawingEditorModal(this.app, d, (res) => {
+        const modal = new DrawingEditorModal(
+          this.app,
+          d,
+          this.data.drawLayers ?? [],
+          (res) => {
           this.stopEditDrawingGeometry(true);
           if (!this.data) return;
           if (res.action === "save" && res.drawing) {
@@ -9235,6 +9678,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
               (x) => x.id === d.id,
             );
             if (idx >= 0 && this.data.drawings) {
+              this.data.drawings[idx].layerId = updated.layerId;
               this.data.drawings[idx].style = updated.style;
               this.data.drawings[idx].visible = updated.visible;
               this.data.drawings[idx].rect = updated.rect;
@@ -9251,7 +9695,8 @@ if (this.plugin.settings.enableTextLayers && this.data) {
           } else if (res.action === "delete") {
             void this.deleteDrawing(d);
           }
-        });
+        },
+        );
         modal.open();
       },
     },
@@ -9273,6 +9718,29 @@ if (this.plugin.settings.enableTextLayers && this.data) {
                 this.startEditDrawingGeometry(d);
               }
             },
+          } as ZMMenuItem,
+        ]
+      : []),
+    ...(this.plugin.settings.enableTextLayers && canApplyTextBox
+      ? [
+          {
+            label: "Apply text box",
+            children: [
+              {
+                label: "Custom",
+                action: () => {
+                  this.closeMenu();
+                  this.applyDrawingAsTextBox(d, "custom");
+                },
+              },
+              {
+                label: "Auto",
+                action: () => {
+                  this.closeMenu();
+                  this.applyDrawingAsTextBox(d, "auto");
+                },
+              },
+            ],
           } as ZMMenuItem,
         ]
       : []),
@@ -9381,7 +9849,11 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         this.drawDraftLayer.innerHTML = "";
       }
 
-      const modal = new DrawingEditorModal(this.app, draft, (res) => {
+      const modal = new DrawingEditorModal(
+        this.app,
+        draft,
+        this.data.drawLayers ?? [],
+        (res) => {
         if (!this.data) return;
         if (res.action === "save" && res.drawing) {
           this.data.drawings ??= [];
@@ -9389,7 +9861,8 @@ if (this.plugin.settings.enableTextLayers && this.data) {
           void this.saveDataSoon();
           this.renderDrawings();
         }
-      });
+      },
+      );
       modal.open();
 
       return true;
@@ -9427,7 +9900,11 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         this.drawDraftLayer.innerHTML = "";
       }
 
-      const modal = new DrawingEditorModal(this.app, draft, (res) => {
+      const modal = new DrawingEditorModal(
+        this.app,
+        draft,
+        this.data.drawLayers ?? [],
+        (res) => {
         if (!this.data) return;
         if (res.action === "save" && res.drawing) {
           this.data.drawings ??= [];
@@ -9435,7 +9912,8 @@ if (this.plugin.settings.enableTextLayers && this.data) {
           void this.saveDataSoon();
           this.renderDrawings();
         }
-      });
+      },
+      );
       modal.open();
 
       return true;
@@ -9488,7 +9966,11 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       this.drawDraftLayer.innerHTML = "";
     }
 
-    const modal = new DrawingEditorModal(this.app, draft, (res) => {
+      const modal = new DrawingEditorModal(
+        this.app,
+        draft,
+        this.data.drawLayers ?? [],
+        (res) => {
       if (!this.data) return;
       if (res.action === "save" && res.drawing) {
         this.data.drawings ??= [];
@@ -9496,7 +9978,8 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         void this.saveDataSoon();
         this.renderDrawings();
       }
-    });
+      },
+      );
     modal.open();
   }
   
@@ -9534,7 +10017,11 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       this.drawDraftLayer.innerHTML = "";
     }
 
-    const modal = new DrawingEditorModal(this.app, draft, (res) => {
+      const modal = new DrawingEditorModal(
+        this.app,
+        draft,
+        this.data.drawLayers ?? [],
+        (res) => {
       if (!this.data) return;
       if (res.action === "save" && res.drawing) {
         this.data.drawings ??= [];
@@ -9542,7 +10029,8 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         void this.saveDataSoon();
         this.renderDrawings();
       }
-    });
+      },
+      );
     modal.open();
   }
   
@@ -9684,7 +10172,11 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       },
     };
 
-    new DrawingEditorModal(this.app, draft, (res) => {
+    new DrawingEditorModal(
+      this.app,
+      draft,
+      this.data.drawLayers ?? [],
+      (res) => {
       if (!this.data) return;
       if (res.action === "save" && res.drawing) {
         this.data.drawings ??= [];
@@ -9693,7 +10185,8 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         this.renderDrawings();
         new Notice("Saved as polyline.", 1200);
       }
-    }).open();
+    },
+    ).open();
   }
   
   private renderAll(): void {
