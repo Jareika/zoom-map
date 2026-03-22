@@ -63,7 +63,7 @@ export class PreferencesModal extends Modal {
           this.plugin.settings.keepOverlaysLoaded = value;
           await this.plugin.saveSettings();
         });
-        keepOverlayToggle = toggle.toggleEl;
+        keepOverlayToggle = toggle.toggleEl as HTMLInputElement;
       });
 
     new Setting(contentEl)
@@ -74,7 +74,7 @@ export class PreferencesModal extends Modal {
           this.plugin.settings.preferCanvasImagesWhenCaching = value;
           await this.plugin.saveSettings();
         });
-        hybridToggle = toggle.toggleEl;
+        hybridToggle = toggle.toggleEl as HTMLInputElement;
       });
 
     // Other preferences

@@ -250,7 +250,7 @@ export type DistanceUnit =
   | "custom";
 
 export interface MeasurementConfig {
-  displayUnit: DistanceUnit;
+  displayUnit?: DistanceUnit;
   metersPerPixel?: number;
   scales?: Record<string, number>;
   customUnitId?: string;
@@ -358,13 +358,14 @@ export class MarkerStore {
       overlays: [],
       activeBase: initialImagePath ?? "",
       measurement: {
+        //displayUnit:
         metersPerPixel: undefined,
         scales: {},
         customUnitId: undefined,
-		customUnitPxPerUnit: {},
+        customUnitPxPerUnit: {},
         travelTimePresetIds: [],
         travelDaysEnabled: false,
-		travelDayPresetId: undefined,
+		    travelDayPresetId: undefined,
       },
       frame: undefined,
       pinSizeOverrides: {},
@@ -372,7 +373,7 @@ export class MarkerStore {
       drawLayers: [],
       drawings: [],
       secondScreen: {},
-	  textLayers: [],
+	    textLayers: [],
     };
 
     await this.create(this.serialize(data));

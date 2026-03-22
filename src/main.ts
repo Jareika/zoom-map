@@ -11,7 +11,7 @@ import {
   requestUrl,
   MarkdownView,
 } from "obsidian";
-import type { App, MarkdownPostProcessorContext } from "obsidian";
+import type { App, MarkdownPostProcessorContext, MarkdownRenderChild } from "obsidian";
 import { MapInstance } from "./map";
 import type {
   ZoomMapConfig,
@@ -102,7 +102,7 @@ const DEFAULT_SETTINGS: ZoomMapSettingsExtended = {
       size: 24,
       anchorX: 12,
       anchorY: 12,
-	  inCollections: true,
+	    inCollections: true,
     },
     {
       key: "pinBlue",
@@ -110,7 +110,7 @@ const DEFAULT_SETTINGS: ZoomMapSettingsExtended = {
       size: 24,
       anchorX: 12,
       anchorY: 12,
-	  inCollections: true,
+	    inCollections: true,
     },
   ],
   defaultIconKey: "pinRed",
@@ -728,7 +728,7 @@ export default class ZoomMapPlugin extends Plugin {
     const packs = packsRaw.filter((p): p is TravelRulesPack => {
       if (!p || typeof p !== "object") return false;
       if (Array.isArray(p)) return false;
-      const r = p as Record<string, unknown>;
+      const r = p as unknown as Record<string, unknown>;
       return typeof r.id === "string";
     });
     return packs.filter((p) => p.enabled === true);
@@ -827,7 +827,7 @@ export default class ZoomMapPlugin extends Plugin {
       // Only create the default pack if we have legacy content OR we want a default container.
       const shouldCreate = legacyUnits.length > 0 || legacyPresets.length > 0 || !!legacyPerDay;
       if (shouldCreate) {
-        const pack: TravelRulesPack = {
+          const pack: TravelRulesPack = {
           id: `trp-${Math.random().toString(36).slice(2, 8)}`,
           name: "Default travel rules",
           enabled: true,
@@ -982,7 +982,7 @@ export default class ZoomMapPlugin extends Plugin {
         method: "GET",
       });
 
-      // @ts-expect-error writeBinary is available on desktop adapters
+      //// @ts-expect-error writeBinary is available on desktop adapters
       await this.app.vault.adapter.writeBinary(zipPath, res.arrayBuffer);
 
       new Notice(
@@ -1012,7 +1012,7 @@ export default class ZoomMapPlugin extends Plugin {
         method: "GET",
       });
 
-      // @ts-expect-error writeBinary is available on desktop adapters
+      //// @ts-expect-error writeBinary is available on desktop adapters
       await this.app.vault.adapter.writeBinary(zipPath, res.arrayBuffer);
 
       new Notice(
@@ -1043,7 +1043,7 @@ export default class ZoomMapPlugin extends Plugin {
     return count;
   }
   
-  private buildYamlFromViewConfig(cfg: ViewEditorConfig): string {
+  buildYamlFromViewConfig(cfg: ViewEditorConfig): string {
     const obj: Record<string, unknown> = {};
 
     const bases = (cfg.imageBases ?? []).filter(

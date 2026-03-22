@@ -1,4 +1,4 @@
-import { Component, Modal, Notice, TFile, parseYaml, stringifyYaml, normalizePath } from "obsidian";
+import { Component, Modal, Notice, TFile, parseYaml, stringifyYaml, normalizePath, MarkdownRenderChild } from "obsidian";
 import type { App } from "obsidian";
 import { generateId, MarkerStore, sanitizeMarkerFileDataForSave } from "./markerStore";
 import type {
@@ -176,6 +176,7 @@ export interface IconProfile {
   anchorY: number;
   defaultLink?: string;
   rotationDeg?: number;
+  inCollections?: boolean;
 }
 
 export interface CustomUnitDef {
@@ -218,7 +219,7 @@ export interface TravelRulesPack {
   name: string;
   enabled?: boolean;
   customUnits: CustomUnitDef[];
-  terrains: TerrainDef[];
+  terrains?: TerrainDef[];
   travelTimePresets: TravelTimePreset[];
   travelPerDayPresets?: TravelPerDayPreset[];
   /** Legacy (deprecated): single max travel time */
@@ -231,6 +232,7 @@ export interface ZoomMapSettings {
   wheelZoomFactor: number;
   panMouseButton: "left" | "middle" | "right";
   hoverMaxWidth: number;
+  applyHoverPopoverSizeGlobally: boolean,
   hoverMaxHeight: number;
   presets?: MarkerPreset[];
   stickerPresets?: StickerPreset[];
@@ -463,7 +465,7 @@ interface ScreenDisplayPluginApi {
   sendNoteByPath(path: string): Promise<void>;
 }
 
-export class MapInstance extends Component {
+export class MapInstance extends MarkdownRenderChild {
   private app: App;
   private plugin: ZoomMapPlugin;
   private el: HTMLElement;
@@ -1720,7 +1722,7 @@ export class MapInstance extends Component {
   }
   
   constructor(app: App, plugin: ZoomMapPlugin, el: HTMLElement, cfg: ZoomMapConfig) {
-    super();
+    super(el);
     this.app = app;
     this.plugin = plugin;
     this.el = el;
@@ -1895,7 +1897,7 @@ export class MapInstance extends Component {
     const out: HTMLElement[] = [];
     let cur: HTMLElement | null = this.el;
     while (cur) {
-      const callout = cur.closest?.(".callout");
+      const callout: HTMLElement | null = cur.closest?.(".callout") as HTMLElement | null;
       if (callout && callout instanceof HTMLElement) {
         if (!out.includes(callout)) out.push(callout);
         cur = callout.parentElement;
@@ -1943,21 +1945,21 @@ export class MapInstance extends Component {
   private async bootstrap(): Promise<void> {
     this.el.classList.add("zm-root");
     this.el.classList.toggle("zm-root--framepad", this.hasViewportFrame());
-	this.applyGlobalHoverPopoverStyleVars();
+	  this.applyGlobalHoverPopoverStyleVars();
     if (this.isCanvas()) this.el.classList.add("zm-root--canvas-mode");
     if (this.cfg.responsive) this.el.classList.add("zm-root--responsive");
 
-	if (this.cfg.responsive) {
-	  setCssProps(this.el, {
-		width: "100%",
-		height: "auto",
-	  });
-	} else {
-	  setCssProps(this.el, {
-		width: this.cfg.width ?? null,
-		height: this.cfg.height ?? null,
-	  });
-	}
+    if (this.cfg.responsive) {
+      setCssProps(this.el, {
+      width: "100%",
+      height: "auto",
+      });
+    } else {
+      setCssProps(this.el, {
+      width: this.cfg.width ?? null,
+      height: this.cfg.height ?? null,
+      });
+    }
 
     if (!this.cfg.responsive && this.cfg.resizable) {
       if (this.cfg.resizeHandle === "native") {
@@ -2025,7 +2027,7 @@ export class MapInstance extends Component {
 
     this.hudMarkersEl = this.hudClipEl.createDiv({ cls: "zm-hud-markers" });
     this.measureHud = this.hudClipEl.createDiv({ cls: "zm-measure-hud" });
-	this.drawEditHudEl = this.hudClipEl.createDiv({ cls: "zm-draw-edit" });
+	  this.drawEditHudEl = this.hudClipEl.createDiv({ cls: "zm-draw-edit" });
     this.zoomHud = this.hudClipEl.createDiv({ cls: "zm-zoom-hud" });
 
     this.registerDomEvent(this.viewportEl, "wheel", (e: WheelEvent) => {
@@ -2181,10 +2183,10 @@ export class MapInstance extends Component {
 
 
     await this.store.ensureExists(
-    this.cfg.imagePath,
-    { w: this.imgW, h: this.imgH },
-    this.cfg.yamlMarkerLayers,
-  );
+      this.cfg.imagePath,
+      { w: this.imgW, h: this.imgH },
+      this.cfg.yamlMarkerLayers,
+    );
     this.data = await this.store.load();
 
     await this.applyYamlOnFirstLoad();
@@ -2194,6 +2196,7 @@ export class MapInstance extends Component {
       const base = this.getActiveBasePath();
       if (this.data?.measurement) {
         this.data.measurement.metersPerPixel = this.cfg.yamlMetersPerPixel;
+      if (this.data?.measurement?.scales) {
         this.data.measurement.scales[base] = this.cfg.yamlMetersPerPixel;
         if (await this.store.wouldChange(this.data)) {
           this.ignoreNextModify = true;
@@ -2233,14 +2236,15 @@ export class MapInstance extends Component {
     await this.applyActiveBaseAndOverlays();
     this.setupMeasureOverlay();
     this.setupDrawOverlay();
-	this.setupTextOverlay();
+	  this.setupTextOverlay();
 
     this.applyMeasureStyle();
 
     this.renderAll();
     this.ready = true;
+    }
   }
-
+  
   private updateResponsiveAspectRatio(): void {
     if (!this.imgW || !this.imgH) return;
     this.el.style.aspectRatio = `${this.imgW} / ${this.imgH}`;
@@ -5036,7 +5040,7 @@ export class MapInstance extends Component {
     this.plugin.setActiveMap(this);
 
     this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (e.target instanceof Element && e.target.setPointerCapture) (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    if (e.target instanceof Element && e.target.setPointerCapture(e.pointerId)) (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
     const tgt = e.target;
     if (tgt instanceof Element && tgt.closest(".zm-marker")) return;
@@ -6817,7 +6821,7 @@ private onContextMenuViewport(e: MouseEvent): void {
               if (chk) chk.textContent = "✓";
             },
           }))
-        : [{ label: "(No max travel time presets configured)", action: () => new Notice("Configure max travel time presets in settings → travel rules.", 3500) }],
+        : [{ label: "(No max travel time presets configured)", action: () => { new Notice("Configure max travel time presets in settings → travel rules.", 3500)} }],
     });
 	
     travelTimeItems.push({ type: "separator" });
@@ -6846,7 +6850,9 @@ private onContextMenuViewport(e: MouseEvent): void {
     } else {
       travelTimeItems.push({
         label: "(No travel presets configured)",
-        action: () => new Notice("Configure presets in settings → travel rules.", 3000),
+        action: (rowEl: HTMLDivElement) => {
+          new Notice("Configure presets in settings → travel rules.", 3000);
+        }
       });
     }
 
@@ -7628,7 +7634,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     }
 
     // Desktop-only adapter API
-    // @ts-expect-error writeBinary exists on desktop adapters
+    //// @ts-expect-error writeBinary exists on desktop adapters
     await this.app.vault.adapter.writeBinary(finalPath, await blob.arrayBuffer());
 
     return finalPath;
@@ -8463,7 +8469,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 
   private schedulePingUpdate(delayMs = 900): void {
     if (!this.data) return;
-    if (!this.data.markers?.some((m) => m.type === "ping")) return;
+    if (!this.data.markers?.some((m) => m.type === "pin")) return;
 
     if (this.pingUpdateTimer !== null) window.clearTimeout(this.pingUpdateTimer);
     this.pingUpdateTimer = window.setTimeout(() => {
@@ -8474,7 +8480,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 
   private async updateAllPingNotes(): Promise<void> {
     if (!this.data) return;
-    const pings = this.data.markers.filter((m) => m.type === "ping");
+    const pings = this.data.markers.filter((m) => m.type === "pin");
     for (const p of pings) {
       try { await this.updatePingNoteForMarker(p); }
       catch (e) { console.warn("Ping update failed", e); }
@@ -8606,7 +8612,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 
     const marker: Marker = {
       id: generateId("ping"),
-      type: "ping",
+      type: "pin",
       x: nx,
       y: ny,
       layer: layerId,
@@ -8691,7 +8697,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 
   private async updatePingNoteForMarker(ping: Marker): Promise<void> {
     if (!this.data) return;
-    if (ping.type !== "ping") return;
+    if (ping.type !== "pin") return;
 
     const notePath = ping.pingNotePath ?? "";
     const af = this.app.vault.getAbstractFileByPath(notePath);
@@ -8718,7 +8724,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     for (const m of this.data.markers) {
       if (m.id === ping.id) continue;
       if (m.anchorSpace === "viewport") continue;
-      if (m.type === "ping") continue;
+      if (m.type === "pin") continue;
 	  if (allowedLayerIds && !allowedLayerIds.has(m.layer)) continue;
 
       const dx = (m.x - ping.x) * this.imgW;
@@ -8954,7 +8960,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
   }
 
   private async deletePingNoteIfOwned(m: Marker): Promise<void> {
-    if (m.type !== "ping") return;
+    if (m.type !== "pin") return;
     const p = (m.pingNotePath ?? "").trim();
     if (!p) return;
 
@@ -8966,7 +8972,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     if (owner !== m.id) return;
 
     try {
-      await this.app.fileManager.trashFile(af, true);
+      await this.app.fileManager.trashFile(af);
     } catch (e) {
       console.warn("Failed to trash ping note", e);
     }
@@ -9627,7 +9633,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     const af = this.app.vault.getAbstractFileByPath(d.bakedPath);
     if (af instanceof TFile) {
         try {
-          await this.app.fileManager.trashFile(af, true);
+          await this.app.fileManager.trashFile(af);
         } catch (err) {
           console.error("Zoom Map: failed to delete baked SVG", d.bakedPath, err);
         }
@@ -10702,7 +10708,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
           return;
         }
 		
-        if (m.type === "ping") {
+        if (m.type === "pin") {
           const items: ZMMenuItem[] = [
             {
               label: "Open party note",
@@ -11613,8 +11619,9 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     const base = this.getActiveBasePath();
     if (!this.data.measurement) return;
     this.data.measurement.metersPerPixel = metersPerPixel;
-    this.data.measurement.scales[base] = metersPerPixel;
-
+    if (this.data?.measurement?.scales) {
+      this.data.measurement.scales[base] = metersPerPixel;
+    }
     if (await this.store.wouldChange(this.data)) {
       this.ignoreNextModify = true;
       await this.store.save(this.data);

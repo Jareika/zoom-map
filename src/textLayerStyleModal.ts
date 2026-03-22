@@ -94,7 +94,7 @@ export class TextLayerStyleModal extends Modal {
 	
 	if (typeof this.working.autoFlow !== "boolean") this.working.autoFlow = true;
 
-    this.working.style = this.normalizeStyle(this.working.style);
+    if (this.working.style) this.working.style = this.normalizeStyle(this.working.style);
   }
 
   onOpen(): void {
@@ -122,8 +122,8 @@ export class TextLayerStyleModal extends Modal {
     const knownValues = new Set(fontOptions.map((o) => o.value));
     const CUSTOM = "__custom__";
 
-    const currentFamily = this.working.style.fontFamily;
-    const initialSelect = knownValues.has(currentFamily) ? currentFamily : CUSTOM;
+    const currentFamily = this.working.style?.fontFamily;
+    const initialSelect = knownValues.has(currentFamily as string) ? currentFamily : CUSTOM;
 
     let customSetting: Setting | null = null;
     let customInputEl: HTMLInputElement | null = null;
@@ -132,7 +132,7 @@ export class TextLayerStyleModal extends Modal {
       for (const opt of fontOptions) dd.addOption(opt.value, opt.label);
       dd.addOption(CUSTOM, "Custom…");
 
-      dd.setValue(initialSelect);
+      dd.setValue(initialSelect as string);
 
       dd.onChange((v) => {
         if (v === CUSTOM) {
@@ -140,7 +140,7 @@ export class TextLayerStyleModal extends Modal {
           return;
         }
 
-        this.working.style.fontFamily = v;
+        if (this.working.style) this.working.style.fontFamily = v;
         if (customInputEl) customInputEl.value = v;
         customSetting?.settingEl.toggle(false);
       });
@@ -152,10 +152,10 @@ export class TextLayerStyleModal extends Modal {
 
     customSetting.addText((t) => {
       t.setPlaceholder("Caveat, var(--font-text)");
-      t.setValue(currentFamily);
+      t.setValue(currentFamily as string);
       customInputEl = t.inputEl;
       t.onChange((v) => {
-        this.working.style.fontFamily = v.trim() || "var(--font-text)";
+        if (this.working.style) this.working.style.fontFamily = v.trim() || "var(--font-text)";
       });
     });
 
@@ -163,10 +163,10 @@ export class TextLayerStyleModal extends Modal {
 
     new Setting(contentEl).setName("Font size (px)").addText((t) => {
       t.inputEl.type = "number";
-      t.setValue(String(this.working.style.fontSize));
+      if (this.working.style) t.setValue(String(this.working.style.fontSize));
       t.onChange((v) => {
         const n = Number(v);
-        if (Number.isFinite(n) && n > 1) this.working.style.fontSize = n;
+        if (Number.isFinite(n) && n > 1) if (this.working.style) this.working.style.fontSize = n;
       });
     });
 
@@ -179,38 +179,38 @@ export class TextLayerStyleModal extends Modal {
 
     colorRow.addText((t) => {
       t.setPlaceholder("#000000");
-      t.setValue(this.working.style.color);
+      if (this.working.style) t.setValue(this.working.style.color);
       colorTextEl = t.inputEl;
 
       t.onChange((v) => {
-        this.working.style.color = v.trim() || "var(--text-normal)";
-        const hex = normalizeHex(this.working.style.color);
+        if (this.working.style) this.working.style.color = v.trim() || "var(--text-normal)";
+        const hex = normalizeHex(this.working.style?.color as string);
         if (/^#([0-9a-f]{6})$/i.test(hex)) picker.value = hex;
       });
     });
 
     {
-      const hex = normalizeHex(this.working.style.color);
+      const hex = normalizeHex(this.working.style?.color as string);
       if (/^#([0-9a-f]{6})$/i.test(hex)) picker.value = hex;
     }
 
     picker.oninput = () => {
-      this.working.style.color = picker.value;
+      if (this.working.style) this.working.style.color = picker.value;
       colorTextEl.value = picker.value;
     };
 
     new Setting(contentEl).setName("Font weight").addText((t) => {
       t.setPlaceholder("400");
-      t.setValue(this.working.style.fontWeight ?? "");
+      t.setValue(this.working.style?.fontWeight ?? "");
       t.onChange((v) => {
         const s = v.trim();
-        this.working.style.fontWeight = s || undefined;
+        if (this.working.style) this.working.style.fontWeight = s || undefined;
       });
     });
 
     new Setting(contentEl).setName("Italic").addToggle((tg) => {
-      tg.setValue(!!this.working.style.italic).onChange((on) => {
-        this.working.style.italic = on ? true : undefined;
+      tg.setValue(!!this.working.style?.italic).onChange((on) => {
+        if (this.working.style) this.working.style.italic = on ? true : undefined;
       });
     });
 
@@ -218,18 +218,18 @@ export class TextLayerStyleModal extends Modal {
       t.inputEl.type = "number";
       t.setPlaceholder("0");
       t.setValue(
-        typeof this.working.style.letterSpacing === "number"
+        typeof this.working.style?.letterSpacing === "number"
           ? String(this.working.style.letterSpacing)
           : "",
       );
       t.onChange((v) => {
         const s = v.trim();
         if (!s) {
-          this.working.style.letterSpacing = undefined;
+          if (this.working.style) this.working.style.letterSpacing = undefined;
           return;
         }
         const n = Number(s);
-        if (Number.isFinite(n)) this.working.style.letterSpacing = n;
+        if (Number.isFinite(n)) if (this.working.style) this.working.style.letterSpacing = n;
       });
     });
 
@@ -249,37 +249,37 @@ export class TextLayerStyleModal extends Modal {
       .setDesc("Height of each input line box. Leave empty to auto-calc from font size.")
       .addText((t) => {
         t.inputEl.type = "number";
-        const v = this.working.style.lineHeight;
+        const v = this.working.style?.lineHeight;
         t.setPlaceholder("Auto");
         t.setValue(typeof v === "number" ? String(v) : "");
         t.onChange((raw) => {
           const s = raw.trim();
           if (!s) {
-            this.working.style.lineHeight = undefined;
+            if (this.working.style) this.working.style.lineHeight = undefined;
             return;
           }
           const n = Number(s);
-          if (Number.isFinite(n) && n > 1) this.working.style.lineHeight = n;
+          if (Number.isFinite(n) && n > 1) if (this.working.style) this.working.style.lineHeight = n;
         });
       });
 
     new Setting(contentEl).setName("Padding left (px)").addText((t) => {
       t.inputEl.type = "number";
       t.setPlaceholder("0");
-      t.setValue(String(this.working.style.padLeft ?? 0));
+      t.setValue(String(this.working.style?.padLeft ?? 0));
       t.onChange((v) => {
         const n = Number(v);
-        if (Number.isFinite(n) && n >= 0) this.working.style.padLeft = n;
+        if (Number.isFinite(n) && n >= 0) if (this.working.style) this.working.style.padLeft = n;
       });
     });
 
     new Setting(contentEl).setName("Padding right (px)").addText((t) => {
       t.inputEl.type = "number";
       t.setPlaceholder("0");
-      t.setValue(String(this.working.style.padRight ?? 0));
+      t.setValue(String(this.working.style?.padRight ?? 0));
       t.onChange((v) => {
         const n = Number(v);
-        if (Number.isFinite(n) && n >= 0) this.working.style.padRight = n;
+        if (Number.isFinite(n) && n >= 0) if (this.working.style) this.working.style.padRight = n;
       });
     });
 
@@ -297,7 +297,7 @@ export class TextLayerStyleModal extends Modal {
     const cancel = footer.createEl("button", { text: "Cancel" });
 
     save.onclick = () => {
-      this.working.style = this.normalizeStyle(this.working.style);
+      if (this.working.style) this.working.style = this.normalizeStyle(this.working.style);
 
       this.original.name = this.working.name;
       this.original.allowAngledBaselines = !!this.working.allowAngledBaselines;

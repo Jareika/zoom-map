@@ -83,7 +83,7 @@ async function writeJsonToVault(app: App, path: string, payload: unknown): Promi
   }
 
   const json = JSON.stringify(payload, null, 2);
-  // @ts-expect-error write exists on adapters
+  //// @ts-expect-error write exists on adapters
   await app.vault.adapter.write(p, json);
   return p;
 }

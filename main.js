@@ -74,6 +74,7 @@ var MarkerStore = class {
       overlays: [],
       activeBase: initialImagePath != null ? initialImagePath : "",
       measurement: {
+        //displayUnit:
         metersPerPixel: void 0,
         scales: {},
         customUnitId: void 0,
@@ -4228,10 +4229,10 @@ function getMaxZoom(m) {
 function isScaleLikeSticker(m) {
   return !!m.scaleLikeSticker;
 }
-var MapInstance = class extends import_obsidian19.Component {
+var MapInstance = class extends import_obsidian19.MarkdownRenderChild {
   constructor(app, plugin, el, cfg) {
     var _a, _b;
-    super();
+    super(el);
     this.drawEditDrawingId = null;
     this.drawEditMode = null;
     this.drawEditPointIndex = null;
@@ -5461,7 +5462,7 @@ ${(0, import_obsidian19.stringifyYaml)(yaml).trimEnd()}
     window.requestAnimationFrame(() => tryApply());
   }
   async bootstrap() {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
     this.el.classList.add("zm-root");
     this.el.classList.toggle("zm-root--framepad", this.hasViewportFrame());
     this.applyGlobalHoverPopoverStyleVars();
@@ -5676,46 +5677,48 @@ ${(0, import_obsidian19.stringifyYaml)(yaml).trimEnd()}
       const base = this.getActiveBasePath();
       if ((_e = this.data) == null ? void 0 : _e.measurement) {
         this.data.measurement.metersPerPixel = this.cfg.yamlMetersPerPixel;
-        this.data.measurement.scales[base] = this.cfg.yamlMetersPerPixel;
-        if (await this.store.wouldChange(this.data)) {
-          this.ignoreNextModify = true;
-          await this.store.save(this.data);
+        if ((_g = (_f = this.data) == null ? void 0 : _f.measurement) == null ? void 0 : _g.scales) {
+          this.data.measurement.scales[base] = this.cfg.yamlMetersPerPixel;
+          if (await this.store.wouldChange(this.data)) {
+            this.ignoreNextModify = true;
+            await this.store.save(this.data);
+          }
         }
       }
-    }
-    if (this.data) {
-      if (!((_f = this.data.size) == null ? void 0 : _f.w) || !((_g = this.data.size) == null ? void 0 : _g.h)) {
-        this.data.size = { w: this.imgW, h: this.imgH };
-        if (await this.store.wouldChange(this.data)) {
-          this.ignoreNextModify = true;
-          await this.store.save(this.data);
+      if (this.data) {
+        if (!((_h = this.data.size) == null ? void 0 : _h.w) || !((_i = this.data.size) == null ? void 0 : _i.h)) {
+          this.data.size = { w: this.imgW, h: this.imgH };
+          if (await this.store.wouldChange(this.data)) {
+            this.ignoreNextModify = true;
+            await this.store.save(this.data);
+          }
+        }
+        if (this.shouldUseSavedFrame() && this.data.frame && this.data.frame.w > 0 && this.data.frame.h > 0) {
+          setCssProps(this.el, { width: `${this.data.frame.w}px`, height: `${this.data.frame.h}px` });
         }
       }
-      if (this.shouldUseSavedFrame() && this.data.frame && this.data.frame.w > 0 && this.data.frame.h > 0) {
-        setCssProps(this.el, { width: `${this.data.frame.w}px`, height: `${this.data.frame.h}px` });
+      this.ro = new ResizeObserver(() => this.onResize());
+      this.ro.observe(this.el);
+      this.register(() => {
+        var _a2;
+        return (_a2 = this.ro) == null ? void 0 : _a2.disconnect();
+      });
+      if (this.cfg.responsive) {
+        this.fitToView();
+      } else if (this.cfg.initialZoom && this.cfg.initialCenter) {
+        this.applyInitialView(this.cfg.initialZoom, this.cfg.initialCenter);
+      } else {
+        this.fitToView();
       }
+      this.scheduleTryApplyInitialViewFromCallout();
+      await this.applyActiveBaseAndOverlays();
+      this.setupMeasureOverlay();
+      this.setupDrawOverlay();
+      this.setupTextOverlay();
+      this.applyMeasureStyle();
+      this.renderAll();
+      this.ready = true;
     }
-    this.ro = new ResizeObserver(() => this.onResize());
-    this.ro.observe(this.el);
-    this.register(() => {
-      var _a2;
-      return (_a2 = this.ro) == null ? void 0 : _a2.disconnect();
-    });
-    if (this.cfg.responsive) {
-      this.fitToView();
-    } else if (this.cfg.initialZoom && this.cfg.initialCenter) {
-      this.applyInitialView(this.cfg.initialZoom, this.cfg.initialCenter);
-    } else {
-      this.fitToView();
-    }
-    this.scheduleTryApplyInitialViewFromCallout();
-    await this.applyActiveBaseAndOverlays();
-    this.setupMeasureOverlay();
-    this.setupDrawOverlay();
-    this.setupTextOverlay();
-    this.applyMeasureStyle();
-    this.renderAll();
-    this.ready = true;
   }
   updateResponsiveAspectRatio() {
     if (!this.imgW || !this.imgH) return;
@@ -7941,7 +7944,7 @@ ${(0, import_obsidian19.stringifyYaml)(yaml).trimEnd()}
     }
     this.plugin.setActiveMap(this);
     this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (e.target instanceof Element && e.target.setPointerCapture) e.target.setPointerCapture(e.pointerId);
+    if (e.target instanceof Element && e.target.setPointerCapture(e.pointerId)) e.target.setPointerCapture(e.pointerId);
     const tgt = e.target;
     if (tgt instanceof Element && tgt.closest(".zm-marker")) return;
     if (this.cfg.responsive) return;
@@ -9461,7 +9464,9 @@ Total: ${local.total}`, 6e3);
           const chk = rowEl.querySelector(".zm-menu__check");
           if (chk) chk.textContent = "\u2713";
         }
-      })) : [{ label: "(No max travel time presets configured)", action: () => new import_obsidian19.Notice("Configure max travel time presets in settings \u2192 travel rules.", 3500) }]
+      })) : [{ label: "(No max travel time presets configured)", action: () => {
+        new import_obsidian19.Notice("Configure max travel time presets in settings \u2192 travel rules.", 3500);
+      } }]
     });
     travelTimeItems.push({ type: "separator" });
     if (travelPresets.length) {
@@ -9487,7 +9492,9 @@ Total: ${local.total}`, 6e3);
     } else {
       travelTimeItems.push({
         label: "(No travel presets configured)",
-        action: () => new import_obsidian19.Notice("Configure presets in settings \u2192 travel rules.", 3e3)
+        action: (rowEl) => {
+          new import_obsidian19.Notice("Configure presets in settings \u2192 travel rules.", 3e3);
+        }
       });
     }
     items.push(
@@ -10857,7 +10864,7 @@ ${after}`;
   schedulePingUpdate(delayMs = 900) {
     var _a;
     if (!this.data) return;
-    if (!((_a = this.data.markers) == null ? void 0 : _a.some((m) => m.type === "ping"))) return;
+    if (!((_a = this.data.markers) == null ? void 0 : _a.some((m) => m.type === "pin"))) return;
     if (this.pingUpdateTimer !== null) window.clearTimeout(this.pingUpdateTimer);
     this.pingUpdateTimer = window.setTimeout(() => {
       this.pingUpdateTimer = null;
@@ -10866,7 +10873,7 @@ ${after}`;
   }
   async updateAllPingNotes() {
     if (!this.data) return;
-    const pings = this.data.markers.filter((m) => m.type === "ping");
+    const pings = this.data.markers.filter((m) => m.type === "pin");
     for (const p of pings) {
       try {
         await this.updatePingNoteForMarker(p);
@@ -10973,7 +10980,7 @@ ${after}`;
     const distanceLabel = this.formatPingDistanceLabel(distanceValue, unit, customUnitId);
     const marker = {
       id: generateId("ping"),
-      type: "ping",
+      type: "pin",
       x: nx,
       y: ny,
       layer: layerId,
@@ -11048,7 +11055,7 @@ ${(0, import_obsidian19.stringifyYaml)(fm).trimEnd()}
   async updatePingNoteForMarker(ping) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
     if (!this.data) return;
-    if (ping.type !== "ping") return;
+    if (ping.type !== "pin") return;
     const notePath = (_a = ping.pingNotePath) != null ? _a : "";
     const af = this.app.vault.getAbstractFileByPath(notePath);
     if (!(af instanceof import_obsidian19.TFile)) return;
@@ -11067,7 +11074,7 @@ ${(0, import_obsidian19.stringifyYaml)(fm).trimEnd()}
     for (const m of this.data.markers) {
       if (m.id === ping.id) continue;
       if (m.anchorSpace === "viewport") continue;
-      if (m.type === "ping") continue;
+      if (m.type === "pin") continue;
       if (allowedLayerIds && !allowedLayerIds.has(m.layer)) continue;
       const dx = (m.x - ping.x) * this.imgW;
       const dy = (m.y - ping.y) * this.imgH;
@@ -11242,7 +11249,7 @@ ${(0, import_obsidian19.stringifyYaml)(fm).trimEnd()}
   }
   async deletePingNoteIfOwned(m) {
     var _a, _b;
-    if (m.type !== "ping") return;
+    if (m.type !== "pin") return;
     const p = ((_a = m.pingNotePath) != null ? _a : "").trim();
     if (!p) return;
     const af = this.app.vault.getAbstractFileByPath(p);
@@ -11251,7 +11258,7 @@ ${(0, import_obsidian19.stringifyYaml)(fm).trimEnd()}
     const owner = fm == null ? void 0 : fm.zoommapPingId;
     if (owner !== m.id) return;
     try {
-      await this.app.fileManager.trashFile(af, true);
+      await this.app.fileManager.trashFile(af);
     } catch (e) {
       console.warn("Failed to trash ping note", e);
     }
@@ -11754,7 +11761,7 @@ ${(0, import_obsidian19.stringifyYaml)(fm).trimEnd()}
       const af = this.app.vault.getAbstractFileByPath(d.bakedPath);
       if (af instanceof import_obsidian19.TFile) {
         try {
-          await this.app.fileManager.trashFile(af, true);
+          await this.app.fileManager.trashFile(af);
         } catch (err) {
           console.error("Zoom Map: failed to delete baked SVG", d.bakedPath, err);
         }
@@ -12657,7 +12664,7 @@ ${(0, import_obsidian19.stringifyYaml)(fm).trimEnd()}
             this.openMenu.open(ev.clientX, ev.clientY, items2);
             return;
           }
-          if (m.type === "ping") {
+          if (m.type === "pin") {
             const items2 = [
               {
                 label: "Open party note",
@@ -13405,12 +13412,15 @@ ${(0, import_obsidian19.stringifyYaml)(fm).trimEnd()}
     return changed;
   }
   async applyScaleCalibration(metersPerPixel) {
+    var _a, _b;
     if (!this.data) return;
     this.ensureMeasurement();
     const base = this.getActiveBasePath();
     if (!this.data.measurement) return;
     this.data.measurement.metersPerPixel = metersPerPixel;
-    this.data.measurement.scales[base] = metersPerPixel;
+    if ((_b = (_a = this.data) == null ? void 0 : _a.measurement) == null ? void 0 : _b.scales) {
+      this.data.measurement.scales[base] = metersPerPixel;
+    }
     if (await this.store.wouldChange(this.data)) {
       this.ignoreNextModify = true;
       await this.store.save(this.data);
