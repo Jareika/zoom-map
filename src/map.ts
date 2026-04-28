@@ -15,6 +15,8 @@ import type {
   TextLayer,
   GridOverlay,
   TextBaseline,
+  DeletedUndoPayload,
+  DeletedUndoEntry,
   TextBox,
   TextBoxAutoConfig,
   TextLayerStyle,
@@ -300,6 +302,15 @@ function setCssProps(el: HTMLElement, props: Record<string, string | null>): voi
     if (value === null) el.style.removeProperty(key);
     else el.style.setProperty(key, value);
   }
+}
+
+function cloneForUndo<T>(value: T): T {
+  if (typeof structuredClone === "function") return structuredClone(value);
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function insertAtClamped<T>(arr: T[], index: number, item: T): void {
+  arr.splice(Math.max(0, Math.min(index, arr.length)), 0, item);
 }
 
 function stableStringify(value: unknown): string {
@@ -1080,6 +1091,187 @@ export class MapInstance extends Component {
       },
     };
   }
+  
+  private pushDeleteUndo(payload: DeletedUndoPayload, label: string): void {
+    if (!this.data) return;
+	
+	const clonedPayload: DeletedUndoPayload = cloneForUndo<DeletedUndoPayload>(payload);
+
+    const entry: DeletedUndoEntry = {
+      id: generateId("undo"),
+      label: label.trim() || "Deleted item",
+      createdAt: new Date().toISOString(),
+      payload: clonedPayload,
+    };
+
+    const prev = Array.isArray(this.data.deleted) ? this.data.deleted : [];
+    this.data.deleted = [entry, ...prev].slice(0, 3);
+  }
+
+  private getLatestDeleteUndoLabel(): string | null {
+    const label = this.data?.deleted?.[0]?.label;
+    return typeof label === "string" && label.trim() ? label : null;
+  }
+
+  private async ensurePingNoteFileForMarker(
+    ping: Marker,
+    preset?: PingPreset,
+  ): Promise<TFile | null> {
+    const notePath = (ping.pingNotePath ?? "").trim();
+    if (!notePath) return null;
+
+    const existing = this.app.vault.getAbstractFileByPath(notePath);
+    if (existing instanceof TFile) return existing;
+
+    await this.ensureFolderForPath(notePath);
+
+    const radius = ping.pingRadius ?? 0;
+    const unit = ping.pingRadiusUnit ?? "km";
+    const customUnitId = ping.pingRadiusCustomUnitId;
+    const unitLabel = this.pingUnitLabel(unit, customUnitId);
+    const distLabel = this.formatPingDistanceLabel(radius, unit, customUnitId);
+
+    const dummyPreset =
+      preset ??
+      ({ id: "", name: "", distances: [], unit: "km" } as PingPreset);
+
+    const sections = preset?.sections ?? {};
+    const includeBases = sections.bases !== false;
+    const includeTooltips = sections.tooltips !== false;
+    const includeRelated = sections.related !== false;
+    const includeTravel = sections.travelTimes !== false;
+
+    const fm: Record<string, unknown> = {
+      zoommapPing: true,
+      zoommapPingId: ping.id,
+      zoommapPingMapId: this.cfg.mapId ?? "",
+      zoommapPingSourcePath: this.cfg.sourcePath,
+      zoommapPingSourceFileName: basename(this.cfg.sourcePath),
+      zoommapPingBase: this.getActiveBasePath(),
+      zoommapPingRadius: radius,
+      zoommapPingUnit: unit,
+      zoommapPingCustomUnitId: unit === "custom" ? customUnitId : undefined,
+      zoommapPingPresetId: ping.pingPresetId ?? "",
+      zoommapPingPresetName: preset?.name ?? "",
+      zoommapPingInRangePaths: [],
+      zoommapPingDistances: {},
+      zoommapPingUpdated: new Date().toISOString(),
+    };
+
+    const frontmatter = `---\n${stringifyYaml(fm).trimEnd()}\n---\n\n`;
+    const md =
+      frontmatter +
+      this.buildPingNoteText("", {
+        defaultTitle: `# Party pin: ${preset?.name || "Party"} (${distLabel})`,
+        baseYamlFallback: this.buildPingBaseYaml(dummyPreset, unitLabel),
+        tooltipBody: "*(none)*",
+        relatedBody: "*(none)*",
+        travelBody: "*(none)*",
+        includeBases,
+        includeTooltips,
+        includeRelated,
+        includeTravel,
+      });
+
+    return this.app.vault.create(notePath, md);
+  }
+
+  private async undoLastDelete(): Promise<void> {
+    if (!this.data?.deleted?.length) return;
+
+    const [entry, ...rest] = this.data.deleted;
+    const payload = entry.payload;
+    let changed = false;
+
+    this.stopTextEdit(false);
+    this.finishTextBoxMove(false);
+    this.stopEditDrawingGeometry(false);
+    this.closeMenu();
+
+    switch (payload.kind) {
+      case "marker": {
+        this.data.markers ??= [];
+        insertAtClamped(this.data.markers, payload.index, cloneForUndo(payload.marker));
+        changed = true;
+        break;
+      }
+
+      case "drawing": {
+        this.data.drawings ??= [];
+        insertAtClamped(this.data.drawings, payload.index, cloneForUndo(payload.drawing));
+        changed = true;
+        break;
+      }
+
+      case "grid": {
+        this.data.grids ??= [];
+        insertAtClamped(this.data.grids, payload.index, cloneForUndo(payload.grid));
+        changed = true;
+        break;
+      }
+
+      case "text-layer": {
+        this.data.textLayers ??= [];
+        insertAtClamped(this.data.textLayers, payload.index, cloneForUndo(payload.layer));
+        changed = true;
+        break;
+      }
+
+      case "text-box": {
+        const layer = (this.data.textLayers ?? []).find((l) => l.id === payload.layerId);
+        if (layer) {
+          layer.boxes ??= [];
+          insertAtClamped(layer.boxes, payload.index, cloneForUndo(payload.box));
+          changed = true;
+        }
+        break;
+      }
+
+      case "marker-layer": {
+        this.data.layers ??= [];
+        if (!(this.data.layers ?? []).some((l) => l.id === payload.layer.id)) {
+          insertAtClamped(this.data.layers, payload.index, cloneForUndo(payload.layer));
+        }
+
+        if (payload.mode === "delete-markers") {
+          this.data.markers ??= [];
+          for (const item of payload.markers ?? []) {
+            insertAtClamped(this.data.markers, item.index, cloneForUndo(item.marker));
+          }
+        } else {
+          const moved = new Set(payload.movedMarkerIds ?? []);
+          for (const marker of this.data.markers ?? []) {
+            if (moved.has(marker.id)) marker.layer = payload.layer.id;
+          }
+        }
+
+        changed = true;
+        break;
+      }
+
+      case "draw-layer": {
+        this.data.drawLayers ??= [];
+        if (!(this.data.drawLayers ?? []).some((l) => l.id === payload.layer.id)) {
+          insertAtClamped(this.data.drawLayers, payload.index, cloneForUndo(payload.layer));
+        }
+
+        this.data.drawings ??= [];
+        for (const item of payload.drawings ?? []) {
+          insertAtClamped(this.data.drawings, item.index, cloneForUndo(item.drawing));
+        }
+        changed = true;
+        break;
+      }
+    }
+
+    if (!changed) return;
+
+    this.data.deleted = rest;
+    this.renderAll();
+    await this.saveDataSoon();
+    this.schedulePingUpdate();
+    new Notice(`Undo: ${entry.label}`, 1400);
+  }
 
   private async saveDefaultViewToYaml(): Promise<void> {
     const af = this.app.vault.getAbstractFileByPath(this.cfg.sourcePath);
@@ -1853,6 +2045,24 @@ export class MapInstance extends Component {
     }
   }
   
+  private getOwnerDocument(): Document {
+    return this.el.ownerDocument;
+  }
+
+  private getOwnerWindow(): Window {
+    return this.getOwnerDocument().defaultView ?? window;
+  }
+
+  private getOwnerBody(): HTMLBodyElement {
+    return this.getOwnerDocument().body;
+  }
+
+  private asElement(target: EventTarget | null): Element | null {
+    if (!target || typeof target !== "object") return null;
+    if ("closest" in target) return target as Element;
+    return null;
+  }
+  
   private startDraw(kind: DrawingKind): void {
     if (!this.plugin.settings.enableDrawing) {
       new Notice("Drawing tools are disabled in the plugin preferences.", 2000);
@@ -2150,10 +2360,12 @@ export class MapInstance extends Component {
     this.measureHud = this.hudClipEl.createDiv({ cls: "zm-measure-hud" });
 	this.drawEditHudEl = this.hudClipEl.createDiv({ cls: "zm-draw-edit" });
     this.zoomHud = this.hudClipEl.createDiv({ cls: "zm-zoom-hud" });
+	
+	const ownerWindow = this.getOwnerWindow();
 
     this.registerDomEvent(this.viewportEl, "wheel", (e: WheelEvent) => {
-      const t = e.target;
-      if (t instanceof Element && t.closest(".popover")) return;
+      const t = this.asElement(e.target);
+      if (t?.closest(".popover")) return;
       if (this.cfg.responsive) return;
       e.preventDefault();
       e.stopPropagation();
@@ -2167,16 +2379,16 @@ export class MapInstance extends Component {
       this.onPointerDownViewport(e);
     });
 
-    this.registerDomEvent(window, "pointermove", (e: PointerEvent) => this.onPointerMove(e));
+    this.registerDomEvent(ownerWindow, "pointermove", (e: PointerEvent) => this.onPointerMove(e));
 
-    this.registerDomEvent(window, "pointerup", (e: PointerEvent) => {
+    this.registerDomEvent(ownerWindow, "pointerup", (e: PointerEvent) => {
       if (this.activePointers.has(e.pointerId)) this.activePointers.delete(e.pointerId);
       if (this.pinchActive && this.activePointers.size < 2) this.endPinch();
       e.preventDefault();
       this.onPointerUp(e);
     });
 
-    this.registerDomEvent(window, "pointercancel", (e: PointerEvent) => {
+    this.registerDomEvent(ownerWindow, "pointercancel", (e: PointerEvent) => {
       if (this.activePointers.has(e.pointerId)) this.activePointers.delete(e.pointerId);
       if (this.pinchActive && this.activePointers.size < 2) this.endPinch();
     });
@@ -2218,7 +2430,7 @@ export class MapInstance extends Component {
       this.onContextMenuViewport(e);
     });
 
-    this.registerDomEvent(window, "keydown", (e: KeyboardEvent) => {
+    this.registerDomEvent(ownerWindow, "keydown", (e: KeyboardEvent) => {
       if (this.gridAlignId) {
         if (this.isGridAlignIncreaseKey(e)) {
           e.preventDefault();
@@ -3990,7 +4202,7 @@ export class MapInstance extends Component {
     };
 
     host.classList.add("zm-text-hitbox--dragging");
-    document.body.classList.add("zm-cursor-move-grabbing");
+    this.getOwnerBody().classList.add("zm-cursor-move-grabbing");
     host.setPointerCapture?.(pointerId);
   }
 
@@ -4042,7 +4254,7 @@ export class MapInstance extends Component {
     this.textMovePointerId = null;
     this.textMoveStart = null;
     this.textMoveOrig = null;
-    document.body.classList.remove("zm-cursor-move-grabbing");
+    this.getOwnerBody().classList.remove("zm-cursor-move-grabbing");
 
     this.textHitEl?.querySelectorAll(".zm-text-hitbox--dragging").forEach((el) => el.classList.remove("zm-text-hitbox--dragging"));
 
@@ -5453,10 +5665,13 @@ export class MapInstance extends Component {
     this.plugin.setActiveMap(this);
 
     this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (e.target instanceof Element && e.target.setPointerCapture) (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    const captureTarget = this.asElement(e.target) as (Element & {
+      setPointerCapture?: (pointerId: number) => void;
+    }) | null;
+    captureTarget?.setPointerCapture?.(e.pointerId);
 
-    const tgt = e.target;
-    if (tgt instanceof Element && tgt.closest(".zm-marker")) return;
+    const tgt = this.asElement(e.target);
+    if (tgt?.closest(".zm-marker")) return;
 
     if (this.cfg.responsive) return;
 
@@ -5711,7 +5926,7 @@ export class MapInstance extends Component {
   this.draggingMarkerId = null;
   this.dragAnchorOffset = null;
   this.dragMoved = false;
-  document.body.classList.remove("zm-cursor-grabbing");
+  this.getOwnerBody().classList.remove("zm-cursor-grabbing");
 
   this.draggingView = false;
   this.draggingViewButton = null;
@@ -6488,12 +6703,20 @@ this.viewDragDist = 0;
     for (let i = 1; i < points.length; i += 1) {
       const a = points[i - 1];
       const b = points[i];
+
+      const dxPx = (b.x - a.x) * this.imgW;
+      const dyPx = (b.y - a.y) * this.imgH;
+      const angleDeg = (Math.atan2(dyPx, dxPx) * 180) / Math.PI;
+
+      const start = angleDeg > 90 || angleDeg < -90 ? b : a;
+      const end = angleDeg > 90 || angleDeg < -90 ? a : b;
+
       out.push({
         id: generateId("tln"),
-        x0: a.x,
-        y0: a.y,
-        x1: b.x,
-        y1: b.y,
+        x0: start.x,
+        y0: start.y,
+        x1: end.x,
+        y1: end.y,
         text: "",
       });
     }
@@ -6784,6 +7007,9 @@ private onContextMenuViewport(e: MouseEvent): void {
     if (pinsGlobalMenu.length) {
       addHereChildren.push({ label: "Pins (global)", children: pinsGlobalMenu });
     }
+
+    const items: ZMMenuItem[] = [];
+
     if (favsGlobalMenu.length) {
       addHereChildren.push({ type: "separator" });
       addHereChildren.push({ label: "Favorites (global)", children: favsGlobalMenu });
@@ -6942,9 +7168,9 @@ private onContextMenuViewport(e: MouseEvent): void {
       },
     );
 
-    const items: ZMMenuItem[] = [
+    items.push(
       { label: "Add marker here", children: addHereChildren },
-    ];
+    );
 	
     if (favsBaseMenu.length) {
       items.push({ label: "Favorites (base)", children: favsBaseMenu });
@@ -7107,6 +7333,21 @@ private onContextMenuViewport(e: MouseEvent): void {
 
 			  new ConfirmModal(this.app, "Delete draw layer", msg, () => {
 				if (!this.data) return;
+                this.pushDeleteUndo(
+                  {
+                    kind: "draw-layer",
+                    layer: cloneForUndo(dl),
+                    index: (this.data.drawLayers ?? []).findIndex((l) => l.id === dl.id),
+                    drawings: (this.data.drawings ?? [])
+                      .map((drawing, index) => ({ drawing, index }))
+                      .filter((x) => x.drawing.layerId === dl.id)
+                      .map((x) => ({
+                        drawing: cloneForUndo(x.drawing),
+                        index: x.index,
+                      })),
+                  },
+                  `Delete draw layer: ${dl.name}`,
+                );
 
 				this.data.drawLayers = (this.data.drawLayers ?? []).filter(
 				  (l) => l.id !== dl.id,
@@ -7508,6 +7749,15 @@ if (this.plugin.settings.enableTextLayers && this.data) {
           {
             label: "Delete box",
             action: () => {
+              this.pushDeleteUndo(
+                {
+                  kind: "text-box",
+                  layerId: tl.id,
+                  box: cloneForUndo(box),
+                  index: (tl.boxes ?? []).findIndex((b) => b.id === box.id),
+                },
+                `Delete text box: ${box.name || "Text box"}`,
+              );
               tl.boxes = (tl.boxes ?? []).filter((b) => b.id !== box.id);
               if (
                 this.textMode === "edit" &&
@@ -7644,6 +7894,14 @@ if (this.plugin.settings.enableTextLayers && this.data) {
               `Delete text layer "${tl.name || tl.id}"? This cannot be undone.`,
               () => {
                 if (!this.data) return;
+                this.pushDeleteUndo(
+                  {
+                    kind: "text-layer",
+                    layer: cloneForUndo(tl),
+                    index: (this.data.textLayers ?? []).findIndex((x) => x.id === tl.id),
+                  },
+                  `Delete text layer: ${tl.name || tl.id}`,
+                );
                 if (this.textMode === "edit" && this.activeTextLayerId === tl.id) {
                   this.stopTextEdit(false);
                 }
@@ -7893,6 +8151,14 @@ if (this.plugin.settings.enableTextLayers && this.data) {
               {
                 label: "Delete grid",
                 action: () => {
+                  this.pushDeleteUndo(
+                    {
+                      kind: "grid",
+                      grid: cloneForUndo(g),
+                      index: (this.data?.grids ?? []).findIndex((x) => x.id === g.id),
+                    },
+                    `Delete grid: ${g.name || "Grid"}`,
+                  );
                   if (!this.data) return;
                   this.data.grids = (this.data.grids ?? []).filter((x) => x.id !== g.id);
                   if (this.gridAlignId === g.id) this.stopGridAlignMode(false);
@@ -7975,6 +8241,18 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 
         items.push({ type: "separator" }, { label: distLabel });
       }
+    }
+	
+    const undoLabel = this.getLatestDeleteUndoLabel();
+    if (undoLabel) {
+      items.push({ type: "separator" });
+      items.push({
+        label: `Undo delete: ${undoLabel}`,
+        action: () => {
+          this.closeMenu();
+          void this.undoLastDelete();
+        },
+      });
     }
 
     this.openMenu = new ZMMenu(this.el.ownerDocument);
@@ -8621,8 +8899,19 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 
   private deleteMarker(m: Marker): void {
     if (!this.data) return;
+    const index = this.data.markers.findIndex((mm) => mm.id === m.id);
+    if (index < 0) return;
+
+    this.pushDeleteUndo(
+      {
+        kind: "marker",
+        marker: cloneForUndo(m),
+        index,
+      },
+      `Delete ${m.type ?? "marker"}`,
+    );
 	void this.deletePingNoteIfOwned(m);
-    this.data.markers = this.data.markers.filter((mm) => mm.id !== m.id);
+    this.data.markers.splice(index, 1);
     void this.saveDataSoon();
     this.renderMarkersOnly();
     new Notice("Marker deleted.", 900);
@@ -9200,6 +9489,8 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       zoommapPing: true,
       zoommapPingId: marker.id,
       zoommapPingMapId: this.cfg.mapId ?? "",
+      zoommapPingSourcePath: this.cfg.sourcePath,
+      zoommapPingSourceFileName: basename(this.cfg.sourcePath),	  
       zoommapPingBase: this.getActiveBasePath(),
       zoommapPingRadius: distanceValue,
       zoommapPingUnit: unit,
@@ -9251,8 +9542,8 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     if (!this.data) return;
     if (ping.type !== "ping") return;
 
-    const notePath = ping.pingNotePath ?? "";
-    const af = this.app.vault.getAbstractFileByPath(notePath);
+    const preset = ping.pingPresetId ? this.findPingPresetById(ping.pingPresetId) : undefined;
+    const af = await this.ensurePingNoteFileForMarker(ping, preset);
     if (!(af instanceof TFile)) return;
 
     const radius = ping.pingRadius ?? 0;
@@ -9262,7 +9553,6 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     const radiusPx = this.pingToPixels(radius, unit, customUnitId);
     if (radiusPx == null) return;
 	
-    const preset = ping.pingPresetId ? this.findPingPresetById(ping.pingPresetId) : undefined;
     const allowedLayerIds = this.resolvePingSearchLayerIds(ping, preset);
 
     const inRangePaths = new Set<string>();
@@ -9336,6 +9626,8 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       set("zoommapPing", true);
       set("zoommapPingId", ping.id);
       set("zoommapPingMapId", this.cfg.mapId ?? "");
+      set("zoommapPingSourcePath", this.cfg.sourcePath);
+      set("zoommapPingSourceFileName", basename(this.cfg.sourcePath));
       set("zoommapPingBase", this.getActiveBasePath());
       set("zoommapPingRadius", radius);
       set("zoommapPingUnit", unit);
@@ -10170,6 +10462,17 @@ if (this.plugin.settings.enableTextLayers && this.data) {
   
   private async deleteDrawing(d: Drawing): Promise<void> {
   if (!this.data) return;
+  const index = (this.data.drawings ?? []).findIndex((x) => x.id === d.id);
+  if (index < 0) return;
+
+  this.pushDeleteUndo(
+    {
+      kind: "drawing",
+      drawing: cloneForUndo(d),
+      index,
+    },
+    `Delete ${d.kind}`,
+  );
 
   if (this.drawEditDrawingId === d.id) {
     this.drawEditDrawingId = null;
@@ -10304,6 +10607,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     this.openMenu = new ZMMenu(this.el.ownerDocument);
     this.openMenu.open(ev.clientX, ev.clientY, items);
 
+	const doc = this.getOwnerDocument();
     const outside = (event: Event) => {
       if (!this.openMenu) return;
       const t = event.target;
@@ -10315,14 +10619,14 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     };
     const rightClickClose = () => this.closeMenu();
 
-    document.addEventListener("pointerdown", outside, { capture: true });
-	document.addEventListener("contextmenu", rightClickClose, { capture: true });
-	document.addEventListener("keydown", keyClose, { capture: true });
+        doc.addEventListener("pointerdown", outside, { capture: true });
+		doc.addEventListener("contextmenu", rightClickClose, { capture: true });
+		doc.addEventListener("keydown", keyClose, { capture: true });
 
 	this.register(() => {
-	  document.removeEventListener("pointerdown", outside, true);
-	  document.removeEventListener("contextmenu", rightClickClose, true);
-	  document.removeEventListener("keydown", keyClose, true);
+		  doc.removeEventListener("pointerdown", outside, true);
+		  doc.removeEventListener("contextmenu", rightClickClose, true);
+		  doc.removeEventListener("keydown", keyClose, true);
 	});
   }
   
@@ -11064,7 +11368,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         }
 
         host.classList.add("zm-marker--dragging");
-        document.body.classList.add("zm-cursor-grabbing");
+        this.getOwnerBody().classList.add("zm-cursor-grabbing");
         host.setPointerCapture?.(e.pointerId);
         e.preventDefault();
       });
@@ -11072,7 +11376,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       host.addEventListener("pointerup", () => {
         if (this.draggingMarkerId === m.id) {
           host.classList.remove("zm-marker--dragging");
-          document.body.classList.remove("zm-cursor-grabbing");
+          this.getOwnerBody().classList.remove("zm-cursor-grabbing");
         }
       });
 
@@ -11381,6 +11685,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
           this.openMenu = new ZMMenu(this.el.ownerDocument);
           this.openMenu.open(ev.clientX, ev.clientY, items);
 
+		  const doc = this.getOwnerDocument();
           const outside = (event: Event) => {
             if (!this.openMenu) return;
             const t = event.target;
@@ -11392,18 +11697,18 @@ if (this.plugin.settings.enableTextLayers && this.data) {
           };
           const rightClickClose = () => this.closeMenu();
 
-          document.addEventListener("pointerdown", outside, {
+          doc.addEventListener("pointerdown", outside, {
             capture: true,
           });
-          document.addEventListener("contextmenu", rightClickClose, {
+          doc.addEventListener("contextmenu", rightClickClose, {
             capture: true,
           });
-          document.addEventListener("keydown", keyClose, { capture: true });
+          doc.addEventListener("keydown", keyClose, { capture: true });
 
           this.register(() => {
-            document.removeEventListener("pointerdown", outside, true);
-            document.removeEventListener("contextmenu", rightClickClose, true);
-            document.removeEventListener("keydown", keyClose, true);
+            doc.removeEventListener("pointerdown", outside, true);
+            doc.removeEventListener("contextmenu", rightClickClose, true);
+            doc.removeEventListener("keydown", keyClose, true);
           });
 
           return;
@@ -11461,6 +11766,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         this.openMenu = new ZMMenu(this.el.ownerDocument);
         this.openMenu.open(ev.clientX, ev.clientY, items);
 
+        const doc = this.getOwnerDocument();
         const outside = (event: Event) => {
           if (!this.openMenu) return;
           const t = event.target;
@@ -11473,14 +11779,14 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         };
         const rightClickClose = () => this.closeMenu();
 
-        document.addEventListener("pointerdown", outside, { capture: true });
-		document.addEventListener("contextmenu", rightClickClose, { capture: true });
-		document.addEventListener("keydown", keyClose, { capture: true });
+    doc.addEventListener("pointerdown", outside, { capture: true });
+	doc.addEventListener("contextmenu", rightClickClose, { capture: true });
+	doc.addEventListener("keydown", keyClose, { capture: true });
 
 		this.register(() => {
-		  document.removeEventListener("pointerdown", outside, true);
-		  document.removeEventListener("contextmenu", rightClickClose, true);
-		  document.removeEventListener("keydown", keyClose, true);
+	  doc.removeEventListener("pointerdown", outside, true);
+	  doc.removeEventListener("contextmenu", rightClickClose, true);
+	  doc.removeEventListener("keydown", keyClose, true);
 		});
       });
       }
@@ -11934,9 +12240,10 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     };
 
     const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp, true);
-      document.body.classList.remove("zm-cursor-resize-nwse", "zm-cursor-resize-nesw");
+      const ownerWindow = this.getOwnerWindow();
+      ownerWindow.removeEventListener("pointermove", onMove);
+      ownerWindow.removeEventListener("pointerup", onUp, true);
+      this.getOwnerBody().classList.remove("zm-cursor-resize-nwse", "zm-cursor-resize-nesw");
       this.userResizing = false;
 
       if (this.shouldUseSavedFrame() && this.cfg.resizable) void this.persistFrameNow();
@@ -11950,11 +12257,12 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       startH = rect.height;
       startX = e.clientX;
       startY = e.clientY;
-      if (side === "right") document.body.classList.add("zm-cursor-resize-nwse");
-      else document.body.classList.add("zm-cursor-resize-nesw");
+      const ownerWindow = this.getOwnerWindow();
+      if (side === "right") this.getOwnerBody().classList.add("zm-cursor-resize-nwse");
+      else this.getOwnerBody().classList.add("zm-cursor-resize-nesw");
       this.userResizing = true;
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp, true);
+      ownerWindow.addEventListener("pointermove", onMove);
+      ownerWindow.addEventListener("pointerup", onUp, true);
     });
   }
 
@@ -12662,6 +12970,31 @@ private patchYamlListRemove(
     if (!this.data) return;
     const others = this.data.layers.filter((l) => l.id !== layer.id);
     if (others.length === 0) { new Notice("Cannot delete the last layer.", 2000); return; }
+
+    const layerIndex = this.data.layers.findIndex((l) => l.id === layer.id);
+    const affectedMarkers = this.data.markers
+      .map((marker, index) => ({ marker, index }))
+      .filter((x) => x.marker.layer === layer.id);
+
+    this.pushDeleteUndo(
+      decision.mode === "move"
+        ? {
+            kind: "marker-layer",
+            layer: cloneForUndo(layer),
+            index: layerIndex,
+            mode: "move",
+            targetId: decision.targetId,
+            movedMarkerIds: affectedMarkers.map((x) => x.marker.id),
+          }
+        : {
+            kind: "marker-layer",
+            layer: cloneForUndo(layer),
+            index: layerIndex,
+            mode: "delete-markers",
+            markers: affectedMarkers.map((x) => ({ marker: cloneForUndo(x.marker), index: x.index })),
+          },
+      `Delete marker layer: ${layer.name}`,
+    );
 
     if (decision.mode === "move") {
       const targetId = decision.targetId;

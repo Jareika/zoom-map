@@ -1,20 +1,20 @@
 {
   "name": "zoom-map",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "private": true,
   "license": "MIT",
   "scripts": {
     "build": "node esbuild.config.mjs production",
     "dev": "node esbuild.config.mjs watch",
     "lint": "eslint src",
-	"lint:fix": "eslint src --fix"
+    "lint:fix": "eslint src --fix"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@types/node": "^20.11.30",
     "@typescript-eslint/eslint-plugin": "^8.48.0",
     "@typescript-eslint/parser": "^8.48.0",
-    "esbuild": "^0.21.5",
+    "esbuild": "^0.28.0",
     "eslint": "^9.39.1",
     "eslint-plugin-obsidianmd": "^0.1.9",
     "globals": "^16.5.0",

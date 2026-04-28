@@ -5,6 +5,10 @@ This Map tool lets you embed an image as an interactive, zoomable map inside Obs
 Joshua Plunkett (obsidianttrpgtutorials.com) made a video about it. Due to ongoing development, I recommend checking the README also.
 [![Watch video](assets/maxresdefault.jpg)](https://youtu.be/rB4MCgl44lU)
 
+## Example page with tutorial videos and more
+
+https://ttrpg-tools-obsidian.org/
+
 ## Documentation
 [User Manual](assets/Handbook-ver-1-1-5.pdf)
 

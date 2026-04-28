@@ -293,6 +293,80 @@ export interface SecondScreenConfig {
   markersPath?: string;
 }
 
+export interface DeletedIndexedMarker {
+  marker: Marker;
+  index: number;
+}
+
+export interface DeletedIndexedDrawing {
+  drawing: Drawing;
+  index: number;
+}
+
+export interface DeletedMarkerUndoPayload {
+  kind: "marker";
+  marker: Marker;
+  index: number;
+}
+
+export interface DeletedDrawingUndoPayload {
+  kind: "drawing";
+  drawing: Drawing;
+  index: number;
+}
+
+export interface DeletedGridUndoPayload {
+  kind: "grid";
+  grid: GridOverlay;
+  index: number;
+}
+
+export interface DeletedTextLayerUndoPayload {
+  kind: "text-layer";
+  layer: TextLayer;
+  index: number;
+}
+
+export interface DeletedTextBoxUndoPayload {
+  kind: "text-box";
+  layerId: string;
+  box: TextBox;
+  index: number;
+}
+
+export interface DeletedMarkerLayerUndoPayload {
+  kind: "marker-layer";
+  layer: MarkerLayer;
+  index: number;
+  mode: "move" | "delete-markers";
+  targetId?: string;
+  markers?: DeletedIndexedMarker[];
+  movedMarkerIds?: string[];
+}
+
+export interface DeletedDrawLayerUndoPayload {
+  kind: "draw-layer";
+  layer: DrawLayer;
+  index: number;
+  drawings: DeletedIndexedDrawing[];
+}
+
+export type DeletedUndoPayload =
+  | DeletedMarkerUndoPayload
+  | DeletedDrawingUndoPayload
+  | DeletedGridUndoPayload
+  | DeletedTextLayerUndoPayload
+  | DeletedTextBoxUndoPayload
+  | DeletedMarkerLayerUndoPayload
+  | DeletedDrawLayerUndoPayload;
+
+export interface DeletedUndoEntry {
+  id: string;
+  label: string;
+  createdAt: string;
+  payload: DeletedUndoPayload;
+}
+
 export interface MarkerFileData {
   /** Legacy field (deprecated): do not write anymore, still read for migration/back-compat */
   image?: string;
@@ -317,6 +391,8 @@ export interface MarkerFileData {
   
   secondScreen?: SecondScreenConfig;
   
+  deleted?: DeletedUndoEntry[];
+  
   textLayers?: TextLayer[];
 }
 
@@ -327,8 +403,11 @@ export function generateId(prefix = "m"): string {
 
 export function sanitizeMarkerFileDataForSave(data: MarkerFileData): MarkerFileData {
   const out: MarkerFileData = { ...data };
+  
+  const deleted = sanitizeDeletedUndoEntries(out.deleted);
 
   delete out.image;
+  delete out.deleted;
 
   const du = (out.measurement?.displayUnit as unknown as string | undefined) ?? "";
   if (out.measurement && du) {
@@ -336,7 +415,190 @@ export function sanitizeMarkerFileDataForSave(data: MarkerFileData): MarkerFileD
     else if (du === "auto-imperial") out.measurement.displayUnit = "mi";
   }
 
+  if (deleted?.length) out.deleted = deleted;
+
   return out;
+}
+
+function isRecord(x: unknown): x is Record<string, unknown> {
+  return typeof x === "object" && x !== null && !Array.isArray(x);
+}
+
+function sanitizeIndex(x: unknown): number | null {
+  const n = typeof x === "number" ? x : Number(x);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.floor(n);
+}
+
+function sanitizeDeletedIndexedMarker(x: unknown): DeletedIndexedMarker | null {
+  if (!isRecord(x) || !isRecord(x.marker)) return null;
+  const index = sanitizeIndex(x.index);
+  if (index === null) return null;
+  return {
+    marker: x.marker as unknown as Marker,
+    index,
+  };
+}
+
+function sanitizeDeletedIndexedDrawing(x: unknown): DeletedIndexedDrawing | null {
+  if (!isRecord(x) || !isRecord(x.drawing)) return null;
+  const index = sanitizeIndex(x.index);
+  if (index === null) return null;
+  return {
+    drawing: x.drawing as unknown as Drawing,
+    index,
+  };
+}
+
+function sanitizeDeletedUndoPayload(payload: unknown): DeletedUndoPayload | null {
+  if (!isRecord(payload) || typeof payload.kind !== "string") return null;
+
+  switch (payload.kind) {
+    case "marker": {
+      if (!isRecord(payload.marker)) return null;
+      const index = sanitizeIndex(payload.index);
+      if (index === null) return null;
+      return {
+        kind: "marker",
+        marker: payload.marker as unknown as Marker,
+        index,
+      };
+    }
+
+    case "drawing": {
+      if (!isRecord(payload.drawing)) return null;
+      const index = sanitizeIndex(payload.index);
+      if (index === null) return null;
+      return {
+        kind: "drawing",
+        drawing: payload.drawing as unknown as Drawing,
+        index,
+      };
+    }
+
+    case "grid": {
+      if (!isRecord(payload.grid)) return null;
+      const index = sanitizeIndex(payload.index);
+      if (index === null) return null;
+      return {
+        kind: "grid",
+        grid: payload.grid as unknown as GridOverlay,
+        index,
+      };
+    }
+
+    case "text-layer": {
+      if (!isRecord(payload.layer)) return null;
+      const index = sanitizeIndex(payload.index);
+      if (index === null) return null;
+      return {
+        kind: "text-layer",
+        layer: payload.layer as unknown as TextLayer,
+        index,
+      };
+    }
+
+    case "text-box": {
+      if (typeof payload.layerId !== "string" || !isRecord(payload.box)) return null;
+      const index = sanitizeIndex(payload.index);
+      if (index === null) return null;
+      return {
+        kind: "text-box",
+        layerId: payload.layerId,
+        box: payload.box as unknown as TextBox,
+        index,
+      };
+    }
+
+    case "marker-layer": {
+      if (!isRecord(payload.layer)) return null;
+      const index = sanitizeIndex(payload.index);
+      if (index === null) return null;
+      const mode =
+        payload.mode === "move" || payload.mode === "delete-markers"
+          ? payload.mode
+          : null;
+      if (!mode) return null;
+
+      const markers = Array.isArray(payload.markers)
+        ? payload.markers
+            .map(sanitizeDeletedIndexedMarker)
+            .filter((x): x is DeletedIndexedMarker => !!x)
+        : undefined;
+
+      const movedMarkerIds = Array.isArray(payload.movedMarkerIds)
+        ? payload.movedMarkerIds
+            .filter((x): x is string => typeof x === "string" && !!x.trim())
+        : undefined;
+
+      return {
+        kind: "marker-layer",
+        layer: payload.layer as unknown as MarkerLayer,
+        index,
+        mode,
+        targetId:
+          typeof payload.targetId === "string" && payload.targetId.trim()
+            ? payload.targetId
+            : undefined,
+        markers: markers?.length ? markers : undefined,
+        movedMarkerIds: movedMarkerIds?.length ? movedMarkerIds : undefined,
+      };
+    }
+
+    case "draw-layer": {
+      if (!isRecord(payload.layer)) return null;
+      const index = sanitizeIndex(payload.index);
+      if (index === null) return null;
+
+      const drawings = Array.isArray(payload.drawings)
+        ? payload.drawings
+            .map(sanitizeDeletedIndexedDrawing)
+            .filter((x): x is DeletedIndexedDrawing => !!x)
+        : [];
+
+      return {
+        kind: "draw-layer",
+        layer: payload.layer as unknown as DrawLayer,
+        index,
+        drawings,
+      };
+    }
+
+    default:
+      return null;
+  }
+}
+
+function sanitizeDeletedUndoEntries(
+  entries: DeletedUndoEntry[] | undefined,
+): DeletedUndoEntry[] | undefined {
+  if (!Array.isArray(entries) || entries.length === 0) return undefined;
+
+  const out = entries
+    .map((entry) => {
+      if (!isRecord(entry)) return null;
+      const payload = sanitizeDeletedUndoPayload(entry.payload);
+      if (!payload) return null;
+      return {
+        id:
+          typeof entry.id === "string" && entry.id.trim()
+            ? entry.id
+            : generateId("undo"),
+        label:
+          typeof entry.label === "string" && entry.label.trim()
+            ? entry.label
+            : "Deleted item",
+        createdAt:
+          typeof entry.createdAt === "string" && entry.createdAt.trim()
+            ? entry.createdAt
+            : new Date(0).toISOString(),
+        payload,
+      } satisfies DeletedUndoEntry;
+    })
+    .filter((x): x is DeletedUndoEntry => !!x)
+    .slice(0, 3);
+
+  return out.length ? out : undefined;
 }
 
 export class MarkerStore {
@@ -553,6 +815,9 @@ export class MarkerStore {
   if (typeof parsed.secondScreen.markersPath !== "string" || !parsed.secondScreen.markersPath.trim()) {
     delete parsed.secondScreen.markersPath;
   }
+  
+  parsed.deleted ??= [];
+  parsed.deleted = (sanitizeDeletedUndoEntries(parsed.deleted) ?? []).slice(0, 3);
 
   return parsed;
   }
@@ -591,13 +856,29 @@ export class MarkerStore {
     const af: TAbstractFile | null = this.app.vault.getAbstractFileByPath(path);
     return af instanceof TFile ? af : null;
   }
+  
+  private async ensureFolderExists(path: string): Promise<void> {
+    if (!path) return;
+    if (this.app.vault.getAbstractFileByPath(path)) return;
+
+    try {
+      await this.app.vault.createFolder(path);
+    } catch (err) {
+      if (this.app.vault.getAbstractFileByPath(path)) return;
+      throw err;
+    }
+  }
 
   private async create(content: string): Promise<void> {
     const dir = this.markersFilePath.split("/").slice(0, -1).join("/");
-    if (dir && !this.app.vault.getAbstractFileByPath(dir)) {
-      await this.app.vault.createFolder(dir);
+    await this.ensureFolderExists(dir);
+
+    try {
+      await this.app.vault.create(this.markersFilePath, content);
+    } catch (err) {
+      if (this.getFileByPath(this.markersFilePath)) return;
+      throw err;
     }
-    await this.app.vault.create(this.markersFilePath, content);
   }
 }
 

@@ -37,13 +37,145 @@ function generateId(prefix = "m") {
 function sanitizeMarkerFileDataForSave(data) {
   var _a, _b;
   const out = { ...data };
+  const deleted = sanitizeDeletedUndoEntries(out.deleted);
   delete out.image;
+  delete out.deleted;
   const du = (_b = (_a = out.measurement) == null ? void 0 : _a.displayUnit) != null ? _b : "";
   if (out.measurement && du) {
     if (du === "auto-metric") out.measurement.displayUnit = "km";
     else if (du === "auto-imperial") out.measurement.displayUnit = "mi";
   }
+  if (deleted == null ? void 0 : deleted.length) out.deleted = deleted;
   return out;
+}
+function isRecord(x) {
+  return typeof x === "object" && x !== null && !Array.isArray(x);
+}
+function sanitizeIndex(x) {
+  const n = typeof x === "number" ? x : Number(x);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.floor(n);
+}
+function sanitizeDeletedIndexedMarker(x) {
+  if (!isRecord(x) || !isRecord(x.marker)) return null;
+  const index = sanitizeIndex(x.index);
+  if (index === null) return null;
+  return {
+    marker: x.marker,
+    index
+  };
+}
+function sanitizeDeletedIndexedDrawing(x) {
+  if (!isRecord(x) || !isRecord(x.drawing)) return null;
+  const index = sanitizeIndex(x.index);
+  if (index === null) return null;
+  return {
+    drawing: x.drawing,
+    index
+  };
+}
+function sanitizeDeletedUndoPayload(payload) {
+  if (!isRecord(payload) || typeof payload.kind !== "string") return null;
+  switch (payload.kind) {
+    case "marker": {
+      if (!isRecord(payload.marker)) return null;
+      const index = sanitizeIndex(payload.index);
+      if (index === null) return null;
+      return {
+        kind: "marker",
+        marker: payload.marker,
+        index
+      };
+    }
+    case "drawing": {
+      if (!isRecord(payload.drawing)) return null;
+      const index = sanitizeIndex(payload.index);
+      if (index === null) return null;
+      return {
+        kind: "drawing",
+        drawing: payload.drawing,
+        index
+      };
+    }
+    case "grid": {
+      if (!isRecord(payload.grid)) return null;
+      const index = sanitizeIndex(payload.index);
+      if (index === null) return null;
+      return {
+        kind: "grid",
+        grid: payload.grid,
+        index
+      };
+    }
+    case "text-layer": {
+      if (!isRecord(payload.layer)) return null;
+      const index = sanitizeIndex(payload.index);
+      if (index === null) return null;
+      return {
+        kind: "text-layer",
+        layer: payload.layer,
+        index
+      };
+    }
+    case "text-box": {
+      if (typeof payload.layerId !== "string" || !isRecord(payload.box)) return null;
+      const index = sanitizeIndex(payload.index);
+      if (index === null) return null;
+      return {
+        kind: "text-box",
+        layerId: payload.layerId,
+        box: payload.box,
+        index
+      };
+    }
+    case "marker-layer": {
+      if (!isRecord(payload.layer)) return null;
+      const index = sanitizeIndex(payload.index);
+      if (index === null) return null;
+      const mode = payload.mode === "move" || payload.mode === "delete-markers" ? payload.mode : null;
+      if (!mode) return null;
+      const markers = Array.isArray(payload.markers) ? payload.markers.map(sanitizeDeletedIndexedMarker).filter((x) => !!x) : void 0;
+      const movedMarkerIds = Array.isArray(payload.movedMarkerIds) ? payload.movedMarkerIds.filter((x) => typeof x === "string" && !!x.trim()) : void 0;
+      return {
+        kind: "marker-layer",
+        layer: payload.layer,
+        index,
+        mode,
+        targetId: typeof payload.targetId === "string" && payload.targetId.trim() ? payload.targetId : void 0,
+        markers: (markers == null ? void 0 : markers.length) ? markers : void 0,
+        movedMarkerIds: (movedMarkerIds == null ? void 0 : movedMarkerIds.length) ? movedMarkerIds : void 0
+      };
+    }
+    case "draw-layer": {
+      if (!isRecord(payload.layer)) return null;
+      const index = sanitizeIndex(payload.index);
+      if (index === null) return null;
+      const drawings = Array.isArray(payload.drawings) ? payload.drawings.map(sanitizeDeletedIndexedDrawing).filter((x) => !!x) : [];
+      return {
+        kind: "draw-layer",
+        layer: payload.layer,
+        index,
+        drawings
+      };
+    }
+    default:
+      return null;
+  }
+}
+function sanitizeDeletedUndoEntries(entries) {
+  if (!Array.isArray(entries) || entries.length === 0) return void 0;
+  const out = entries.map((entry) => {
+    if (!isRecord(entry)) return null;
+    const payload = sanitizeDeletedUndoPayload(entry.payload);
+    if (!payload) return null;
+    return {
+      id: typeof entry.id === "string" && entry.id.trim() ? entry.id : generateId("undo"),
+      label: typeof entry.label === "string" && entry.label.trim() ? entry.label : "Deleted item",
+      createdAt: typeof entry.createdAt === "string" && entry.createdAt.trim() ? entry.createdAt : (/* @__PURE__ */ new Date(0)).toISOString(),
+      payload
+    };
+  }).filter((x) => !!x).slice(0, 3);
+  return out.length ? out : void 0;
 }
 var MarkerStore = class {
   constructor(app, sourcePath, markersFilePath) {
@@ -95,7 +227,7 @@ var MarkerStore = class {
     new import_obsidian.Notice(`Created marker file: ${this.markersFilePath}`, 2500);
   }
   async load() {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
     const f = this.getFileByPath(this.markersFilePath);
     if (!f) throw new Error(`Marker file missing: ${this.markersFilePath}`);
     const raw = await this.app.vault.read(f);
@@ -203,6 +335,8 @@ var MarkerStore = class {
     if (typeof parsed.secondScreen.markersPath !== "string" || !parsed.secondScreen.markersPath.trim()) {
       delete parsed.secondScreen.markersPath;
     }
+    (_p = parsed.deleted) != null ? _p : parsed.deleted = [];
+    parsed.deleted = ((_q = sanitizeDeletedUndoEntries(parsed.deleted)) != null ? _q : []).slice(0, 3);
     return parsed;
   }
   async save(data) {
@@ -235,12 +369,25 @@ var MarkerStore = class {
     const af = this.app.vault.getAbstractFileByPath(path);
     return af instanceof import_obsidian.TFile ? af : null;
   }
+  async ensureFolderExists(path) {
+    if (!path) return;
+    if (this.app.vault.getAbstractFileByPath(path)) return;
+    try {
+      await this.app.vault.createFolder(path);
+    } catch (err) {
+      if (this.app.vault.getAbstractFileByPath(path)) return;
+      throw err;
+    }
+  }
   async create(content) {
     const dir = this.markersFilePath.split("/").slice(0, -1).join("/");
-    if (dir && !this.app.vault.getAbstractFileByPath(dir)) {
-      await this.app.vault.createFolder(dir);
+    await this.ensureFolderExists(dir);
+    try {
+      await this.app.vault.create(this.markersFilePath, content);
+    } catch (err) {
+      if (this.getFileByPath(this.markersFilePath)) return;
+      throw err;
     }
-    await this.app.vault.create(this.markersFilePath, content);
   }
 };
 function buildLegacyTextBoxFromLayer(layer) {
@@ -4285,6 +4432,13 @@ function setCssProps(el, props) {
     else el.style.setProperty(key, value);
   }
 }
+function cloneForUndo(value) {
+  if (typeof structuredClone === "function") return structuredClone(value);
+  return JSON.parse(JSON.stringify(value));
+}
+function insertAtClamped(arr, index, item) {
+  arr.splice(Math.max(0, Math.min(index, arr.length)), 0, item);
+}
 function stableStringify(value) {
   const seen = /* @__PURE__ */ new WeakSet();
   const norm = (v) => {
@@ -4947,6 +5101,158 @@ var MapInstance = class extends import_obsidian20.Component {
       }
     };
   }
+  pushDeleteUndo(payload, label) {
+    if (!this.data) return;
+    const clonedPayload = cloneForUndo(payload);
+    const entry = {
+      id: generateId("undo"),
+      label: label.trim() || "Deleted item",
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      payload: clonedPayload
+    };
+    const prev = Array.isArray(this.data.deleted) ? this.data.deleted : [];
+    this.data.deleted = [entry, ...prev].slice(0, 3);
+  }
+  getLatestDeleteUndoLabel() {
+    var _a, _b, _c;
+    const label = (_c = (_b = (_a = this.data) == null ? void 0 : _a.deleted) == null ? void 0 : _b[0]) == null ? void 0 : _c.label;
+    return typeof label === "string" && label.trim() ? label : null;
+  }
+  async ensurePingNoteFileForMarker(ping, preset) {
+    var _a, _b, _c, _d, _e, _f, _g;
+    const notePath = ((_a = ping.pingNotePath) != null ? _a : "").trim();
+    if (!notePath) return null;
+    const existing = this.app.vault.getAbstractFileByPath(notePath);
+    if (existing instanceof import_obsidian20.TFile) return existing;
+    await this.ensureFolderForPath(notePath);
+    const radius = (_b = ping.pingRadius) != null ? _b : 0;
+    const unit = (_c = ping.pingRadiusUnit) != null ? _c : "km";
+    const customUnitId = ping.pingRadiusCustomUnitId;
+    const unitLabel = this.pingUnitLabel(unit, customUnitId);
+    const distLabel = this.formatPingDistanceLabel(radius, unit, customUnitId);
+    const dummyPreset = preset != null ? preset : { id: "", name: "", distances: [], unit: "km" };
+    const sections = (_d = preset == null ? void 0 : preset.sections) != null ? _d : {};
+    const includeBases = sections.bases !== false;
+    const includeTooltips = sections.tooltips !== false;
+    const includeRelated = sections.related !== false;
+    const includeTravel = sections.travelTimes !== false;
+    const fm = {
+      zoommapPing: true,
+      zoommapPingId: ping.id,
+      zoommapPingMapId: (_e = this.cfg.mapId) != null ? _e : "",
+      zoommapPingSourcePath: this.cfg.sourcePath,
+      zoommapPingSourceFileName: basename(this.cfg.sourcePath),
+      zoommapPingBase: this.getActiveBasePath(),
+      zoommapPingRadius: radius,
+      zoommapPingUnit: unit,
+      zoommapPingCustomUnitId: unit === "custom" ? customUnitId : void 0,
+      zoommapPingPresetId: (_f = ping.pingPresetId) != null ? _f : "",
+      zoommapPingPresetName: (_g = preset == null ? void 0 : preset.name) != null ? _g : "",
+      zoommapPingInRangePaths: [],
+      zoommapPingDistances: {},
+      zoommapPingUpdated: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    const frontmatter = `---
+${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
+---
+
+`;
+    const md = frontmatter + this.buildPingNoteText("", {
+      defaultTitle: `# Party pin: ${(preset == null ? void 0 : preset.name) || "Party"} (${distLabel})`,
+      baseYamlFallback: this.buildPingBaseYaml(dummyPreset, unitLabel),
+      tooltipBody: "*(none)*",
+      relatedBody: "*(none)*",
+      travelBody: "*(none)*",
+      includeBases,
+      includeTooltips,
+      includeRelated,
+      includeTravel
+    });
+    return this.app.vault.create(notePath, md);
+  }
+  async undoLastDelete() {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z;
+    if (!((_b = (_a = this.data) == null ? void 0 : _a.deleted) == null ? void 0 : _b.length)) return;
+    const [entry, ...rest] = this.data.deleted;
+    const payload = entry.payload;
+    let changed = false;
+    this.stopTextEdit(false);
+    this.finishTextBoxMove(false);
+    this.stopEditDrawingGeometry(false);
+    this.closeMenu();
+    switch (payload.kind) {
+      case "marker": {
+        (_d = (_c = this.data).markers) != null ? _d : _c.markers = [];
+        insertAtClamped(this.data.markers, payload.index, cloneForUndo(payload.marker));
+        changed = true;
+        break;
+      }
+      case "drawing": {
+        (_f = (_e = this.data).drawings) != null ? _f : _e.drawings = [];
+        insertAtClamped(this.data.drawings, payload.index, cloneForUndo(payload.drawing));
+        changed = true;
+        break;
+      }
+      case "grid": {
+        (_h = (_g = this.data).grids) != null ? _h : _g.grids = [];
+        insertAtClamped(this.data.grids, payload.index, cloneForUndo(payload.grid));
+        changed = true;
+        break;
+      }
+      case "text-layer": {
+        (_j = (_i = this.data).textLayers) != null ? _j : _i.textLayers = [];
+        insertAtClamped(this.data.textLayers, payload.index, cloneForUndo(payload.layer));
+        changed = true;
+        break;
+      }
+      case "text-box": {
+        const layer = ((_k = this.data.textLayers) != null ? _k : []).find((l) => l.id === payload.layerId);
+        if (layer) {
+          (_l = layer.boxes) != null ? _l : layer.boxes = [];
+          insertAtClamped(layer.boxes, payload.index, cloneForUndo(payload.box));
+          changed = true;
+        }
+        break;
+      }
+      case "marker-layer": {
+        (_n = (_m = this.data).layers) != null ? _n : _m.layers = [];
+        if (!((_o = this.data.layers) != null ? _o : []).some((l) => l.id === payload.layer.id)) {
+          insertAtClamped(this.data.layers, payload.index, cloneForUndo(payload.layer));
+        }
+        if (payload.mode === "delete-markers") {
+          (_q = (_p = this.data).markers) != null ? _q : _p.markers = [];
+          for (const item of (_r = payload.markers) != null ? _r : []) {
+            insertAtClamped(this.data.markers, item.index, cloneForUndo(item.marker));
+          }
+        } else {
+          const moved = new Set((_s = payload.movedMarkerIds) != null ? _s : []);
+          for (const marker of (_t = this.data.markers) != null ? _t : []) {
+            if (moved.has(marker.id)) marker.layer = payload.layer.id;
+          }
+        }
+        changed = true;
+        break;
+      }
+      case "draw-layer": {
+        (_v = (_u = this.data).drawLayers) != null ? _v : _u.drawLayers = [];
+        if (!((_w = this.data.drawLayers) != null ? _w : []).some((l) => l.id === payload.layer.id)) {
+          insertAtClamped(this.data.drawLayers, payload.index, cloneForUndo(payload.layer));
+        }
+        (_y = (_x = this.data).drawings) != null ? _y : _x.drawings = [];
+        for (const item of (_z = payload.drawings) != null ? _z : []) {
+          insertAtClamped(this.data.drawings, item.index, cloneForUndo(item.drawing));
+        }
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) return;
+    this.data.deleted = rest;
+    this.renderAll();
+    await this.saveDataSoon();
+    this.schedulePingUpdate();
+    new import_obsidian20.Notice(`Undo: ${entry.label}`, 1400);
+  }
   async saveDefaultViewToYaml() {
     const af = this.app.vault.getAbstractFileByPath(this.cfg.sourcePath);
     if (!(af instanceof import_obsidian20.TFile)) {
@@ -5539,6 +5845,21 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
     this.applyViewportInset();
     this.onResize();
   }
+  getOwnerDocument() {
+    return this.el.ownerDocument;
+  }
+  getOwnerWindow() {
+    var _a;
+    return (_a = this.getOwnerDocument().defaultView) != null ? _a : window;
+  }
+  getOwnerBody() {
+    return this.getOwnerDocument().body;
+  }
+  asElement(target) {
+    if (!target || typeof target !== "object") return null;
+    if ("closest" in target) return target;
+    return null;
+  }
   startDraw(kind) {
     var _a;
     if (!this.plugin.settings.enableDrawing) {
@@ -5790,9 +6111,10 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
     this.measureHud = this.hudClipEl.createDiv({ cls: "zm-measure-hud" });
     this.drawEditHudEl = this.hudClipEl.createDiv({ cls: "zm-draw-edit" });
     this.zoomHud = this.hudClipEl.createDiv({ cls: "zm-zoom-hud" });
+    const ownerWindow = this.getOwnerWindow();
     this.registerDomEvent(this.viewportEl, "wheel", (e) => {
-      const t = e.target;
-      if (t instanceof Element && t.closest(".popover")) return;
+      const t = this.asElement(e.target);
+      if (t == null ? void 0 : t.closest(".popover")) return;
       if (this.cfg.responsive) return;
       e.preventDefault();
       e.stopPropagation();
@@ -5804,14 +6126,14 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
       this.closeMenu();
       this.onPointerDownViewport(e);
     });
-    this.registerDomEvent(window, "pointermove", (e) => this.onPointerMove(e));
-    this.registerDomEvent(window, "pointerup", (e) => {
+    this.registerDomEvent(ownerWindow, "pointermove", (e) => this.onPointerMove(e));
+    this.registerDomEvent(ownerWindow, "pointerup", (e) => {
       if (this.activePointers.has(e.pointerId)) this.activePointers.delete(e.pointerId);
       if (this.pinchActive && this.activePointers.size < 2) this.endPinch();
       e.preventDefault();
       this.onPointerUp(e);
     });
-    this.registerDomEvent(window, "pointercancel", (e) => {
+    this.registerDomEvent(ownerWindow, "pointercancel", (e) => {
       if (this.activePointers.has(e.pointerId)) this.activePointers.delete(e.pointerId);
       if (this.pinchActive && this.activePointers.size < 2) this.endPinch();
     });
@@ -5846,7 +6168,7 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
       e.stopPropagation();
       this.onContextMenuViewport(e);
     });
-    this.registerDomEvent(window, "keydown", (e) => {
+    this.registerDomEvent(ownerWindow, "keydown", (e) => {
       if (this.gridAlignId) {
         if (this.isGridAlignIncreaseKey(e)) {
           e.preventDefault();
@@ -7286,7 +7608,7 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
       lines: ((_a = box.lines) != null ? _a : []).map((ln) => ({ ...ln }))
     };
     host.classList.add("zm-text-hitbox--dragging");
-    document.body.classList.add("zm-cursor-move-grabbing");
+    this.getOwnerBody().classList.add("zm-cursor-move-grabbing");
     (_b = host.setPointerCapture) == null ? void 0 : _b.call(host, pointerId);
   }
   updateTextBoxMove(cur) {
@@ -7332,7 +7654,7 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
     this.textMovePointerId = null;
     this.textMoveStart = null;
     this.textMoveOrig = null;
-    document.body.classList.remove("zm-cursor-move-grabbing");
+    this.getOwnerBody().classList.remove("zm-cursor-move-grabbing");
     (_a = this.textHitEl) == null ? void 0 : _a.querySelectorAll(".zm-text-hitbox--dragging").forEach((el) => el.classList.remove("zm-text-hitbox--dragging"));
     if (commit) {
       void this.saveDataSoon();
@@ -8404,6 +8726,7 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
     return e.button === 0;
   }
   onPointerDownViewport(e) {
+    var _a;
     if (!this.ready) return;
     if (this.gridAlignId) {
       e.preventDefault();
@@ -8424,9 +8747,10 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
     }
     this.plugin.setActiveMap(this);
     this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (e.target instanceof Element && e.target.setPointerCapture) e.target.setPointerCapture(e.pointerId);
-    const tgt = e.target;
-    if (tgt instanceof Element && tgt.closest(".zm-marker")) return;
+    const captureTarget = this.asElement(e.target);
+    (_a = captureTarget == null ? void 0 : captureTarget.setPointerCapture) == null ? void 0 : _a.call(captureTarget, e.pointerId);
+    const tgt = this.asElement(e.target);
+    if (tgt == null ? void 0 : tgt.closest(".zm-marker")) return;
     if (this.cfg.responsive) return;
     if (this.activePointers.size === 2) {
       this.startPinch();
@@ -8628,7 +8952,7 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
     this.draggingMarkerId = null;
     this.dragAnchorOffset = null;
     this.dragMoved = false;
-    document.body.classList.remove("zm-cursor-grabbing");
+    this.getOwnerBody().classList.remove("zm-cursor-grabbing");
     this.draggingView = false;
     this.draggingViewButton = null;
     this.panAccDx = 0;
@@ -9259,12 +9583,17 @@ Total: ${local.total}`, 6e3);
     for (let i = 1; i < points.length; i += 1) {
       const a = points[i - 1];
       const b = points[i];
+      const dxPx = (b.x - a.x) * this.imgW;
+      const dyPx = (b.y - a.y) * this.imgH;
+      const angleDeg = Math.atan2(dyPx, dxPx) * 180 / Math.PI;
+      const start = angleDeg > 90 || angleDeg < -90 ? b : a;
+      const end = angleDeg > 90 || angleDeg < -90 ? a : b;
       out.push({
         id: generateId("tln"),
-        x0: a.x,
-        y0: a.y,
-        x1: b.x,
-        y1: b.y,
+        x0: start.x,
+        y0: start.y,
+        x1: end.x,
+        y1: end.y,
         text: ""
       });
     }
@@ -9530,6 +9859,7 @@ Total: ${local.total}`, 6e3);
     if (pinsGlobalMenu.length) {
       addHereChildren.push({ label: "Pins (global)", children: pinsGlobalMenu });
     }
+    const items = [];
     if (favsGlobalMenu.length) {
       addHereChildren.push({ type: "separator" });
       addHereChildren.push({ label: "Favorites (global)", children: favsGlobalMenu });
@@ -9671,9 +10001,9 @@ Total: ${local.total}`, 6e3);
         }
       }
     );
-    const items = [
+    items.push(
       { label: "Add marker here", children: addHereChildren }
-    ];
+    );
     if (favsBaseMenu.length) {
       items.push({ label: "Favorites (base)", children: favsBaseMenu });
     }
@@ -9824,12 +10154,24 @@ Total: ${local.total}`, 6e3);
               ).length;
               const msg = count > 0 ? `Delete draw layer "${dl.name}" and ${count} drawings on it?` : `Delete draw layer "${dl.name}"?`;
               new ConfirmModal(this.app, "Delete draw layer", msg, () => {
-                var _a3, _b2;
+                var _a3, _b2, _c2, _d2;
                 if (!this.data) return;
-                this.data.drawLayers = ((_a3 = this.data.drawLayers) != null ? _a3 : []).filter(
+                this.pushDeleteUndo(
+                  {
+                    kind: "draw-layer",
+                    layer: cloneForUndo(dl),
+                    index: ((_a3 = this.data.drawLayers) != null ? _a3 : []).findIndex((l) => l.id === dl.id),
+                    drawings: ((_b2 = this.data.drawings) != null ? _b2 : []).map((drawing, index) => ({ drawing, index })).filter((x) => x.drawing.layerId === dl.id).map((x) => ({
+                      drawing: cloneForUndo(x.drawing),
+                      index: x.index
+                    }))
+                  },
+                  `Delete draw layer: ${dl.name}`
+                );
+                this.data.drawLayers = ((_c2 = this.data.drawLayers) != null ? _c2 : []).filter(
                   (l) => l.id !== dl.id
                 );
-                this.data.drawings = ((_b2 = this.data.drawings) != null ? _b2 : []).filter(
+                this.data.drawings = ((_d2 = this.data.drawings) != null ? _d2 : []).filter(
                   (d) => d.layerId !== dl.id
                 );
                 void this.saveDataSoon();
@@ -10189,8 +10531,17 @@ Total: ${local.total}`, 6e3);
               {
                 label: "Delete box",
                 action: () => {
-                  var _a3;
-                  tl.boxes = ((_a3 = tl.boxes) != null ? _a3 : []).filter((b) => b.id !== box.id);
+                  var _a3, _b2;
+                  this.pushDeleteUndo(
+                    {
+                      kind: "text-box",
+                      layerId: tl.id,
+                      box: cloneForUndo(box),
+                      index: ((_a3 = tl.boxes) != null ? _a3 : []).findIndex((b) => b.id === box.id)
+                    },
+                    `Delete text box: ${box.name || "Text box"}`
+                  );
+                  tl.boxes = ((_b2 = tl.boxes) != null ? _b2 : []).filter((b) => b.id !== box.id);
                   if (this.textMode === "edit" && this.activeTextLayerId === tl.id && this.activeTextBoxId === box.id) {
                     this.stopTextEdit(false);
                   }
@@ -10310,8 +10661,16 @@ Total: ${local.total}`, 6e3);
             "Delete text layer",
             `Delete text layer "${tl.name || tl.id}"? This cannot be undone.`,
             () => {
-              var _a2;
+              var _a2, _b2;
               if (!this.data) return;
+              this.pushDeleteUndo(
+                {
+                  kind: "text-layer",
+                  layer: cloneForUndo(tl),
+                  index: ((_a2 = this.data.textLayers) != null ? _a2 : []).findIndex((x) => x.id === tl.id)
+                },
+                `Delete text layer: ${tl.name || tl.id}`
+              );
               if (this.textMode === "edit" && this.activeTextLayerId === tl.id) {
                 this.stopTextEdit(false);
               }
@@ -10321,7 +10680,7 @@ Total: ${local.total}`, 6e3);
                 this.activeTextLayerId = null;
                 this.activeTextBoxId = null;
               }
-              this.data.textLayers = ((_a2 = this.data.textLayers) != null ? _a2 : []).filter((x) => x.id !== tl.id);
+              this.data.textLayers = ((_b2 = this.data.textLayers) != null ? _b2 : []).filter((x) => x.id !== tl.id);
               void this.saveDataSoon();
               this.renderTextLayers();
             }
@@ -10555,9 +10914,17 @@ Total: ${local.total}`, 6e3);
               {
                 label: "Delete grid",
                 action: () => {
-                  var _a2;
+                  var _a2, _b2, _c2;
+                  this.pushDeleteUndo(
+                    {
+                      kind: "grid",
+                      grid: cloneForUndo(g),
+                      index: ((_b2 = (_a2 = this.data) == null ? void 0 : _a2.grids) != null ? _b2 : []).findIndex((x) => x.id === g.id)
+                    },
+                    `Delete grid: ${g.name || "Grid"}`
+                  );
                   if (!this.data) return;
-                  this.data.grids = ((_a2 = this.data.grids) != null ? _a2 : []).filter((x) => x.id !== g.id);
+                  this.data.grids = ((_c2 = this.data.grids) != null ? _c2 : []).filter((x) => x.id !== g.id);
                   if (this.gridAlignId === g.id) this.stopGridAlignMode(false);
                   void this.saveDataSoon();
                   this.renderGrids();
@@ -10626,6 +10993,17 @@ Total: ${local.total}`, 6e3);
         })();
         items.push({ type: "separator" }, { label: distLabel });
       }
+    }
+    const undoLabel = this.getLatestDeleteUndoLabel();
+    if (undoLabel) {
+      items.push({ type: "separator" });
+      items.push({
+        label: `Undo delete: ${undoLabel}`,
+        action: () => {
+          this.closeMenu();
+          void this.undoLastDelete();
+        }
+      });
     }
     this.openMenu = new ZMMenu(this.el.ownerDocument);
     this.openMenu.open(e.clientX, e.clientY, items);
@@ -11167,9 +11545,20 @@ Total: ${local.total}`, 6e3);
     }
   }
   deleteMarker(m) {
+    var _a;
     if (!this.data) return;
+    const index = this.data.markers.findIndex((mm) => mm.id === m.id);
+    if (index < 0) return;
+    this.pushDeleteUndo(
+      {
+        kind: "marker",
+        marker: cloneForUndo(m),
+        index
+      },
+      `Delete ${(_a = m.type) != null ? _a : "marker"}`
+    );
     void this.deletePingNoteIfOwned(m);
-    this.data.markers = this.data.markers.filter((mm) => mm.id !== m.id);
+    this.data.markers.splice(index, 1);
     void this.saveDataSoon();
     this.renderMarkersOnly();
     new import_obsidian20.Notice("Marker deleted.", 900);
@@ -11625,6 +12014,8 @@ ${after}`;
       zoommapPing: true,
       zoommapPingId: marker.id,
       zoommapPingMapId: (_e = this.cfg.mapId) != null ? _e : "",
+      zoommapPingSourcePath: this.cfg.sourcePath,
+      zoommapPingSourceFileName: basename(this.cfg.sourcePath),
       zoommapPingBase: this.getActiveBasePath(),
       zoommapPingRadius: distanceValue,
       zoommapPingUnit: unit,
@@ -11666,18 +12057,17 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
     new import_obsidian20.Notice("Party pin created.", 1200);
   }
   async updatePingNoteForMarker(ping) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
     if (!this.data) return;
     if (ping.type !== "ping") return;
-    const notePath = (_a = ping.pingNotePath) != null ? _a : "";
-    const af = this.app.vault.getAbstractFileByPath(notePath);
+    const preset = ping.pingPresetId ? this.findPingPresetById(ping.pingPresetId) : void 0;
+    const af = await this.ensurePingNoteFileForMarker(ping, preset);
     if (!(af instanceof import_obsidian20.TFile)) return;
-    const radius = (_b = ping.pingRadius) != null ? _b : 0;
-    const unit = (_c = ping.pingRadiusUnit) != null ? _c : "km";
+    const radius = (_a = ping.pingRadius) != null ? _a : 0;
+    const unit = (_b = ping.pingRadiusUnit) != null ? _b : "km";
     const customUnitId = ping.pingRadiusCustomUnitId;
     const radiusPx = this.pingToPixels(radius, unit, customUnitId);
     if (radiusPx == null) return;
-    const preset = ping.pingPresetId ? this.findPingPresetById(ping.pingPresetId) : void 0;
     const allowedLayerIds = this.resolvePingSearchLayerIds(ping, preset);
     const inRangePaths = /* @__PURE__ */ new Set();
     const distances = {};
@@ -11695,7 +12085,7 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
       if (pxDist > radiusPx) continue;
       const distVal = this.pingDistanceFromPixels(pxDist, unit, customUnitId);
       const dist = distVal == null ? 0 : Math.round(distVal * 100) / 100;
-      const link = ((_d = m.link) != null ? _d : "").trim();
+      const link = ((_c = m.link) != null ? _c : "").trim();
       if (link) {
         const f = this.resolveTFile(link, this.cfg.sourcePath);
         if (!f) continue;
@@ -11709,7 +12099,7 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
         }
         continue;
       }
-      const tip = ((_e = m.tooltip) != null ? _e : "").trim();
+      const tip = ((_d = m.tooltip) != null ? _d : "").trim();
       if (!tip) continue;
       const prev = tooltipMap.get(tip);
       if (prev == null || dist < prev) tooltipMap.set(tip, dist);
@@ -11737,6 +12127,8 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
       set("zoommapPing", true);
       set("zoommapPingId", ping.id);
       set("zoommapPingMapId", (_a2 = this.cfg.mapId) != null ? _a2 : "");
+      set("zoommapPingSourcePath", this.cfg.sourcePath);
+      set("zoommapPingSourceFileName", basename(this.cfg.sourcePath));
       set("zoommapPingBase", this.getActiveBasePath());
       set("zoommapPingRadius", radius);
       set("zoommapPingUnit", unit);
@@ -11752,8 +12144,8 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
     const unitLabel = this.pingUnitLabel(unit, customUnitId);
     const tooltipsSorted = Array.from(tooltipMap.entries()).sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]));
     const tooltipLines = tooltipsSorted.length === 0 ? ["*(none)*"] : tooltipsSorted.map(([txt, d]) => `- ${txt} (${d} ${unitLabel})`);
-    const relatedMode = (_f = preset == null ? void 0 : preset.relatedLookup) != null ? _f : "tags";
-    const sections = (_g = preset == null ? void 0 : preset.sections) != null ? _g : {};
+    const relatedMode = (_e = preset == null ? void 0 : preset.relatedLookup) != null ? _e : "tags";
+    const sections = (_f = preset == null ? void 0 : preset.sections) != null ? _f : {};
     const includeBases = sections.bases !== false;
     const includeTooltips = sections.tooltips !== false;
     const includeRelated = sections.related !== false;
@@ -11792,7 +12184,7 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
         }
       } else {
         const excludeTagNorms = new Set(
-          ((_h = preset == null ? void 0 : preset.filterTags) != null ? _h : []).map((t) => this.normalizeTagForIndex(t)).filter(Boolean)
+          ((_g = preset == null ? void 0 : preset.filterTags) != null ? _g : []).map((t) => this.normalizeTagForIndex(t)).filter(Boolean)
         );
         const candidates = inRangeFiles.map(({ file, dist }) => {
           const tags = this.collectTagsForFile(file);
@@ -11819,8 +12211,8 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
             lines.push(`| ${pinLabel} | Notes with tag |`);
             lines.push("| --- | --- |");
             for (const norm of c.norms) {
-              const displayTag = (_i = c.tags.get(norm)) != null ? _i : `#${norm}`;
-              const matches = ((_j = tagIndex.get(norm)) != null ? _j : []).filter((f) => f.path !== c.file.path && f.path !== af.path).sort((a, b) => a.basename.localeCompare(b.basename, void 0, { sensitivity: "base" }));
+              const displayTag = (_h = c.tags.get(norm)) != null ? _h : `#${norm}`;
+              const matches = ((_i = tagIndex.get(norm)) != null ? _i : []).filter((f) => f.path !== c.file.path && f.path !== af.path).sort((a, b) => a.basename.localeCompare(b.basename, void 0, { sensitivity: "base" }));
               const slice = matches.slice(0, maxPerTag);
               const rest = matches.length - slice.length;
               const links = slice.map((f) => this.formatWikiLink(f, af.path));
@@ -12360,8 +12752,18 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
     }
   }
   async deleteDrawing(d) {
-    var _a;
+    var _a, _b;
     if (!this.data) return;
+    const index = ((_a = this.data.drawings) != null ? _a : []).findIndex((x) => x.id === d.id);
+    if (index < 0) return;
+    this.pushDeleteUndo(
+      {
+        kind: "drawing",
+        drawing: cloneForUndo(d),
+        index
+      },
+      `Delete ${d.kind}`
+    );
     if (this.drawEditDrawingId === d.id) {
       this.drawEditDrawingId = null;
       this.drawEditMode = null;
@@ -12380,7 +12782,7 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
         }
       }
     }
-    this.data.drawings = ((_a = this.data.drawings) != null ? _a : []).filter((x) => x.id !== d.id);
+    this.data.drawings = ((_b = this.data.drawings) != null ? _b : []).filter((x) => x.id !== d.id);
     await this.saveDataSoon();
     this.renderDrawings();
     new import_obsidian20.Notice("Drawing deleted.", 900);
@@ -12475,6 +12877,7 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
     ];
     this.openMenu = new ZMMenu(this.el.ownerDocument);
     this.openMenu.open(ev.clientX, ev.clientY, items);
+    const doc = this.getOwnerDocument();
     const outside = (event) => {
       if (!this.openMenu) return;
       const t = event.target;
@@ -12485,13 +12888,13 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
       if (event.key === "Escape") this.closeMenu();
     };
     const rightClickClose = () => this.closeMenu();
-    document.addEventListener("pointerdown", outside, { capture: true });
-    document.addEventListener("contextmenu", rightClickClose, { capture: true });
-    document.addEventListener("keydown", keyClose, { capture: true });
+    doc.addEventListener("pointerdown", outside, { capture: true });
+    doc.addEventListener("contextmenu", rightClickClose, { capture: true });
+    doc.addEventListener("keydown", keyClose, { capture: true });
     this.register(() => {
-      document.removeEventListener("pointerdown", outside, true);
-      document.removeEventListener("contextmenu", rightClickClose, true);
-      document.removeEventListener("keydown", keyClose, true);
+      doc.removeEventListener("pointerdown", outside, true);
+      doc.removeEventListener("contextmenu", rightClickClose, true);
+      doc.removeEventListener("keydown", keyClose, true);
     });
   }
   getOrCreateDefaultDrawLayer() {
@@ -13105,14 +13508,14 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
             };
           }
           host.classList.add("zm-marker--dragging");
-          document.body.classList.add("zm-cursor-grabbing");
+          this.getOwnerBody().classList.add("zm-cursor-grabbing");
           (_a2 = host.setPointerCapture) == null ? void 0 : _a2.call(host, e.pointerId);
           e.preventDefault();
         });
         host.addEventListener("pointerup", () => {
           if (this.draggingMarkerId === m.id) {
             host.classList.remove("zm-marker--dragging");
-            document.body.classList.remove("zm-cursor-grabbing");
+            this.getOwnerBody().classList.remove("zm-cursor-grabbing");
           }
         });
         host.addEventListener("contextmenu", (ev) => {
@@ -13385,6 +13788,7 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
             ];
             this.openMenu = new ZMMenu(this.el.ownerDocument);
             this.openMenu.open(ev.clientX, ev.clientY, items2);
+            const doc2 = this.getOwnerDocument();
             const outside2 = (event) => {
               if (!this.openMenu) return;
               const t = event.target;
@@ -13395,17 +13799,17 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
               if (event.key === "Escape") this.closeMenu();
             };
             const rightClickClose2 = () => this.closeMenu();
-            document.addEventListener("pointerdown", outside2, {
+            doc2.addEventListener("pointerdown", outside2, {
               capture: true
             });
-            document.addEventListener("contextmenu", rightClickClose2, {
+            doc2.addEventListener("contextmenu", rightClickClose2, {
               capture: true
             });
-            document.addEventListener("keydown", keyClose2, { capture: true });
+            doc2.addEventListener("keydown", keyClose2, { capture: true });
             this.register(() => {
-              document.removeEventListener("pointerdown", outside2, true);
-              document.removeEventListener("contextmenu", rightClickClose2, true);
-              document.removeEventListener("keydown", keyClose2, true);
+              doc2.removeEventListener("pointerdown", outside2, true);
+              doc2.removeEventListener("contextmenu", rightClickClose2, true);
+              doc2.removeEventListener("keydown", keyClose2, true);
             });
             return;
           }
@@ -13457,6 +13861,7 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
           }
           this.openMenu = new ZMMenu(this.el.ownerDocument);
           this.openMenu.open(ev.clientX, ev.clientY, items);
+          const doc = this.getOwnerDocument();
           const outside = (event) => {
             if (!this.openMenu) return;
             const t = event.target;
@@ -13468,13 +13873,13 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
             if (event.key === "Escape") this.closeMenu();
           };
           const rightClickClose = () => this.closeMenu();
-          document.addEventListener("pointerdown", outside, { capture: true });
-          document.addEventListener("contextmenu", rightClickClose, { capture: true });
-          document.addEventListener("keydown", keyClose, { capture: true });
+          doc.addEventListener("pointerdown", outside, { capture: true });
+          doc.addEventListener("contextmenu", rightClickClose, { capture: true });
+          doc.addEventListener("keydown", keyClose, { capture: true });
           this.register(() => {
-            document.removeEventListener("pointerdown", outside, true);
-            document.removeEventListener("contextmenu", rightClickClose, true);
-            document.removeEventListener("keydown", keyClose, true);
+            doc.removeEventListener("pointerdown", outside, true);
+            doc.removeEventListener("contextmenu", rightClickClose, true);
+            doc.removeEventListener("keydown", keyClose, true);
           });
         });
       }
@@ -13834,9 +14239,10 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
       this.onResize();
     };
     const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp, true);
-      document.body.classList.remove("zm-cursor-resize-nwse", "zm-cursor-resize-nesw");
+      const ownerWindow = this.getOwnerWindow();
+      ownerWindow.removeEventListener("pointermove", onMove);
+      ownerWindow.removeEventListener("pointerup", onUp, true);
+      this.getOwnerBody().classList.remove("zm-cursor-resize-nwse", "zm-cursor-resize-nesw");
       this.userResizing = false;
       if (this.shouldUseSavedFrame() && this.cfg.resizable) void this.persistFrameNow();
     };
@@ -13848,11 +14254,12 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
       startH = rect.height;
       startX = e.clientX;
       startY = e.clientY;
-      if (side === "right") document.body.classList.add("zm-cursor-resize-nwse");
-      else document.body.classList.add("zm-cursor-resize-nesw");
+      const ownerWindow = this.getOwnerWindow();
+      if (side === "right") this.getOwnerBody().classList.add("zm-cursor-resize-nwse");
+      else this.getOwnerBody().classList.add("zm-cursor-resize-nesw");
       this.userResizing = true;
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp, true);
+      ownerWindow.addEventListener("pointermove", onMove);
+      ownerWindow.addEventListener("pointerup", onUp, true);
     });
   }
   shouldUseSavedFrame() {
@@ -14418,6 +14825,25 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
       new import_obsidian20.Notice("Cannot delete the last layer.", 2e3);
       return;
     }
+    const layerIndex = this.data.layers.findIndex((l) => l.id === layer.id);
+    const affectedMarkers = this.data.markers.map((marker, index) => ({ marker, index })).filter((x) => x.marker.layer === layer.id);
+    this.pushDeleteUndo(
+      decision.mode === "move" ? {
+        kind: "marker-layer",
+        layer: cloneForUndo(layer),
+        index: layerIndex,
+        mode: "move",
+        targetId: decision.targetId,
+        movedMarkerIds: affectedMarkers.map((x) => x.marker.id)
+      } : {
+        kind: "marker-layer",
+        layer: cloneForUndo(layer),
+        index: layerIndex,
+        mode: "delete-markers",
+        markers: affectedMarkers.map((x) => ({ marker: cloneForUndo(x.marker), index: x.index }))
+      },
+      `Delete marker layer: ${layer.name}`
+    );
     if (decision.mode === "move") {
       const targetId = decision.targetId;
       if (!targetId || targetId === layer.id) {
@@ -14622,11 +15048,26 @@ var FaIconPickerModal = class extends import_obsidian22.Modal {
   constructor(app, folder, onChoose) {
     super(app);
     this.files = [];
+    this.currentMatches = [];
     this.listEl = null;
+    this.gridEl = null;
+    this.statusEl = null;
     this.searchInput = null;
     this.selected = null;
     this.selectedEl = null;
     this.addButton = null;
+    this.renderedCount = 0;
+    this.desiredRenderCount = 0;
+    this.renderToken = 0;
+    this.isRendering = false;
+    this.searchDebounceTimer = null;
+    this.currentQuery = "";
+    this.initialVisibleLimit = 30;
+    this.searchResultLimit = 50;
+    this.scrollLoadStep = 30;
+    this.renderChunkSize = 12;
+    this.debounceMs = 180;
+    this.scrollThresholdPx = 120;
     this.folder = (0, import_obsidian22.normalizePath)(folder);
     this.onChoose = onChoose;
   }
@@ -14655,49 +15096,152 @@ var FaIconPickerModal = class extends import_obsidian22.Modal {
     result.sort((a, b) => a.path.localeCompare(b.path));
     this.files = result;
   }
-  renderList(filter) {
-    if (!this.listEl) return;
-    const files = Array.isArray(this.files) ? this.files : [];
-    this.files = files;
-    this.listEl.empty();
-    this.selected = null;
-    if (this.selectedEl) {
-      this.selectedEl.classList.remove("is-selected");
-      this.selectedEl = null;
-    }
-    if (this.addButton) this.addButton.disabled = true;
+  getMatches(filter) {
     const q = filter.trim().toLowerCase();
+    const files = Array.isArray(this.files) ? this.files : [];
     const matches = files.filter((f) => {
       if (!q) return true;
       const name = f.name.toLowerCase();
       const path = f.path.toLowerCase();
       return name.includes(q) || path.includes(q);
     });
-    if (matches.length === 0) {
+    return q ? matches.slice(0, this.searchResultLimit) : matches;
+  }
+  scheduleRender(filter) {
+    if (this.searchDebounceTimer !== null) {
+      window.clearTimeout(this.searchDebounceTimer);
+      this.searchDebounceTimer = null;
+    }
+    this.searchDebounceTimer = window.setTimeout(() => {
+      this.searchDebounceTimer = null;
+      this.renderList(filter);
+    }, this.debounceMs);
+  }
+  renderList(filter) {
+    if (!this.listEl) return;
+    this.currentQuery = filter.trim();
+    this.currentMatches = this.getMatches(this.currentQuery);
+    this.renderToken += 1;
+    this.renderedCount = 0;
+    this.desiredRenderCount = 0;
+    this.isRendering = false;
+    this.gridEl = null;
+    this.statusEl = null;
+    this.listEl.empty();
+    const selectedStillVisible = this.selected !== null && this.currentMatches.some((f) => {
+      var _a;
+      return f.path === ((_a = this.selected) == null ? void 0 : _a.path);
+    });
+    if (!selectedStillVisible) {
+      this.selected = null;
+      if (this.addButton) this.addButton.disabled = true;
+    } else if (this.addButton) {
+      this.addButton.disabled = false;
+    }
+    if (this.selectedEl) {
+      this.selectedEl.classList.remove("is-selected");
+    }
+    this.selectedEl = null;
+    if (this.currentMatches.length === 0) {
       this.listEl.createEl("div", {
         text: "No SVG icons found in this folder."
       });
       return;
     }
-    const grid = this.listEl.createDiv({ cls: "zoommap-fa-picker-grid" });
-    for (const file of matches) {
-      const cell = grid.createDiv({ cls: "zoommap-fa-picker-cell" });
-      const img = cell.createEl("img", { cls: "zoommap-fa-picker-icon" });
-      img.src = this.app.vault.getResourcePath(file);
-      cell.createDiv({
-        cls: "zoommap-fa-picker-label",
-        text: file.name.replace(/\.svg$/i, "")
-      });
-      cell.onclick = () => {
-        this.selected = file;
-        if (this.selectedEl && this.selectedEl !== cell) {
-          this.selectedEl.classList.remove("is-selected");
-        }
-        this.selectedEl = cell;
-        cell.classList.add("is-selected");
-        if (this.addButton) this.addButton.disabled = false;
-      };
+    this.statusEl = this.listEl.createDiv({ cls: "zoommap-muted" });
+    this.gridEl = this.listEl.createDiv({ cls: "zoommap-fa-picker-grid" });
+    this.updateStatus();
+    this.queueRenderTo(this.initialVisibleLimit);
+  }
+  updateStatus() {
+    if (!this.statusEl) return;
+    const total = this.currentMatches.length;
+    const rendered = this.renderedCount;
+    const searching = this.currentQuery.length > 0;
+    if (searching) {
+      const limited = total >= this.searchResultLimit;
+      if (rendered < total) {
+        this.statusEl.setText(
+          limited ? `Showing ${rendered} of max. ${this.searchResultLimit} search results. Scroll to load more.` : `Showing ${rendered} of ${total} search results. Scroll to load more.`
+        );
+      } else {
+        this.statusEl.setText(
+          limited ? `Showing max. ${this.searchResultLimit} search results.` : `Showing ${total} search results.`
+        );
+      }
+      return;
     }
+    if (rendered < total) {
+      this.statusEl.setText(`Showing ${rendered} of ${total} icons. Scroll to load more or use search.`);
+    } else {
+      this.statusEl.setText(`Showing ${total} icons.`);
+    }
+  }
+  queueRenderTo(targetCount) {
+    this.desiredRenderCount = Math.min(
+      this.currentMatches.length,
+      Math.max(this.desiredRenderCount, targetCount)
+    );
+    if (!this.gridEl || this.isRendering) return;
+    this.isRendering = true;
+    const token = this.renderToken;
+    const step = () => {
+      if (token !== this.renderToken) {
+        this.isRendering = false;
+        return;
+      }
+      if (!this.gridEl) {
+        this.isRendering = false;
+        return;
+      }
+      const maxTarget = Math.min(this.desiredRenderCount, this.currentMatches.length);
+      const end = Math.min(this.renderedCount + this.renderChunkSize, maxTarget);
+      for (let i = this.renderedCount; i < end; i += 1) {
+        this.appendCell(this.currentMatches[i]);
+      }
+      this.renderedCount = end;
+      this.updateStatus();
+      if (this.renderedCount < maxTarget) {
+        window.requestAnimationFrame(step);
+        return;
+      }
+      this.isRendering = false;
+      this.maybeLoadMoreFromScroll();
+    };
+    window.requestAnimationFrame(step);
+  }
+  appendCell(file) {
+    if (!this.gridEl) return;
+    const cell = this.gridEl.createDiv({ cls: "zoommap-fa-picker-cell" });
+    const img = cell.createEl("img", { cls: "zoommap-fa-picker-icon" });
+    img.decoding = "async";
+    img.loading = "lazy";
+    img.src = this.app.vault.getResourcePath(file);
+    cell.createDiv({
+      cls: "zoommap-fa-picker-label",
+      text: file.name.replace(/\.svg$/i, "")
+    });
+    if (this.selected && this.selected.path === file.path) {
+      this.selectedEl = cell;
+      cell.classList.add("is-selected");
+    }
+    cell.onclick = () => {
+      this.selected = file;
+      if (this.selectedEl && this.selectedEl !== cell) {
+        this.selectedEl.classList.remove("is-selected");
+      }
+      this.selectedEl = cell;
+      cell.classList.add("is-selected");
+      if (this.addButton) this.addButton.disabled = false;
+    };
+  }
+  maybeLoadMoreFromScroll() {
+    if (!this.listEl) return;
+    if (this.currentMatches.length === 0) return;
+    if (this.desiredRenderCount >= this.currentMatches.length) return;
+    const nearBottom = this.listEl.scrollTop + this.listEl.clientHeight >= this.listEl.scrollHeight - this.scrollThresholdPx;
+    if (!nearBottom) return;
+    this.queueRenderTo(this.desiredRenderCount + this.scrollLoadStep);
   }
   onOpen() {
     const { contentEl } = this;
@@ -14717,11 +15261,15 @@ var FaIconPickerModal = class extends import_obsidian22.Modal {
       placeholder: "Search by name or path\u2026"
     });
     this.listEl = contentEl.createDiv({ cls: "zoommap-fa-picker-list" });
+    this.listEl.addEventListener("scroll", () => {
+      this.maybeLoadMoreFromScroll();
+    });
     const footer = contentEl.createDiv({
       cls: "zoommap-fa-picker-footer zoommap-modal-footer"
     });
     this.addButton = footer.createEl("button", { text: "Add" });
     this.addButton.disabled = true;
+    this.addButton.textContent = "Add";
     this.addButton.onclick = () => {
       if (!this.selected) return;
       this.onChoose(this.selected);
@@ -14730,18 +15278,27 @@ var FaIconPickerModal = class extends import_obsidian22.Modal {
     backButton.onclick = () => this.close();
     this.searchInput.addEventListener("input", () => {
       var _a, _b;
-      this.renderList((_b = (_a = this.searchInput) == null ? void 0 : _a.value) != null ? _b : "");
+      this.scheduleRender((_b = (_a = this.searchInput) == null ? void 0 : _a.value) != null ? _b : "");
     });
     this.renderList("");
   }
   onClose() {
     this.contentEl.empty();
+    if (this.searchDebounceTimer !== null) {
+      window.clearTimeout(this.searchDebounceTimer);
+      this.searchDebounceTimer = null;
+    }
+    this.renderToken += 1;
     this.listEl = null;
+    this.gridEl = null;
+    this.statusEl = null;
     this.searchInput = null;
     this.files = [];
+    this.currentMatches = [];
     this.selected = null;
     this.selectedEl = null;
     this.addButton = null;
+    this.isRendering = false;
   }
 };
 
@@ -15712,23 +16269,23 @@ function deepClone5(x) {
   if (typeof structuredClone === "function") return structuredClone(x);
   return JSON.parse(JSON.stringify(x));
 }
-function isRecord(x) {
+function isRecord2(x) {
   return typeof x === "object" && x !== null && !Array.isArray(x);
 }
 function isTravelPerDayConfig(x) {
-  if (!isRecord(x)) return false;
+  if (!isRecord2(x)) return false;
   return typeof x.value === "number" && typeof x.unit === "string";
 }
 function isTravelPerDayPreset(x) {
-  if (!isRecord(x)) return false;
+  if (!isRecord2(x)) return false;
   return typeof x.id === "string" && typeof x.name === "string" && typeof x.value === "number" && typeof x.unit === "string";
 }
 function isCustomUnitDef(x) {
-  if (!isRecord(x)) return false;
+  if (!isRecord2(x)) return false;
   return typeof x.id === "string" && typeof x.name === "string" && typeof x.abbreviation === "string" && typeof x.metersPerUnit === "number";
 }
 function isTravelTimePreset(x) {
-  if (!isRecord(x)) return false;
+  if (!isRecord2(x)) return false;
   if (typeof x.id !== "string" || typeof x.name !== "string") return false;
   if (typeof x.distanceValue !== "number") return false;
   if (typeof x.distanceUnit !== "string") return false;
@@ -15736,11 +16293,11 @@ function isTravelTimePreset(x) {
   return true;
 }
 function isTerrainDef(x) {
-  if (!isRecord(x)) return false;
+  if (!isRecord2(x)) return false;
   return typeof x.id === "string" && typeof x.name === "string" && typeof x.factor === "number";
 }
 function isTravelRulesPack(x) {
-  if (!isRecord(x)) return false;
+  if (!isRecord2(x)) return false;
   if (typeof x.id !== "string" || typeof x.name !== "string") return false;
   if (!Array.isArray(x.customUnits) || !x.customUnits.every(isCustomUnitDef)) return false;
   if (!Array.isArray(x.terrains) || !x.terrains.every(isTerrainDef)) return false;
@@ -15894,7 +16451,7 @@ var TravelRulesManagerModal = class extends import_obsidian25.Modal {
         packs.push(next);
         existingIds.add(next.id);
       };
-      if (isRecord(obj) && "version" in obj) {
+      if (isRecord2(obj) && "version" in obj) {
         const v = obj.version;
         if (v !== 1) {
           new import_obsidian25.Notice("Unsupported import format.", 3500);
