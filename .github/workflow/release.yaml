@@ -1,0 +1,71 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Verify build outputs exist
+        run: |
+          test -f main.js
+          test -f manifest.json
+          if [ -f styles.css ]; then echo "styles.css found"; else echo "styles.css not found, continuing"; fi
+
+      - name: Generate artifact attestation for required assets
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+
+      - name: Generate artifact attestation for styles.css
+        if: hashFiles('styles.css') != ''
+        uses: actions/attest@v4
+        with:
+          subject-path: styles.css
+
+      - name: Create GitHub release without styles.css
+        if: hashFiles('styles.css') == ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            main.js \
+            manifest.json \
+            --generate-notes
+
+      - name: Create GitHub release with styles.css
+        if: hashFiles('styles.css') != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            main.js \
+            manifest.json \
+            styles.css \
+            --generate-notes
