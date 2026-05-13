@@ -1,9 +1,9 @@
 {
   "id": "zoom-map",
   "name": "TTRPG Tools: Maps",
-  "version": "1.9.2",
+  "version": "1.9.3",
   "minAppVersion": "1.9.0",
-  "description": "Fantasy maps in Obsidian.",
+  "description": "A toolbox for interactive fantasy maps.",
   "author": "Jareika",
   "authorUrl": "",
   "isDesktopOnly": false
