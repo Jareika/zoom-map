@@ -1473,8 +1473,12 @@ class ZoomMapSettingTab extends PluginSettingTab {
     const applyStyleToAll = () => {
       const color = (this.plugin.settings.measureLineColor ?? "var(--text-accent)").trim();
       const widthPx = Math.max(1, this.plugin.settings.measureLineWidth ?? 2);
-      document.querySelectorAll(".zm-root").forEach((el) => {
-        if (el instanceof HTMLElement) {
+      const uiDoc = this.plugin.app.workspace.containerEl.ownerDocument;
+      const uiWin = uiDoc.defaultView;
+      if (!uiWin) return;
+
+      uiDoc.querySelectorAll(".zm-root").forEach((el) => {
+        if (el instanceof uiWin.HTMLElement) {
           setCssProps(el, {
             "--zm-measure-color": color,
             "--zm-measure-width": `${widthPx}px`,

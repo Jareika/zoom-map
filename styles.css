@@ -222,7 +222,7 @@ button.zm-btn-sm {
 .zm-float-right {
   float: right;
   margin: 0.5rem 0 1rem 1rem;
-  max-width: 100% !important;
+  max-width: 100%;
 }
 
 @media (max-width: 820px) {
@@ -230,7 +230,7 @@ button.zm-btn-sm {
   .zm-float-right {
     float: none;
     margin: 0 0 1rem 0;
-    width: 100% !important;
+    width: 100%;
   }
 }
 
@@ -278,10 +278,12 @@ button.zm-btn-sm {
   z-index: 30; /* above map content, below HUD */
 }
 
-.zm-viewport-frame {
+.workspace-leaf-content .zm-root .zm-viewport-frame,
+.markdown-rendered .zm-root .zm-viewport-frame,
+.zm-root .zm-viewport-frame {
   position: absolute;
   inset: 0;
-  width: 100%;
+  inline-size: 100%;
   height: 100%;
   object-fit: fill;
   object-position: center;
@@ -290,10 +292,10 @@ button.zm-btn-sm {
   -webkit-user-drag: none;
   z-index: 30; /* above map content, below HUD */
   transform: translateZ(0);
-  max-width: none !important;
-  max-height: none !important;
-  max-inline-size: none !important;
-  max-block-size: none !important;
+  max-width: none;
+  max-height: none;
+  max-inline-size: none;
+  max-block-size: none;
   display: block;
 }
 
@@ -419,7 +421,7 @@ button.zm-btn-sm {
 
 /* Hidden helper (avoid inline style.display writes) */
 .zm-hidden {
-  display: none !important;
+  display: none;
 }
 
 body.zm-global-hover-popover-size {
@@ -431,39 +433,36 @@ body.zm-global-hover-popover-size {
 body.zm-global-hover-popover-size .popover.hover-popover,
 body.zm-global-hover-popover-size .hover-popover {
   --popover-width: min(var(--zm-hover-popover-max-width, 360px), 92vw);
-  width: var(--popover-width) !important;
-  max-width: var(--popover-width) !important;
-  --popover-height: min(var(--zm-hover-popover-max-height, 260px), 92vh);
+  width: var(--popover-width);
+  max-width: var(--popover-width);
   --popover-max-height: min(var(--zm-hover-popover-max-height, 260px), 92vh);
-  height: var(--popover-height) !important;
-  max-height: var(--popover-max-height) !important;
-  height: auto !important;
-  overflow: hidden !important;
-  display: flex !important;
-  flex-direction: column !important;
+  max-height: var(--popover-max-height);
+  height: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 body.zm-global-hover-popover-size .popover.hover-popover .hover-popover-content,
 body.zm-global-hover-popover-size .hover-popover .hover-popover-content,
 body.zm-global-hover-popover-size .popover.hover-popover .popover-content,
 body.zm-global-hover-popover-size .hover-popover .popover-content {
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 0 !important;
-  max-width: 100% !important;
-  max-height: 100% !important;
-  min-height: 0 !important;
-  overflow: auto !important;
-  flex: 1 1 auto !important;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: auto;
+  flex: 1 1 auto;
 }
 
 body.zm-global-hover-popover-size .popover.hover-popover .markdown-preview-view,
 body.zm-global-hover-popover-size .hover-popover .markdown-preview-view,
 body.zm-global-hover-popover-size .popover.hover-popover .markdown-preview-section,
 body.zm-global-hover-popover-size .hover-popover .markdown-preview-section {
-  max-width: 100% !important;
-  max-height: 100% !important;
-  min-height: 0 !important;
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 0;
 }
 
 /* Map grid overlay */
@@ -815,7 +814,12 @@ body.zm-global-hover-popover-size .hover-popover .markdown-preview-section {
 }
 
 .zoommap-settings .zm-row {
-  display: contents;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: inherit;
+  gap: inherit;
+  align-items: inherit;
+  width: 100%;
 }
 
 .zoommap-settings .zm-travel-grid-head {
@@ -874,8 +878,8 @@ body.zm-global-hover-popover-size .hover-popover .markdown-preview-section {
 }
 
 .zoommap-settings .zm-icon-btn svg {
-  width: 18px !important;
-  height: 18px !important;
+  width: 18px;
+  height: 18px;
   display: block;
 }
 
@@ -887,10 +891,10 @@ body.is-tablet .zoommap-settings .zm-icon-btn {
 }
 
 body.is-mobile .zoommap-settings .zm-icon-btn svg,
-body.is-phone .zoommap-settings .zm-icon-btn svg,
-body.is-tablet .zoommap-settings .zm-icon-btn svg {
-  width: 20px !important;
-  height: 20px !important;
+body.is-phone .zoommap-settings .zm-icon-btn > svg,
+body.is-tablet .zoommap-settings .zm-icon-btn > svg {
+  width: 20px;
+  height: 20px;
 }
 
 /* Generic modal layouts (used in editor & other modals) */
@@ -950,7 +954,7 @@ body.is-tablet .zoommap-settings .zm-icon-btn svg {
 /* Keyboard selection: clear highlight bar */
 .zoommap-link-suggestion-item.is-selected {
   background: var(--interactive-accent);
-  color: var(--text-on-accent, #fff);
+  color: var(--text-on-accent, #ffffff);
 }
 
 /* Settings: collections list rows + actions */
@@ -1123,7 +1127,6 @@ body.zm-cursor-move-grabbing {
 
 /* In dark theme, slightly lighten the list background to improve SVG contrast */
 .theme-dark .zoommap-fa-picker-list {
-  background: var(--background-secondary-alt, var(--background-secondary));
   background: color-mix(
     in srgb,
     var(--background-secondary-alt, var(--background-secondary)) 70%,

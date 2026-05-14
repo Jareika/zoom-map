@@ -11206,7 +11206,7 @@ Total: ${local.total}`, 6e3);
         );
         return;
       }
-      if (el === this.viewportEl || el instanceof Node && this.viewportEl.contains(el)) {
+      if (el === this.viewportEl || this.viewportEl.contains(el)) {
         this.onContextMenuViewport(ev);
         return;
       }
@@ -11287,7 +11287,7 @@ Total: ${local.total}`, 6e3);
     if (w > maxSide || h > maxSide) {
       throw new Error(`Target size too large (${w}\xD7${h}). Try 8k.`);
     }
-    const canvas = document.createElement("canvas");
+    const canvas = this.getOwnerDocument().createElement("canvas");
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext("2d");
@@ -17984,8 +17984,11 @@ var ZoomMapSettingTab = class extends import_obsidian26.PluginSettingTab {
       var _a2, _b;
       const color = ((_a2 = this.plugin.settings.measureLineColor) != null ? _a2 : "var(--text-accent)").trim();
       const widthPx = Math.max(1, (_b = this.plugin.settings.measureLineWidth) != null ? _b : 2);
-      document.querySelectorAll(".zm-root").forEach((el) => {
-        if (el instanceof HTMLElement) {
+      const uiDoc = this.plugin.app.workspace.containerEl.ownerDocument;
+      const uiWin = uiDoc.defaultView;
+      if (!uiWin) return;
+      uiDoc.querySelectorAll(".zm-root").forEach((el) => {
+        if (el instanceof uiWin.HTMLElement) {
           setCssProps2(el, {
             "--zm-measure-color": color,
             "--zm-measure-width": `${widthPx}px`

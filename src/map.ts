@@ -8497,7 +8497,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       }
 
       // Otherwise, if it's still inside the viewport, open the normal map menu
-      if (el === this.viewportEl || (el instanceof Node && this.viewportEl.contains(el))) {
+      if (el === this.viewportEl || this.viewportEl.contains(el)) {
         this.onContextMenuViewport(ev);
         return;
       }
@@ -8597,7 +8597,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       throw new Error(`Target size too large (${w}×${h}). Try 8k.`);
     }
 
-    const canvas = document.createElement("canvas");
+    const canvas = this.getOwnerDocument().createElement("canvas");
     canvas.width = w;
     canvas.height = h;
 
