@@ -93,11 +93,11 @@ function setCssProps(el: HTMLElement, props: Record<string, string | null>): voi
 }
 
 interface CrossWindowInstanceOfElement extends Element {
-  instanceOf(ctor: typeof globalThis.HTMLElement): this is HTMLElement;
+  instanceOf(ctor: Window["HTMLElement"]): this is HTMLElement;
 }
 
 interface CrossWindowWindow extends Window {
-  HTMLElement: typeof globalThis.HTMLElement;
+  HTMLElement: Window["HTMLElement"];
 }
 
 function isCrossWindowHTMLElement(
