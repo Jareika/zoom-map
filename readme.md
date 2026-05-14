@@ -79,17 +79,10 @@ https://ttrpg-tools-obsidian.org/
 
 ---
 
-## Installation (manual)
-- Create folder: <your-vault>/.obsidian/plugins/zoom-map
-- Copy build output into that folder: manifest.json, main.js, styles.css
-- Reload Obsidian → Settings → Community plugins → enable Zoom Map
-
----
-
 ## Usage
 
 Simple Mode
-- Use the command "Zoom Map: Insert new map...". You have to be in edit mode to insert a new map this way.
+ - Use the command **"Insert new map...".** You have to be in edit mode to insert a new map this way.
  - A modal opens and you can set up your image layers, overlay layers and so on.
  - On a map right click→Options→Edit view... brings you back to this setup.
 
