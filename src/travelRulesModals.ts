@@ -485,7 +485,7 @@ class TravelRulesPackEditorModal extends Modal {
 
       const addUnitOptions = (sel: HTMLSelectElement) => {
         const add = (value: string, label: string) => {
-          const opt = document.createElement("option");
+          const opt = sel.ownerDocument.createElement("option");
           opt.value = value;
           opt.textContent = label;
           sel.appendChild(opt);

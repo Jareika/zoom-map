@@ -399,10 +399,15 @@ export default class ZoomMapPlugin extends Plugin {
   setActiveMap(inst: MapInstance): void {
     this.activeMap = inst;
   }
+  
+  private getUiDocument(): Document {
+    return this.app.workspace.containerEl.ownerDocument;
+  }
 
   private clearGlobalHoverPopoverSettings(): void {
-    const root = document.documentElement;
-    const body = document.body;
+    const doc = this.getUiDocument();
+    const root = doc.documentElement;
+    const body = doc.body;
     if (!root || !body) return;
 
     body.classList.remove("zm-global-hover-popover-size");
@@ -421,8 +426,9 @@ export default class ZoomMapPlugin extends Plugin {
   }
 
   public applyGlobalHoverPopoverSettings(): void {
-    const root = document.documentElement;
-    const body = document.body;
+    const doc = this.getUiDocument();
+    const root = doc.documentElement;
+    const body = doc.body;
     if (!root || !body) return;
 
     if (!this.settings.applyHoverPopoverSizeGlobally) {
@@ -1770,7 +1776,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
       setValue: (val: string) => void,
     ): void => {
       const wrapper = input.parentElement;
-      if (!(wrapper instanceof HTMLElement)) return;
+      if (!wrapper) return;
 
       wrapper.classList.add("zoommap-link-input-wrapper");
       const listEl = wrapper.createDiv({ cls: "zoommap-link-suggestions is-hidden" });

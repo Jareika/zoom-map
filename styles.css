@@ -1441,6 +1441,12 @@ body.zm-cursor-move-grabbing {
   background: transparent;
 }
 
+
+/* During measuring / calibration, text hitboxes must not intercept clicks. */
+.zm-text-hitboxes.zm-text-hitboxes--passive .zm-text-hitbox {
+  pointer-events: none;
+}
+
 /* Guides (only when showGuides=true or during drawing) */
 .zm-text-guide-rect {
   fill: none;

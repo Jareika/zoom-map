@@ -201,7 +201,7 @@ export class CollectionEditorModal extends Modal {
 
         const iconSel = row.createEl("select");
         const addOpt = (val: string, labelText: string) => {
-          const o = document.createElement("option");
+          const o = iconSel.ownerDocument.createElement("option");
           o.value = val;
           o.textContent = labelText;
           iconSel.appendChild(o);
@@ -592,7 +592,7 @@ export class SwapFramesEditorModal extends Modal {
           .filter((ico) => ico.inCollections !== false || ico.key === fr.iconKey)
           .sort((a, b) => String(a.key ?? "").localeCompare(String(b.key ?? ""), undefined, { sensitivity: "base", numeric: true }));
         icons.forEach((ico) => {
-          const opt = document.createElement("option");
+          const opt = iconSel.ownerDocument.createElement("option");
           opt.value = ico.key;
           opt.textContent = ico.key;
           iconSel.appendChild(opt);

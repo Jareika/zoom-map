@@ -27,12 +27,12 @@ function normalizeHex(v: string): string {
 
 type FontOption = { value: string; label: string };
 
-function collectLoadedFontFamilies(): string[] {
+function collectLoadedFontFamilies(doc: Document): string[] {
   const out = new Set<string>();
   try {
-    const fs = document.fonts;
+    const fs = doc.fonts;
     if (fs && typeof fs.forEach === "function") {
-      fs.forEach((ff) => {
+      fs.forEach((ff: FontFace) => {
         const fam = String(ff.family ?? "").replace(/["']/g, "").trim();
         if (fam) out.add(fam);
       });
@@ -43,7 +43,7 @@ function collectLoadedFontFamilies(): string[] {
   return [...out].sort((a, b) => a.localeCompare(b));
 }
 
-function buildFontOptions(): FontOption[] {
+function buildFontOptions(doc: Document): FontOption[] {
   const options: FontOption[] = [];
   const seen = new Set<string>();
   const add = (value: string, label: string) => {
@@ -59,7 +59,7 @@ function buildFontOptions(): FontOption[] {
   add("sans-serif", "Sans-serif");
   add("serif", "Serif");
   add("monospace", "Monospace");
-  for (const fam of collectLoadedFontFamilies()) add(`${fam}, var(--font-text)`, fam);
+  for (const fam of collectLoadedFontFamilies(doc)) add(`${fam}, var(--font-text)`, fam);
   return options;
 }
 
@@ -137,7 +137,7 @@ export class TextBoxConfigModal extends Modal {
 	  
     contentEl.createEl("h3", { text: "Font" });
 
-    const fontOptions = buildFontOptions();
+    const fontOptions = buildFontOptions(contentEl.ownerDocument);
     const knownValues = new Set(fontOptions.map((o) => o.value));
     const CUSTOM = "__custom__";
     const currentFamily = this.working.style?.fontFamily ?? "var(--font-text)";

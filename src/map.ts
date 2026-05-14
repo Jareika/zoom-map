@@ -342,6 +342,22 @@ function isImageBitmapLike(x: unknown): x is ImageBitmap {
   return typeof x === "object" && x !== null && "close" in x && typeof (x as { close: unknown }).close === "function";
 }
 
+function isNodeLike(x: unknown): x is Node {
+  return (
+    typeof x === "object" &&
+    x !== null &&
+    "nodeType" in (x as Record<string, unknown>)
+  );
+}
+
+function isHtmlImageElementLike(x: unknown): x is HTMLImageElement {
+  return (
+    typeof x === "object" &&
+    x !== null &&
+    (x as { tagName?: unknown }).tagName === "IMG"
+  );
+}
+
 function isSvgDataUrl(src: string): boolean {
   return typeof src === "string" && src.startsWith("data:image/svg+xml");
 }
@@ -2691,7 +2707,7 @@ export class MapInstance extends Component {
       if (isImageBitmapLike(src)) {
         this.imgW = src.width;
         this.imgH = src.height;
-      } else if (src instanceof HTMLImageElement) {
+      } else if (isHtmlImageElementLike(src)) {
         this.imgW = src.naturalWidth;
         this.imgH = src.naturalHeight;
       }
@@ -3019,26 +3035,27 @@ export class MapInstance extends Component {
   }
 
   private setupMeasureOverlay(): void {
+	const doc = this.getOwnerDocument();
     this.measureEl = this.worldEl.createDiv({ cls: "zm-measure" });
 
-    this.measureSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    this.measureSvg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
     this.measureSvg.classList.add("zm-measure__svg");
     this.measureSvg.setAttribute("width", String(this.imgW));
     this.measureSvg.setAttribute("height", String(this.imgH));
     this.measureEl.appendChild(this.measureSvg);
 
-    this.measurePath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    this.measurePath = doc.createElementNS("http://www.w3.org/2000/svg", "path");
     this.measurePath.classList.add("zm-measure__path");
     this.measureSvg.appendChild(this.measurePath);
 
-    this.measureDots = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    this.measureDots = doc.createElementNS("http://www.w3.org/2000/svg", "g");
     this.measureSvg.appendChild(this.measureDots);
 
-    this.calibPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    this.calibPath = doc.createElementNS("http://www.w3.org/2000/svg", "path");
     this.calibPath.classList.add("zm-measure__path", "zm-measure__dash");
     this.measureSvg.appendChild(this.calibPath);
 
-    this.calibDots = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    this.calibDots = doc.createElementNS("http://www.w3.org/2000/svg", "g");
     this.measureSvg.appendChild(this.calibDots);
 
     this.updateMeasureHud();
@@ -3046,15 +3063,16 @@ export class MapInstance extends Component {
   
   private setupGridOverlay(): void {
     const ns = "http://www.w3.org/2000/svg";
+	const doc = this.getOwnerDocument();
     this.gridEl = this.worldEl.createDiv({ cls: "zm-mapgrid" });
 
-    this.gridSvg = document.createElementNS(ns, "svg");
+    this.gridSvg = doc.createElementNS(ns, "svg");
     this.gridSvg.classList.add("zm-mapgrid__svg");
     this.gridSvg.setAttribute("width", String(this.imgW));
     this.gridSvg.setAttribute("height", String(this.imgH));
     this.gridEl.appendChild(this.gridSvg);
 
-    this.gridStaticLayer = document.createElementNS(ns, "g");
+    this.gridStaticLayer = doc.createElementNS(ns, "g");
     this.gridSvg.appendChild(this.gridStaticLayer);
   }
   
@@ -3095,22 +3113,23 @@ export class MapInstance extends Component {
   
   private setupDrawOverlay(): void {
     const ns = "http://www.w3.org/2000/svg";
+	const doc = this.getOwnerDocument();
 
     this.drawEl = this.worldEl.createDiv({ cls: "zm-draw" });
 
-    this.drawSvg = document.createElementNS(ns, "svg");
+    this.drawSvg = doc.createElementNS(ns, "svg");
     this.drawSvg.classList.add("zm-draw__svg");
     this.drawSvg.setAttribute("width", String(this.imgW));
     this.drawSvg.setAttribute("height", String(this.imgH));
     this.drawEl.appendChild(this.drawSvg);
 
-    this.drawDefs = document.createElementNS(ns, "defs");
+    this.drawDefs = doc.createElementNS(ns, "defs");
     this.drawSvg.appendChild(this.drawDefs);
 
-    this.drawStaticLayer = document.createElementNS(ns, "g");
+    this.drawStaticLayer = doc.createElementNS(ns, "g");
     this.drawSvg.appendChild(this.drawStaticLayer);
 
-    this.drawDraftLayer = document.createElementNS(ns, "g");
+    this.drawDraftLayer = doc.createElementNS(ns, "g");
     this.drawSvg.appendChild(this.drawDraftLayer);
   }
   
@@ -3194,6 +3213,7 @@ export class MapInstance extends Component {
     const activeBase = this.getActiveBasePath();
     const isPlayerView = !!this.cfg.displayOnly;
     const ns = "http://www.w3.org/2000/svg";
+	const doc = this.getOwnerDocument();
 
     for (const grid of this.data.grids ?? []) {
       const isPreview = this.gridAlignId === grid.id;
@@ -3218,7 +3238,7 @@ export class MapInstance extends Component {
 
       if (!d) continue;
 
-      const path = document.createElementNS(ns, "path");
+      const path = doc.createElementNS(ns, "path");
       path.classList.add("zm-mapgrid__path");
       path.setAttribute("d", d);
       path.setAttribute("stroke", (grid.color ?? "#ffffff").trim() || "#ffffff");
@@ -3870,29 +3890,37 @@ export class MapInstance extends Component {
 
   private setupTextOverlay(): void {
     const ns = "http://www.w3.org/2000/svg";
+	const doc = this.getOwnerDocument();
 
     this.textSvgWrap = this.worldEl.createDiv({ cls: "zm-text" });
 
-    this.textSvg = document.createElementNS(ns, "svg");
+    this.textSvg = doc.createElementNS(ns, "svg");
     this.textSvg.classList.add("zm-text__svg");
     this.textSvg.setAttribute("width", String(this.imgW));
     this.textSvg.setAttribute("height", String(this.imgH));
     this.textSvgWrap.appendChild(this.textSvg);
 
-    this.textGuidesLayer = document.createElementNS(ns, "g");
+    this.textGuidesLayer = doc.createElementNS(ns, "g");
     this.textSvg.appendChild(this.textGuidesLayer);
 
-    this.textDraftLayer = document.createElementNS(ns, "g");
+    this.textDraftLayer = doc.createElementNS(ns, "g");
     this.textSvg.appendChild(this.textDraftLayer);
 
-    this.textTextLayer = document.createElementNS(ns, "g");
+    this.textTextLayer = doc.createElementNS(ns, "g");
     this.textSvg.appendChild(this.textTextLayer);
 
     this.textHitEl = this.worldEl.createDiv({ cls: "zm-text-hitboxes" });
     this.textEditEl = this.worldEl.createDiv({ cls: "zm-text-edit" });
+	this.updateTextHitboxInteractivity();
 
     // Text width measurement (CSS variables supported)
     this.textMeasureSpan = this.viewportEl.createEl("span", { cls: "zm-text-measure" });
+  }
+  
+  private updateTextHitboxInteractivity(): void {
+    if (!this.textHitEl) return;
+    const passive = this.measuring || this.calibrating;
+    this.textHitEl.classList.toggle("zm-text-hitboxes--passive", passive);
   }
 
   private renderTextLayers(): void {
@@ -3909,6 +3937,7 @@ export class MapInstance extends Component {
       this.textHitEl.empty();
       this.stopTextEdit(false);
       return;
+
     }
 
     // Keep SVG in sync with image size
@@ -3918,8 +3947,10 @@ export class MapInstance extends Component {
     this.textGuidesLayer.innerHTML = "";
     this.textTextLayer.innerHTML = "";
     this.textHitEl.empty();
+	this.updateTextHitboxInteractivity();
 
     const ns = "http://www.w3.org/2000/svg";
+	const doc = this.getOwnerDocument();
 
     const abs = (nx: number, ny: number) => ({ x: nx * this.imgW, y: ny * this.imgH });
     const rectAbs = (r: { x0: number; y0: number; x1: number; y1: number }) => {
@@ -4002,6 +4033,13 @@ export class MapInstance extends Component {
         });
 		
         hb.addEventListener("contextmenu", (e: MouseEvent) => {
+          // During measuring / calibration, text hitboxes should behave as if
+          // they were not there. Let the event bubble to the viewport/menu
+          // handlers instead of forwarding textbox-specific behavior.
+          if (this.measuring || this.calibrating) {
+            return;
+          }
+
           // Text hitboxes should not have their own context menu.
           // Instead, forward the right click to whatever is underneath
           // (drawings, markers, or the viewport itself).
@@ -4016,7 +4054,7 @@ export class MapInstance extends Component {
           this.activeTextBoxId === box.id;
 
         if (showNow) {
-          const rect = document.createElementNS(ns, "rect");
+          const rect = doc.createElementNS(ns, "rect");
           rect.classList.add("zm-text-guide-rect");
           rect.classList.add("zm-text-guide--active");
           rect.setAttribute("x", String(r.x));
@@ -4029,7 +4067,7 @@ export class MapInstance extends Component {
             const a = abs(ln.x0, ln.y0);
             const b = abs(ln.x1, ln.y1);
 
-            const line = document.createElementNS(ns, "line");
+            const line = doc.createElementNS(ns, "line");
             line.classList.add("zm-text-guide-line");
             line.classList.add("zm-text-guide--active");
             line.setAttribute("x1", String(a.x));
@@ -4062,7 +4100,7 @@ export class MapInstance extends Component {
           const x = a.x + padLeft;
           const y = a.y;
 
-          const t = document.createElementNS(ns, "text");
+          const t = doc.createElementNS(ns, "text");
           t.setAttribute("x", String(x));
           t.setAttribute("y", String(y));
           t.textContent = txt;
@@ -4089,6 +4127,7 @@ export class MapInstance extends Component {
   private renderTextDraft(): void {
     if (!this.textDraftLayer) return;
     this.textDraftLayer.innerHTML = "";
+	const doc = this.getOwnerDocument();
 
     const enabled = !!this.plugin.settings.enableTextLayers;
     if (!enabled) return;
@@ -4105,7 +4144,7 @@ export class MapInstance extends Component {
       const w = Math.abs(a.x - b.x);
       const h = Math.abs(a.y - b.y);
 
-      const rect = document.createElementNS(ns, "rect");
+      const rect = doc.createElementNS(ns, "rect");
       rect.classList.add("zm-text-guide-rect");
 	  rect.classList.add("zm-text-guide--active");
       rect.setAttribute("x", String(x));
@@ -4120,7 +4159,7 @@ export class MapInstance extends Component {
       const a = abs(this.textLineStart.x, this.textLineStart.y);
       const b = abs(this.textLinePreview.x, this.textLinePreview.y);
 
-      const line = document.createElementNS(ns, "line");
+      const line = doc.createElementNS(ns, "line");
       line.classList.add("zm-text-guide-draft");
 	  line.classList.add("zm-text-guide--active");
       line.setAttribute("x1", String(a.x));
@@ -4530,7 +4569,7 @@ export class MapInstance extends Component {
       if (this.textMode !== "edit") return;
 
       const t = ev.target;
-      if (!(t instanceof Node)) return;
+      if (!isNodeLike(t)) return;
 
       if (this.textEditEl.contains(t)) return;
 
@@ -4950,7 +4989,9 @@ export class MapInstance extends Component {
 
   private renderMeasure(): void {
     if (!this.measureSvg) return;
+	const doc = this.getOwnerDocument();
     this.measureSvg.setAttribute("width", String(this.imgW));
+	this.updateTextHitboxInteractivity();
     this.measureSvg.setAttribute("height", String(this.imgH));
 
     const pts: Point[] = [...this.measurePts];
@@ -4969,7 +5010,7 @@ export class MapInstance extends Component {
 
     for (const p of this.measurePts) {
       const a = toAbs(p);
-      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      const c = doc.createElementNS("http://www.w3.org/2000/svg", "circle");
       c.setAttribute("cx", String(a.x));
       c.setAttribute("cy", String(a.y));
       c.setAttribute("r", "4");
@@ -4982,6 +5023,8 @@ export class MapInstance extends Component {
 
   private renderCalibrate(): void {
     if (!this.measureSvg) return;
+	this.updateTextHitboxInteractivity();
+	const doc = this.getOwnerDocument();
 
     const toAbs = (p: Point) => ({ x: p.x * this.imgW, y: p.y * this.imgH });
 
@@ -4998,7 +5041,7 @@ export class MapInstance extends Component {
     while (this.calibDots.firstChild) this.calibDots.removeChild(this.calibDots.firstChild);
     for (const p of this.calibPts) {
       const a = toAbs(p);
-      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      const c = doc.createElementNS("http://www.w3.org/2000/svg", "circle");
       c.setAttribute("cx", String(a.x));
       c.setAttribute("cy", String(a.y));
       c.setAttribute("r", "4");
@@ -6762,11 +6805,296 @@ this.viewDragDist = 0;
     void this.saveDataSoon();
     this.renderTextLayers();
   }
+  
+  private buildMeasureMenuItems(): ZMMenuItem[] {
+    const meas = this.data?.measurement;
+    const currentUnit = ((meas?.displayUnit as unknown as string) ?? "km");
+    const currentCustomId = meas?.customUnitId;
+
+    const unitItems: ZMMenuItem[] = [
+      {
+        label: "m",
+        checked: currentUnit === "m",
+        action: () => {
+          this.ensureMeasurement();
+          if (this.data?.measurement) {
+            this.data.measurement.displayUnit = "m";
+            delete this.data.measurement.customUnitId;
+            void this.saveDataSoon();
+            this.updateMeasureHud();
+          }
+          this.closeMenu();
+        },
+      },
+      {
+        label: "km",
+        checked: currentUnit === "km",
+        action: () => {
+          this.ensureMeasurement();
+          if (this.data?.measurement) {
+            this.data.measurement.displayUnit = "km";
+            delete this.data.measurement.customUnitId;
+            void this.saveDataSoon();
+            this.updateMeasureHud();
+          }
+          this.closeMenu();
+        },
+      },
+      {
+        label: "mi",
+        checked: currentUnit === "mi",
+        action: () => {
+          this.ensureMeasurement();
+          if (this.data?.measurement) {
+            this.data.measurement.displayUnit = "mi";
+            delete this.data.measurement.customUnitId;
+            void this.saveDataSoon();
+            this.updateMeasureHud();
+          }
+          this.closeMenu();
+        },
+      },
+      {
+        label: "ft",
+        checked: currentUnit === "ft",
+        action: () => {
+          this.ensureMeasurement();
+          if (this.data?.measurement) {
+            this.data.measurement.displayUnit = "ft";
+            delete this.data.measurement.customUnitId;
+            void this.saveDataSoon();
+            this.updateMeasureHud();
+          }
+          this.closeMenu();
+        },
+      },
+    ];
+
+    const customDefs = this.plugin.getActiveCustomUnits();
+    if (customDefs.length > 0) {
+      unitItems.push({ type: "separator" });
+
+      for (const def of customDefs) {
+        const isActive =
+          currentUnit === "custom" && currentCustomId === def.id;
+        unitItems.push({
+          label: def.abbreviation
+            ? `${def.name} (${def.abbreviation})`
+            : def.name,
+          checked: isActive,
+          action: () => {
+            this.ensureMeasurement();
+            if (this.data?.measurement) {
+              this.data.measurement.displayUnit = "custom";
+              this.data.measurement.customUnitId = def.id;
+              void this.saveDataSoon();
+              this.updateMeasureHud();
+            }
+            this.closeMenu();
+          },
+        });
+      }
+    }
+
+    const travelPresets = this.plugin.getActiveTravelTimePresets();
+    const selectedTravel = new Set(this.data?.measurement?.travelTimePresetIds ?? []);
+    const travelTimeItems: ZMMenuItem[] = [];
+
+    const perDayInfo = this.plugin.getActiveTravelPerDayPresets?.();
+    const perDayPresets = perDayInfo?.presets ?? [];
+    const selectedPerDayId = (this.data?.measurement?.travelDayPresetId ?? "").trim();
+    const effectiveId = (selectedPerDayId && perDayPresets.some((p) => p.id === selectedPerDayId))
+      ? selectedPerDayId
+      : (perDayPresets[0]?.id ?? "");
+
+    travelTimeItems.push({
+      label: "Show travel days",
+      mark: this.data?.measurement?.travelDaysEnabled ? "check" : "x",
+      markColor: this.data?.measurement?.travelDaysEnabled
+        ? "var(--text-accent)"
+        : "var(--text-muted)",
+      action: (rowEl) => {
+        this.ensureMeasurement();
+        if (!this.data?.measurement) return;
+
+        const next = !this.data.measurement.travelDaysEnabled;
+        this.data.measurement.travelDaysEnabled = next;
+
+        void this.saveDataSoon();
+        this.updateMeasureHud();
+
+        const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
+        if (chk) {
+          chk.textContent = next ? "✓" : "×";
+          chk.style.color = next ? "var(--text-accent)" : "var(--text-muted)";
+        }
+      },
+      checked: false,
+    });
+
+    travelTimeItems.push({
+      label: "Max travel time",
+      children: perDayPresets.length
+        ? perDayPresets.map((tpd) => ({
+            label: tpd.name || tpd.id,
+            checked: effectiveId === tpd.id,
+            action: (rowEl) => {
+              this.ensureMeasurement();
+              if (!this.data?.measurement) return;
+              this.data.measurement.travelDayPresetId = tpd.id;
+              void this.saveDataSoon();
+              this.updateMeasureHud();
+
+              const menu = rowEl.parentElement;
+              menu?.querySelectorAll<HTMLElement>(".zm-menu__check").forEach((c) => (c.textContent = ""));
+              const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
+              if (chk) chk.textContent = "✓";
+            },
+          }))
+        : [{ label: "(No max travel time presets configured)", action: () => new Notice("Configure max travel time presets in settings → travel rules.", 3500) }],
+    });
+
+    travelTimeItems.push({ type: "separator" });
+
+    if (travelPresets.length) {
+      travelTimeItems.push(
+        ...travelPresets.map((p) => ({
+          label: p.name || p.id,
+          checked: selectedTravel.has(p.id),
+          action: (rowEl: HTMLDivElement) => {
+            this.ensureMeasurement();
+            if (!this.data?.measurement) return;
+            const arr = (this.data.measurement.travelTimePresetIds ??= []);
+            const i = arr.indexOf(p.id);
+            if (i >= 0) arr.splice(i, 1);
+            else arr.push(p.id);
+
+            void this.saveDataSoon();
+            this.updateMeasureHud();
+
+            const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
+            if (chk) chk.textContent = i >= 0 ? "" : "✓";
+          },
+        })),
+      );
+    } else {
+      travelTimeItems.push({
+        label: "(No travel presets configured)",
+        action: () => new Notice("Configure presets in settings → travel rules.", 3000),
+      });
+    }
+
+    return [
+      {
+        label: this.measuring ? "Stop measuring" : "Start measuring",
+        action: () => {
+          this.measuring = !this.measuring;
+          if (!this.measuring) this.measurePreview = null;
+          this.updateMeasureHud();
+          this.renderMeasure();
+          this.closeMenu();
+        },
+      },
+      {
+        label: "Clear measurement",
+        action: () => this.clearMeasure(),
+      },
+      {
+        label: "Remove last point",
+        action: () => {
+          if (this.measurePts.length > 0) {
+            this.measurePts.pop();
+            if (this.measureSegTerrainIds.length > 0) this.measureSegTerrainIds.pop();
+            this.renderMeasure();
+          }
+        },
+      },
+      ...(this.plugin.settings.enableMeasurePro
+        ? [
+            {
+              label: "Terrains…",
+              action: () => {
+                this.openMeasureTerrainModal();
+                this.closeMenu();
+              },
+            } as ZMMenuItem,
+          ]
+        : []),
+      ...(this.plugin.settings.enableDrawing
+        ? [
+            {
+              label: "Save measurement as polyline…",
+              action: () => {
+                this.saveMeasurementAsPolyline();
+                this.closeMenu();
+              },
+            } as ZMMenuItem,
+          ]
+        : []),
+      { type: "separator" },
+      { label: "Unit", children: unitItems },
+      { label: "Travel time", children: travelTimeItems },
+      { type: "separator" },
+      {
+        label: this.calibrating ? "Stop calibration" : "Calibrate scale…",
+        action: () => {
+          if (this.calibrating) {
+            this.calibrating = false;
+            this.calibPts = [];
+            this.calibPreview = null;
+            this.renderCalibrate();
+          } else {
+            this.calibrating = true;
+            this.calibPts = [];
+            this.calibPreview = null;
+            this.renderCalibrate();
+            new Notice("Calibration: click two points.", 1500);
+          }
+          this.closeMenu();
+        },
+      },
+    ];
+  }
+
+  private openMeasureOnlyContextMenu(clientX: number, clientY: number): void {
+    this.closeMenu();
+    this.openMenu = new ZMMenu(this.el.ownerDocument);
+    this.openMenu.open(clientX, clientY, this.buildMeasureMenuItems());
+
+    const doc = this.getOwnerDocument();
+    const outside = (event: Event) => {
+      if (!this.openMenu) return;
+      const t = event.target;
+      if (t instanceof HTMLElement && this.openMenu.contains(t)) return;
+      this.closeMenu();
+    };
+    const keyClose = (event: KeyboardEvent) => {
+      if (event.key === "Escape") this.closeMenu();
+    };
+    const rightClickClose = () => this.closeMenu();
+
+    doc.addEventListener("pointerdown", outside, { capture: true });
+    doc.addEventListener("contextmenu", rightClickClose, { capture: true });
+    doc.addEventListener("keydown", keyClose, { capture: true });
+
+    this.register(() => {
+      doc.removeEventListener("pointerdown", outside, true);
+      doc.removeEventListener("contextmenu", rightClickClose, true);
+      doc.removeEventListener("keydown", keyClose, true);
+    });
+  }
 
 private onContextMenuViewport(e: MouseEvent): void {
     if (!this.ready || !this.data) return;
     this.closeMenu();
     if (this.cfg.displayOnly) return;
+
+    if (this.measuring || this.calibrating) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.openMeasureOnlyContextMenu(e.clientX, e.clientY);
+      return;
+    }
 	
     if (this.gridAlignId) {
       this.stopGridAlignMode(false);
@@ -7452,173 +7780,14 @@ private onContextMenuViewport(e: MouseEvent): void {
 	  },
 	);
 	
-	const travelPresets = this.plugin.getActiveTravelTimePresets();
-	const selectedTravel = new Set(this.data.measurement?.travelTimePresetIds ?? []);
-
-    const travelTimeItems: ZMMenuItem[] = [];
-
-    const perDayInfo = this.plugin.getActiveTravelPerDayPresets?.();
-    const perDayPresets = perDayInfo?.presets ?? [];
-    const selectedPerDayId = (this.data.measurement?.travelDayPresetId ?? "").trim();
-    const effectiveId = (selectedPerDayId && perDayPresets.some((p) => p.id === selectedPerDayId))
-      ? selectedPerDayId
-      : (perDayPresets[0]?.id ?? "");
-	  
-    {
-      const enabled = !!this.data.measurement?.travelDaysEnabled;
-      travelTimeItems.push({
-        label: "Show travel days",
-        mark: enabled ? "check" : "x",
-        markColor: enabled ? "var(--text-accent)" : "var(--text-muted)",
-        action: (rowEl) => {
-          this.ensureMeasurement();
-          if (!this.data?.measurement) return;
-
-          const next = !this.data.measurement.travelDaysEnabled;
-          this.data.measurement.travelDaysEnabled = next;
-
-          void this.saveDataSoon();
-          this.updateMeasureHud();
-
-          const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
-          if (chk) {
-            chk.textContent = next ? "✓" : "×";
-            chk.style.color = next ? "var(--text-accent)" : "var(--text-muted)";
-          }
-        },
-        checked: false,
-      });
-    }
-
-    travelTimeItems.push({
-      label: "Max travel time",
-      children: perDayPresets.length
-        ? perDayPresets.map((tpd) => ({
-            label: tpd.name || tpd.id,
-            checked: effectiveId === tpd.id,
-            action: (rowEl) => {
-              this.ensureMeasurement();
-              if (!this.data?.measurement) return;
-              this.data.measurement.travelDayPresetId = tpd.id;
-              void this.saveDataSoon();
-              this.updateMeasureHud();
-
-              const menu = rowEl.parentElement;
-              menu?.querySelectorAll<HTMLElement>(".zm-menu__check").forEach((c) => (c.textContent = ""));
-              const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
-              if (chk) chk.textContent = "✓";
-            },
-          }))
-        : [{ label: "(No max travel time presets configured)", action: () => new Notice("Configure max travel time presets in settings → travel rules.", 3500) }],
-    });
-	
-    travelTimeItems.push({ type: "separator" });
-
-    if (travelPresets.length) {
-      travelTimeItems.push(
-        ...travelPresets.map((p) => ({
-          label: p.name || p.id,
-          checked: selectedTravel.has(p.id),
-          action: (rowEl: HTMLDivElement) => {
-            this.ensureMeasurement();
-            if (!this.data?.measurement) return;
-            const arr = (this.data.measurement.travelTimePresetIds ??= []);
-            const i = arr.indexOf(p.id);
-            if (i >= 0) arr.splice(i, 1);
-            else arr.push(p.id);
-
-            void this.saveDataSoon();
-            this.updateMeasureHud();
-
-            const chk = rowEl.querySelector<HTMLElement>(".zm-menu__check");
-            if (chk) chk.textContent = i >= 0 ? "" : "✓";
-          },
-        })),
-      );
-    } else {
-      travelTimeItems.push({
-        label: "(No travel presets configured)",
-        action: () => new Notice("Configure presets in settings → travel rules.", 3000),
-      });
-    }
+    const measureMenuItems = this.buildMeasureMenuItems();
 
     items.push(
       { type: "separator" },
       { label: "Image layers", children: imageLayersChildren },
       {
         label: "Measure",
-        children: [
-          {
-            label: this.measuring ? "Stop measuring" : "Start measuring",
-            action: () => {
-              this.measuring = !this.measuring;
-              if (!this.measuring) {
-                this.measurePreview = null;
-              }
-              this.updateMeasureHud();
-              this.renderMeasure();
-              this.closeMenu();
-            },
-          },
-          {
-            label: "Clear measurement",
-            action: () => this.clearMeasure(),
-          },
-          {
-            label: "Remove last point",
-            action: () => {
-              if (this.measurePts.length > 0) {
-                this.measurePts.pop();
-				if (this.measureSegTerrainIds.length > 0) this.measureSegTerrainIds.pop();
-                this.renderMeasure();
-              }
-            },
-          },
-          ...(this.plugin.settings.enableMeasurePro
-            ? [
-                {
-                  label: "Terrains…",
-                  action: () => {
-                    this.openMeasureTerrainModal();
-                    this.closeMenu();
-                  },
-                } as ZMMenuItem,
-              ]
-            : []),
-          ...(this.plugin.settings.enableDrawing
-            ? [
-                {
-                  label: "Save measurement as polyline…",
-                  action: () => {
-                    this.saveMeasurementAsPolyline();
-                    this.closeMenu();
-                  },
-                } as ZMMenuItem,
-              ]
-            : []),
-          { type: "separator" },
-          { label: "Unit", children: unitItems },
-		  { label: "Travel time", children: travelTimeItems },
-          { type: "separator" },
-          {
-            label: this.calibrating ? "Stop calibration" : "Calibrate scale…",
-            action: () => {
-              if (this.calibrating) {
-                this.calibrating = false;
-                this.calibPts = [];
-                this.calibPreview = null;
-                this.renderCalibrate();
-              } else {
-                this.calibrating = true;
-                this.calibPts = [];
-                this.calibPreview = null;
-                this.renderCalibrate();
-                new Notice("Calibration: click two points.", 1500);
-              }
-              this.closeMenu();
-            },
-          },
-        ],
+        children: measureMenuItems,
       },
       {
         label: "Marker layers",
@@ -9956,6 +10125,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     });
 
     const ns = "http://www.w3.org/2000/svg";
+	const doc = this.getOwnerDocument();
 
     for (const d of this.data.drawings) {
       if (!d.visible) continue;
@@ -9981,7 +10151,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         width = radius * 2;
         height = radius * 2;
 
-        const circ = document.createElementNS(ns, "circle");
+        const circ = doc.createElementNS(ns, "circle");
         circ.setAttribute("cx", String(c.x));
         circ.setAttribute("cy", String(c.y));
         circ.setAttribute("r", String(radius));
@@ -10000,14 +10170,14 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         width = w;
         height = h;
 
-        const rEl = document.createElementNS(ns, "rect");
+        const rEl = doc.createElementNS(ns, "rect");
         rEl.setAttribute("x", String(x));
         rEl.setAttribute("y", String(y));
         rEl.setAttribute("width", String(w));
         rEl.setAttribute("height", String(h));
         shape = rEl;
       } else if (d.kind === "polygon" && d.polygon && d.polygon.length >= 2) {
-        const path = document.createElementNS(ns, "path");
+        const path = doc.createElementNS(ns, "path");
         let dAttr = "";
         let minPx = Infinity;
         let minPy = Infinity;
@@ -10039,7 +10209,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         }
       }
       else if (d.kind === "polyline" && d.polyline && d.polyline.length >= 2) {
-        const path = document.createElementNS(ns, "path");
+        const path = doc.createElementNS(ns, "path");
         let dAttr = "";
         let minPx = Infinity;
         let minPy = Infinity;
@@ -10102,6 +10272,12 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       if (!shape || width <= 0 || height <= 0) continue;
 
       const handleCtx = (ev: MouseEvent) => {
+        // During measuring / calibration, drawings should behave as if they
+        // were not there. Let the event continue to the viewport handlers.
+        if (this.measuring || this.calibrating) {
+          return;
+        }
+
         ev.preventDefault();
         ev.stopPropagation();
         this.onDrawingContextMenu(ev, d);
@@ -10150,7 +10326,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       }
 
       if (patternHref) {
-        const img = document.createElementNS(ns, "image");
+        const img = doc.createElementNS(ns, "image");
         img.setAttribute("href", patternHref);
         img.setAttribute("x", String(minX));
         img.setAttribute("y", String(minY));
@@ -10209,7 +10385,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 	  
       if (d.kind === "polyline" && style.arrowEnd) {
         const markerId = `zm-arrow-${d.id}`;
-        const marker = document.createElementNS(ns, "marker");
+        const marker = doc.createElementNS(ns, "marker");
         marker.setAttribute("id", markerId);
         marker.setAttribute("viewBox", "0 0 10 10");
         marker.setAttribute("refX", "10");
@@ -10219,7 +10395,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         marker.setAttribute("orient", "auto");
         marker.setAttribute("markerUnits", "strokeWidth");
 
-        const ap = document.createElementNS(ns, "path");
+        const ap = doc.createElementNS(ns, "path");
         ap.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");
         ap.setAttribute("fill", strokeColor);
         marker.appendChild(ap);
@@ -10236,7 +10412,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       if (d.kind === "polyline" && style.distanceLabel && polylineMid && polylineLenPx > 0) {
         const txt = this.formatPolylineDistance(polylineLenPx);
         if (txt) {
-          const tEl = document.createElementNS(ns, "text");
+          const tEl = doc.createElementNS(ns, "text");
           tEl.classList.add("zm-draw__label");
           tEl.setAttribute("x", String(polylineMid.x));
           tEl.setAttribute("y", String(polylineMid.y));
@@ -10502,6 +10678,13 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 }
 
   private onDrawingContextMenu(ev: MouseEvent, d: Drawing): void {
+    if (this.measuring || this.calibrating) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.openMeasureOnlyContextMenu(ev.clientX, ev.clientY);
+      return;
+    }
+
     this.closeMenu();
 
     const canApplyTextBox =
@@ -10890,6 +11073,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
   private updateDrawPreview(e: PointerEvent): boolean {
     if (!this.drawingMode) return false;
     if (!this.drawDraftLayer) return false;
+	const doc = this.getOwnerDocument();
 
     const vpRect = this.viewportEl.getBoundingClientRect();
     const vx = e.clientX - vpRect.left;
@@ -10915,7 +11099,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       const w = Math.abs(x0 - x1);
       const h = Math.abs(y0 - y1);
 
-      const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      const r = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
       r.setAttribute("x", String(x));
       r.setAttribute("y", String(y));
       r.setAttribute("width", String(w));
@@ -10938,7 +11122,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       const py = ny * this.imgH;
       const radius = Math.hypot(px - cx, py - cy);
 
-      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      const c = doc.createElementNS("http://www.w3.org/2000/svg", "circle");
       c.setAttribute("cx", String(cx));
       c.setAttribute("cy", String(cy));
       c.setAttribute("r", String(radius));
@@ -10956,7 +11140,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 
       const all = [...this.drawPolygonPoints, { x: nx, y: ny }];
 
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      const path = doc.createElementNS("http://www.w3.org/2000/svg", "path");
       let dAttr = "";
       all.forEach((p, idx) => {
         const ax = p.x * this.imgW;
@@ -10978,7 +11162,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 
       const all = [...this.drawPolygonPoints, { x: nx, y: ny }];
 
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      const path = doc.createElementNS("http://www.w3.org/2000/svg", "path");
       let dAttr = "";
       all.forEach((p, idx) => {
         const ax = p.x * this.imgW;
@@ -11383,6 +11567,12 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       host.addEventListener("contextmenu", (ev: MouseEvent) => {
         ev.preventDefault();
         ev.stopPropagation();
+
+        if (this.measuring || this.calibrating) {
+          this.openMeasureOnlyContextMenu(ev.clientX, ev.clientY);
+          return;
+        }
+
         this.closeMenu();
 		
         if (m.type === "switch") {
@@ -13127,7 +13317,7 @@ class ZMMenu {
         if (deg) imgLeft.style.transform = `rotate(${deg}deg)`;
         else imgLeft.style.removeProperty("transform");
 
-        label.appendChild(document.createTextNode(" "));
+        label.appendChild(this.doc.createTextNode(" "));
       }
       label.appendText(it.label);
 
