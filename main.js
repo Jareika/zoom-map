@@ -16942,6 +16942,14 @@ function setCssProps2(el, props) {
     else el.style.setProperty(key, value);
   }
 }
+function isCrossWindowHTMLElement(el, uiWin) {
+  const candidate = el;
+  const crossWin = uiWin;
+  if (typeof crossWin.HTMLElement !== "function") {
+    return false;
+  }
+  return candidate.instanceOf(crossWin.HTMLElement);
+}
 var DEFAULT_SETTINGS = {
   icons: [
     {
@@ -17988,7 +17996,7 @@ var ZoomMapSettingTab = class extends import_obsidian26.PluginSettingTab {
       const uiWin = uiDoc.defaultView;
       if (!uiWin) return;
       uiDoc.querySelectorAll(".zm-root").forEach((el) => {
-        if (el instanceof uiWin.HTMLElement) {
+        if (isCrossWindowHTMLElement(el, uiWin)) {
           setCssProps2(el, {
             "--zm-measure-color": color,
             "--zm-measure-width": `${widthPx}px`

@@ -150,6 +150,9 @@ button.zm-btn-sm {
   overflow: visible;
   touch-action: none;
   background: var(--background-primary);
+  contain: layout size style;
+  overscroll-behavior: contain;
+  transform: translateZ(0);
 }
 
 /* Canvas layer (optional render mode) */
@@ -232,13 +235,6 @@ button.zm-btn-sm {
     margin: 0 0 1rem 0;
     width: 100%;
   }
-}
-
-/* Compositing + anti-flicker */
-.zm-viewport {
-  contain: layout size style;
-  overscroll-behavior: contain;
-  transform: translateZ(0);
 }
 
 .zm-clip {
@@ -330,7 +326,7 @@ button.zm-btn-sm {
 
 .zm-root--svg-base .zm-image,
 .zm-root--svg-base .zm-overlay-image {
-  transform: none !important; /* override translateZ(0) */
+  transform: none; /* override translateZ(0) */
   backface-visibility: visible;
   -webkit-backface-visibility: visible;
 }

@@ -92,6 +92,26 @@ function setCssProps(el: HTMLElement, props: Record<string, string | null>): voi
   }
 }
 
+interface CrossWindowInstanceOfElement extends Element {
+  instanceOf(ctor: typeof globalThis.HTMLElement): this is HTMLElement;
+}
+
+interface CrossWindowWindow extends Window {
+  HTMLElement: typeof globalThis.HTMLElement;
+}
+
+function isCrossWindowHTMLElement(
+  el: Element,
+  uiWin: Window,
+): el is HTMLElement {
+  const candidate = el as CrossWindowInstanceOfElement;
+  const crossWin = uiWin as CrossWindowWindow;
+  if (typeof crossWin.HTMLElement !== "function") {
+    return false;
+  }
+  return candidate.instanceOf(crossWin.HTMLElement);
+}
+
 /* ---------------- Defaults ---------------- */
 
 const DEFAULT_SETTINGS: ZoomMapSettingsExtended = {
@@ -1478,7 +1498,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
       if (!uiWin) return;
 
       uiDoc.querySelectorAll(".zm-root").forEach((el) => {
-        if (el instanceof uiWin.HTMLElement) {
+        if (isCrossWindowHTMLElement(el, uiWin)) {
           setCssProps(el, {
             "--zm-measure-color": color,
             "--zm-measure-width": `${widthPx}px`,
