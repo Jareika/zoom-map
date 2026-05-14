@@ -228,6 +228,7 @@ Marker files are stored as `<image>.markers.json` and include:
 - `pinSizeOverrides`
 - `drawLayers`, `drawings`
 - `textLayers`
+- and more
 
 ---
 
