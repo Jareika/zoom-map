@@ -446,6 +446,7 @@ export class CollectionEditorModal extends Modal {
             tooltips: true,
             travelTimes: true,
           },
+		  refreshSourceNoteOnUpdate: true,
         };
         pings.push(pp);
         renderPings();
@@ -812,6 +813,15 @@ class PingPresetEditorModal extends Modal {
       .addToggle((tg) => {
         tg.setValue(sec.travelTimes !== false).onChange((on) => {
           sec.travelTimes = on ? true : false;
+        });
+      });
+	  
+    new Setting(contentEl)
+      .setName("Refresh source note after update")
+      .setDesc("Experimental. Re-renders the note that contains the map/dashboard after this party pin updates.")
+      .addToggle((tg) => {
+        tg.setValue(this.working.refreshSourceNoteOnUpdate !== false).onChange((on) => {
+          this.working.refreshSourceNoteOnUpdate = on ? true : false;
         });
       });
 

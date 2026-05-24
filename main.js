@@ -2805,7 +2805,8 @@ var CollectionEditorModal = class extends import_obsidian11.Modal {
             related: true,
             tooltips: true,
             travelTimes: true
-          }
+          },
+          refreshSourceNoteOnUpdate: true
         };
         pings.push(pp);
         renderPings();
@@ -3100,6 +3101,11 @@ var PingPresetEditorModal = class extends import_obsidian11.Modal {
     new import_obsidian11.Setting(contentEl).setName("Travel times table").addToggle((tg) => {
       tg.setValue(sec.travelTimes !== false).onChange((on) => {
         sec.travelTimes = on ? true : false;
+      });
+    });
+    new import_obsidian11.Setting(contentEl).setName("Refresh source note after update").setDesc("Experimental. Re-renders the note that contains the map/dashboard after this party pin updates.").addToggle((tg) => {
+      tg.setValue(this.working.refreshSourceNoteOnUpdate !== false).onChange((on) => {
+        this.working.refreshSourceNoteOnUpdate = on ? true : false;
       });
     });
     new import_obsidian11.Setting(contentEl).setName("Related notes lookup").setDesc("Expands the search starting from the in-range linked notes.").addDropdown((d) => {
@@ -5861,6 +5867,61 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
   getOwnerBody() {
     return this.getOwnerDocument().body;
   }
+  getSourcePath() {
+    return this.cfg.sourcePath;
+  }
+  getMapId() {
+    var _a;
+    return (_a = this.cfg.mapId) != null ? _a : "";
+  }
+  captureRestoreState() {
+    if (!this.imgW || !this.imgH) return null;
+    this.captureViewIfVisible();
+    const view = this.lastGoodView;
+    if (!view) return null;
+    return {
+      activeBase: this.getActiveBasePath(),
+      scale: view.scale,
+      center: { ...view.center }
+    };
+  }
+  updateZoomControlsVisibility() {
+    if (!this.zoomControlsEl) return;
+    const show = !!this.plugin.settings.showZoomButtonsHud && !this.cfg.responsive;
+    this.zoomControlsEl.classList.toggle("zm-hidden", !show);
+  }
+  refreshMarkdownViewKeepingScroll(view) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+    try {
+      const scroll = (_c = (_b = (_a = view.currentMode) == null ? void 0 : _a.getScroll) == null ? void 0 : _b.call(_a)) != null ? _c : 0;
+      if (view.getMode() === "preview") {
+        (_e = (_d = view.previewMode) == null ? void 0 : _d.rerender) == null ? void 0 : _e.call(_d, true);
+        (_g = (_f = view.previewMode) == null ? void 0 : _f.applyScroll) == null ? void 0 : _g.call(_f, scroll);
+        return;
+      }
+      const data = view.getViewData();
+      view.setViewData(data, false);
+      (_i = (_h = view.currentMode) == null ? void 0 : _h.applyScroll) == null ? void 0 : _i.call(_h, scroll);
+    } catch (err) {
+      console.warn("Zoom Map: failed to refresh markdown view", err);
+    }
+  }
+  async refreshOpenMarkdownViewsForPaths(paths) {
+    const wanted = new Set(
+      paths.map((p) => (0, import_obsidian20.normalizePath)((p != null ? p : "").trim())).filter((p) => p.length > 0)
+    );
+    if (wanted.size === 0) return;
+    const leaves = this.app.workspace.getLeavesOfType("markdown");
+    for (const leaf of leaves) {
+      if (leaf.isDeferred) continue;
+      if (!(leaf.view instanceof import_obsidian20.MarkdownView)) continue;
+      const file = leaf.view.file;
+      if (!(file instanceof import_obsidian20.TFile)) continue;
+      const filePath = (0, import_obsidian20.normalizePath)(file.path);
+      if (!wanted.has(filePath)) continue;
+      this.refreshMarkdownViewKeepingScroll(leaf.view);
+    }
+  }
   asElement(target) {
     if (!target || typeof target !== "object") return null;
     if ("closest" in target) return target;
@@ -5970,7 +6031,13 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
     );
     modal.open();
   }
+  onPluginSettingsChanged() {
+    this.applyGlobalHoverPopoverStyleVars();
+    this.applyMeasureStyle();
+    this.updateZoomControlsVisibility();
+  }
   onload() {
+    this.plugin.registerMapInstance(this);
     void this.bootstrap().catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(err);
@@ -5979,6 +6046,7 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
   }
   onunload() {
     var _a, _b, _c;
+    this.plugin.unregisterMapInstance(this);
     if (this.zoomHudTimer !== null) {
       window.clearTimeout(this.zoomHudTimer);
       this.zoomHudTimer = null;
@@ -6117,14 +6185,41 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
     this.measureHud = this.hudClipEl.createDiv({ cls: "zm-measure-hud" });
     this.drawEditHudEl = this.hudClipEl.createDiv({ cls: "zm-draw-edit" });
     this.zoomHud = this.hudClipEl.createDiv({ cls: "zm-zoom-hud" });
+    this.zoomControlsEl = this.hudClipEl.createDiv({ cls: "zm-zoom-controls" });
+    this.zoomOutBtn = this.zoomControlsEl.createEl("button", {
+      cls: "zm-zoom-btn",
+      text: "\u2212"
+    });
+    this.zoomOutBtn.setAttr("aria-label", "Zoom out");
+    this.zoomOutBtn.setAttr("title", "Zoom out");
+    this.zoomInBtn = this.zoomControlsEl.createEl("button", {
+      cls: "zm-zoom-btn",
+      text: "+"
+    });
+    this.zoomInBtn.setAttr("aria-label", "Zoom in");
+    this.zoomInBtn.setAttr("title", "Zoom in");
+    this.registerDomEvent(this.zoomOutBtn, "click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const r = this.viewportEl.getBoundingClientRect();
+      this.zoomAt(r.width / 2, r.height / 2, 1 / 1.2);
+    });
     const ownerWindow = this.getOwnerWindow();
     this.registerDomEvent(this.viewportEl, "wheel", (e) => {
       const t = this.asElement(e.target);
       if (t == null ? void 0 : t.closest(".popover")) return;
       if (this.cfg.responsive) return;
+      if (t == null ? void 0 : t.closest(".zm-zoom-controls")) return;
       e.preventDefault();
       e.stopPropagation();
       this.onWheel(e);
+    });
+    this.registerDomEvent(this.zoomInBtn, "click", (e) => {
+      if (this.cfg.responsive) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const r = this.viewportEl.getBoundingClientRect();
+      this.zoomAt(r.width / 2, r.height / 2, 1.2);
     });
     this.registerDomEvent(this.viewportEl, "pointerdown", (e) => {
       e.preventDefault();
@@ -6277,6 +6372,12 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
       this.cfg.yamlMarkerLayers
     );
     this.data = await this.store.load();
+    const pendingRestore = this.cfg.mapId ? this.plugin.consumeMapRestore(this.cfg.sourcePath, this.cfg.mapId) : null;
+    if ((pendingRestore == null ? void 0 : pendingRestore.activeBase) && this.data) {
+      if (this.getBasesNormalized().some((b) => b.path === pendingRestore.activeBase)) {
+        this.data.activeBase = pendingRestore.activeBase;
+      }
+    }
     await this.applyYamlOnFirstLoad();
     if (this.cfg.yamlMetersPerPixel && this.getMetersPerPixel() === void 0) {
       this.ensureMeasurement();
@@ -6308,7 +6409,9 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
       var _a2;
       return (_a2 = this.ro) == null ? void 0 : _a2.disconnect();
     });
-    if (this.cfg.responsive) {
+    if (pendingRestore && !this.cfg.responsive) {
+      this.applyInitialView(pendingRestore.scale, pendingRestore.center);
+    } else if (this.cfg.responsive) {
       this.fitToView();
     } else if (this.cfg.initialViewRect) {
       this.applyInitialViewRect(this.cfg.initialViewRect);
@@ -6316,6 +6419,9 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
       this.applyInitialView(this.cfg.initialZoom, this.cfg.initialCenter);
     } else {
       this.fitToView();
+    }
+    if (pendingRestore && !this.cfg.responsive) {
+      this.captureViewIfVisible();
     }
     this.scheduleTryApplyInitialViewFromCallout();
     await this.applyActiveBaseAndOverlays();
@@ -6325,6 +6431,7 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
     this.applyMeasureStyle();
     this.renderAll();
     this.ready = true;
+    this.updateZoomControlsVisibility();
   }
   updateResponsiveAspectRatio() {
     if (!this.imgW || !this.imgH) return;
@@ -6949,7 +7056,7 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
     this.renderDrawings();
     this.renderDrawingEditHandles();
     if (mode === "points") {
-      new import_obsidian20.Notice("Edit points: drag handles, drag green midpoint handles to add points, double-click a point to delete it. Press esc to cancel.", 6e3);
+      new import_obsidian20.Notice("Edit points: drag handles, drag green midpoint handles to add points, ctrl/cmd-click a point to delete it. Press esc to cancel.", 6e3);
     } else if (mode === "rect") {
       new import_obsidian20.Notice("Edit rectangle: drag corner handles. Press esc to cancel.", 4e3);
     } else {
@@ -7093,16 +7200,17 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
         if (this.drawEditPointIndex === i) h.classList.add("zm-draw-handle--active");
         h.style.left = `${sx}px`;
         h.style.top = `${sy}px`;
-        h.title = "Drag to move. Double click to delete.";
+        h.title = "Drag to move. Ctrl/Cmd + click to delete.";
         h.addEventListener("pointerdown", (e) => {
+          if (e.button === 0 && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.deletePointFromEditedDrawing(i);
+            return;
+          }
           e.preventDefault();
           e.stopPropagation();
           startDrag(i, "point", e.pointerId);
-        });
-        h.addEventListener("dblclick", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          this.deletePointFromEditedDrawing(i);
         });
       }
       const segCount = d.kind === "polygon" ? pts.length : Math.max(0, pts.length - 1);
@@ -12385,9 +12493,9 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
       const next = this.buildPingNoteText(text, {
         defaultTitle,
         baseYamlFallback,
-        tooltipBody,
         relatedBody,
         travelBody,
+        tooltipBody,
         includeBases,
         includeTooltips,
         includeRelated,
@@ -12395,6 +12503,10 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
       });
       return next === text ? text : next;
     });
+    const shouldRefreshSourceNote = (preset == null ? void 0 : preset.refreshSourceNoteOnUpdate) !== false;
+    if (!shouldRefreshSourceNote) return;
+    this.plugin.snapshotMapsForSourceNote(this.cfg.sourcePath);
+    await this.refreshOpenMarkdownViewsForPaths([this.cfg.sourcePath]);
   }
   async deletePingNoteIfOwned(m) {
     var _a, _b;
@@ -13443,6 +13555,7 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
     this.renderMeasure();
     this.renderDrawingEditHandles();
     this.renderCalibrate();
+    this.updateZoomControlsVisibility();
     this.renderDrawings();
     if (this.isCanvas()) this.renderCanvas();
     this.renderTextLayers();
@@ -15522,6 +15635,12 @@ var PreferencesModal = class extends import_obsidian23.Modal {
         await this.plugin.saveSettings();
       });
     });
+    new import_obsidian23.Setting(contentEl).setName("Show zoom +/- buttons on maps").setDesc("Displays small hud buttons for zooming in and out.").addToggle((toggle) => {
+      toggle.setValue(!!this.plugin.settings.showZoomButtonsHud).onChange(async (value) => {
+        this.plugin.settings.showZoomButtonsHud = value;
+        await this.plugin.saveSettings();
+      });
+    });
     new import_obsidian23.Setting(contentEl).setName("Middle click pins opens linked note in new tab").setDesc("When enabled: middle click on a pin opens its linked note in a new tab.").addToggle((toggle) => {
       toggle.setValue(!!this.plugin.settings.middleClickOpensLinkInNewTab).onChange(async (value) => {
         this.plugin.settings.middleClickOpensLinkInNewTab = value;
@@ -17001,6 +17120,7 @@ var DEFAULT_SETTINGS = {
   enableTextLayers: false,
   enableMeasurePro: false,
   enableSessionImageCache: false,
+  showZoomButtonsHud: false,
   sessionImageCacheMb: 512,
   keepOverlaysLoaded: false,
   preferCanvasImagesWhenCaching: false,
@@ -17144,10 +17264,47 @@ var ZoomMapPlugin = class extends import_obsidian26.Plugin {
     super(...arguments);
     this.settings = DEFAULT_SETTINGS;
     this.imageCache = null;
+    this.mapInstances = /* @__PURE__ */ new Set();
+    this.pendingMapRestores = /* @__PURE__ */ new Map();
     this.activeMap = null;
+  }
+  makeMapRestoreKey(sourcePath, mapId) {
+    return `${(0, import_obsidian26.normalizePath)(sourcePath)}::${mapId.trim()}`;
+  }
+  registerMapInstance(inst) {
+    this.mapInstances.add(inst);
+  }
+  unregisterMapInstance(inst) {
+    this.mapInstances.delete(inst);
+    if (this.activeMap === inst) this.activeMap = null;
+  }
+  stashMapRestore(sourcePath, mapId, state) {
+    if (!mapId.trim()) return;
+    this.pendingMapRestores.set(this.makeMapRestoreKey(sourcePath, mapId), state);
+  }
+  consumeMapRestore(sourcePath, mapId) {
+    var _a;
+    if (!mapId.trim()) return null;
+    const key = this.makeMapRestoreKey(sourcePath, mapId);
+    const state = (_a = this.pendingMapRestores.get(key)) != null ? _a : null;
+    if (state) this.pendingMapRestores.delete(key);
+    return state;
+  }
+  snapshotMapsForSourceNote(sourcePath) {
+    for (const inst of this.mapInstances) {
+      if ((0, import_obsidian26.normalizePath)(inst.getSourcePath()) !== (0, import_obsidian26.normalizePath)(sourcePath)) continue;
+      const mapId = inst.getMapId();
+      const state = inst.captureRestoreState();
+      if (state && mapId.trim()) this.stashMapRestore(sourcePath, mapId, state);
+    }
   }
   setActiveMap(inst) {
     this.activeMap = inst;
+  }
+  notifyMapInstancesSettingsChanged() {
+    for (const inst of this.mapInstances) {
+      inst.onPluginSettingsChanged();
+    }
   }
   getUiDocument() {
     return this.app.workspace.containerEl.ownerDocument;
@@ -17469,7 +17626,7 @@ var ZoomMapPlugin = class extends import_obsidian26.Plugin {
     };
   }
   async loadSettings() {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __, _$, _aa;
     const savedUnknown = await this.loadData();
     const merged = { ...DEFAULT_SETTINGS };
     if (isPlainObject(savedUnknown)) {
@@ -17523,18 +17680,19 @@ var ZoomMapPlugin = class extends import_obsidian26.Plugin {
     (_z = (_y = this.settings).enableTextLayers) != null ? _z : _y.enableTextLayers = false;
     (_B = (_A = this.settings).enableMeasurePro) != null ? _B : _A.enableMeasurePro = false;
     (_D = (_C = this.settings).showLinkFileNameInTooltip) != null ? _D : _C.showLinkFileNameInTooltip = false;
-    (_F = (_E = this.settings).enableGrid) != null ? _F : _E.enableGrid = false;
-    (_H = (_G = this.settings).applyHoverPopoverSizeGlobally) != null ? _H : _G.applyHoverPopoverSizeGlobally = false;
-    (_J = (_I = this.settings).enableSessionImageCache) != null ? _J : _I.enableSessionImageCache = false;
-    (_L = (_K = this.settings).sessionImageCacheMb) != null ? _L : _K.sessionImageCacheMb = 512;
-    (_N = (_M = this.settings).keepOverlaysLoaded) != null ? _N : _M.keepOverlaysLoaded = false;
-    (_P = (_O = this.settings).preferCanvasImagesWhenCaching) != null ? _P : _O.preferCanvasImagesWhenCaching = false;
-    (_R = (_Q = this.settings).svgRasterMaxScale) != null ? _R : _Q.svgRasterMaxScale = 8;
-    (_T = (_S = this.settings).showImageIconPreviewInSettings) != null ? _T : _S.showImageIconPreviewInSettings = false;
-    (_V = (_U = this.settings).middleClickOpensLinkInNewTab) != null ? _V : _U.middleClickOpensLinkInNewTab = false;
-    (_X = (_W = this.settings).enableSecondScreen) != null ? _X : _W.enableSecondScreen = false;
-    (_Z = (_Y = this.settings).secondScreenFolder) != null ? _Z : _Y.secondScreenFolder = "ZoomMap/SecondScreen";
-    for (const ico of (__ = this.settings.icons) != null ? __ : []) {
+    (_F = (_E = this.settings).showZoomButtonsHud) != null ? _F : _E.showZoomButtonsHud = false;
+    (_H = (_G = this.settings).enableGrid) != null ? _H : _G.enableGrid = false;
+    (_J = (_I = this.settings).applyHoverPopoverSizeGlobally) != null ? _J : _I.applyHoverPopoverSizeGlobally = false;
+    (_L = (_K = this.settings).enableSessionImageCache) != null ? _L : _K.enableSessionImageCache = false;
+    (_N = (_M = this.settings).sessionImageCacheMb) != null ? _N : _M.sessionImageCacheMb = 512;
+    (_P = (_O = this.settings).keepOverlaysLoaded) != null ? _P : _O.keepOverlaysLoaded = false;
+    (_R = (_Q = this.settings).preferCanvasImagesWhenCaching) != null ? _R : _Q.preferCanvasImagesWhenCaching = false;
+    (_T = (_S = this.settings).svgRasterMaxScale) != null ? _T : _S.svgRasterMaxScale = 8;
+    (_V = (_U = this.settings).showImageIconPreviewInSettings) != null ? _V : _U.showImageIconPreviewInSettings = false;
+    (_X = (_W = this.settings).middleClickOpensLinkInNewTab) != null ? _X : _W.middleClickOpensLinkInNewTab = false;
+    (_Z = (_Y = this.settings).enableSecondScreen) != null ? _Z : _Y.enableSecondScreen = false;
+    (_$ = (__ = this.settings).secondScreenFolder) != null ? _$ : __.secondScreenFolder = "ZoomMap/SecondScreen";
+    for (const ico of (_aa = this.settings.icons) != null ? _aa : []) {
       if (typeof ico.inCollections !== "boolean") {
         ico.inCollections = true;
       }
@@ -17543,6 +17701,7 @@ var ZoomMapPlugin = class extends import_obsidian26.Plugin {
   async saveSettings() {
     await this.saveData(this.settings);
     this.applyGlobalHoverPopoverSettings();
+    this.notifyMapInstancesSettingsChanged();
     this.applyImageCacheSettings();
   }
   applyImageCacheSettings() {

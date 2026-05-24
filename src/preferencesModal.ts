@@ -89,6 +89,16 @@ export class PreferencesModal extends Modal {
           await this.plugin.saveSettings();
         });
       });
+	  
+    new Setting(contentEl)
+      .setName("Show zoom +/- buttons on maps")
+      .setDesc("Displays small hud buttons for zooming in and out.")
+      .addToggle((toggle) => {
+        toggle.setValue(!!this.plugin.settings.showZoomButtonsHud).onChange(async (value) => {
+          this.plugin.settings.showZoomButtonsHud = value;
+          await this.plugin.saveSettings();
+        });
+      });
 
     new Setting(contentEl)
       .setName("Middle click pins opens linked note in new tab")

@@ -1,4 +1,4 @@
-import { Component, Modal, Notice, TFile, parseYaml, stringifyYaml, normalizePath } from "obsidian";
+import { Component, Modal, Notice, TFile, MarkdownView, parseYaml, stringifyYaml, normalizePath } from "obsidian";
 import type { App } from "obsidian";
 import { generateId, MarkerStore, sanitizeMarkerFileDataForSave } from "./markerStore";
 import type {
@@ -79,6 +79,8 @@ export interface PingPreset {
   relatedLookup?: "off" | "tags" | "backlinks";
   searchLayersMode?: "all" | "self" | "custom";
   searchLayerNames?: string[]; // used when searchLayersMode === "custom"
+  
+  refreshSourceNoteOnUpdate?: boolean;
   
   sections?: {
     bases?: boolean;
@@ -265,6 +267,7 @@ export interface ZoomMapSettings {
   travelRulesPacks?: TravelRulesPack[];
   showLinkFileNameInTooltip?: boolean;
   svgRasterMaxScale?: 2 | 4 | 8;
+  showZoomButtonsHud?: boolean;
   
   // Session image cache
   enableSessionImageCache?: boolean;
@@ -276,6 +279,12 @@ export interface ZoomMapSettings {
   enableSecondScreen?: boolean;
   enableGrid?: boolean;
   secondScreenFolder?: string;
+}
+
+export interface MapRestoreState {
+  activeBase?: string;
+  scale: number;
+  center: { x: number; y: number };
 }
 
 interface Point { x: number; y: number; }
@@ -545,6 +554,10 @@ export class MapInstance extends Component {
   private zoomHud!: HTMLDivElement;
   private gridAlignId: string | null = null;
   private gridAlignPreview: { x: number; y: number } | null = null;
+  private zoomControlsEl!: HTMLDivElement;
+  private zoomInBtn!: HTMLButtonElement;
+  private zoomOutBtn!: HTMLButtonElement;
+
   private gridAlignOriginalSpacing: number | null = null;
 
   private zoomHudTimer: number | null = null;
@@ -2072,6 +2085,78 @@ export class MapInstance extends Component {
   private getOwnerBody(): HTMLBodyElement {
     return this.getOwnerDocument().body;
   }
+  
+  public getSourcePath(): string {
+    return this.cfg.sourcePath;
+  }
+
+  public getMapId(): string {
+    return this.cfg.mapId ?? "";
+  }
+
+  public captureRestoreState(): MapRestoreState | null {
+    if (!this.imgW || !this.imgH) return null;
+
+    this.captureViewIfVisible();
+    const view = this.lastGoodView;
+    if (!view) return null;
+
+    return {
+      activeBase: this.getActiveBasePath(),
+      scale: view.scale,
+      center: { ...view.center },
+    };
+  }
+
+  private updateZoomControlsVisibility(): void {
+    if (!this.zoomControlsEl) return;
+    const show =
+      !!this.plugin.settings.showZoomButtonsHud &&
+      !this.cfg.responsive;
+    this.zoomControlsEl.classList.toggle("zm-hidden", !show);
+  }
+
+  private refreshMarkdownViewKeepingScroll(view: MarkdownView): void {
+    try {
+      const scroll = view.currentMode?.getScroll?.() ?? 0;
+
+      if (view.getMode() === "preview") {
+        view.previewMode?.rerender?.(true);
+        view.previewMode?.applyScroll?.(scroll);
+        return;
+      }
+
+      const data = view.getViewData();
+      view.setViewData(data, false);
+      view.currentMode?.applyScroll?.(scroll);
+    } catch (err) {
+      console.warn("Zoom Map: failed to refresh markdown view", err);
+    }
+  }
+
+  private async refreshOpenMarkdownViewsForPaths(paths: string[]): Promise<void> {
+    const wanted = new Set(
+      paths
+        .map((p) => normalizePath((p ?? "").trim()))
+        .filter((p) => p.length > 0),
+    );
+    if (wanted.size === 0) return;
+
+    const leaves = this.app.workspace.getLeavesOfType("markdown");
+    for (const leaf of leaves) {
+      // Do not force-load deferred/background leaves here.
+      if (leaf.isDeferred) continue;
+      if (!(leaf.view instanceof MarkdownView)) continue;
+
+      const file = leaf.view.file;
+      if (!(file instanceof TFile)) continue;
+
+      const filePath = normalizePath(file.path);
+      if (!wanted.has(filePath)) continue;
+
+      this.refreshMarkdownViewKeepingScroll(leaf.view);
+    }
+  }
 
   private asElement(target: EventTarget | null): Element | null {
     if (!target || typeof target !== "object") return null;
@@ -2203,8 +2288,15 @@ export class MapInstance extends Component {
     );
     modal.open();
   }
+  
+  public onPluginSettingsChanged(): void {
+    this.applyGlobalHoverPopoverStyleVars();
+    this.applyMeasureStyle();
+    this.updateZoomControlsVisibility();
+  }
 
   onload(): void {
+	this.plugin.registerMapInstance(this);
     void this.bootstrap().catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(err);
@@ -2213,6 +2305,7 @@ export class MapInstance extends Component {
   }
 
   onunload(): void {
+	this.plugin.unregisterMapInstance(this);
     if (this.zoomHudTimer !== null) {
       window.clearTimeout(this.zoomHudTimer);
       this.zoomHudTimer = null;
@@ -2377,15 +2470,46 @@ export class MapInstance extends Component {
 	this.drawEditHudEl = this.hudClipEl.createDiv({ cls: "zm-draw-edit" });
     this.zoomHud = this.hudClipEl.createDiv({ cls: "zm-zoom-hud" });
 	
+    this.zoomControlsEl = this.hudClipEl.createDiv({ cls: "zm-zoom-controls" });
+    this.zoomOutBtn = this.zoomControlsEl.createEl("button", {
+      cls: "zm-zoom-btn",
+      text: "−",
+    });
+    this.zoomOutBtn.setAttr("aria-label", "Zoom out");
+    this.zoomOutBtn.setAttr("title", "Zoom out");
+
+    this.zoomInBtn = this.zoomControlsEl.createEl("button", {
+      cls: "zm-zoom-btn",
+      text: "+",
+    });
+    this.zoomInBtn.setAttr("aria-label", "Zoom in");
+    this.zoomInBtn.setAttr("title", "Zoom in");
+
+    this.registerDomEvent(this.zoomOutBtn, "click", (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const r = this.viewportEl.getBoundingClientRect();
+      this.zoomAt(r.width / 2, r.height / 2, 1 / 1.2);
+    });
+	
 	const ownerWindow = this.getOwnerWindow();
 
     this.registerDomEvent(this.viewportEl, "wheel", (e: WheelEvent) => {
       const t = this.asElement(e.target);
       if (t?.closest(".popover")) return;
       if (this.cfg.responsive) return;
+      if (t?.closest(".zm-zoom-controls")) return;
       e.preventDefault();
       e.stopPropagation();
       this.onWheel(e);
+    });
+
+    this.registerDomEvent(this.zoomInBtn, "click", (e: MouseEvent) => {
+      if (this.cfg.responsive) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const r = this.viewportEl.getBoundingClientRect();
+      this.zoomAt(r.width / 2, r.height / 2, 1.2);
     });
 
     this.registerDomEvent(this.viewportEl, "pointerdown", (e: PointerEvent) => {
@@ -2560,6 +2684,17 @@ export class MapInstance extends Component {
     this.cfg.yamlMarkerLayers,
   );
     this.data = await this.store.load();
+	
+    const pendingRestore =
+      this.cfg.mapId
+        ? this.plugin.consumeMapRestore(this.cfg.sourcePath, this.cfg.mapId)
+        : null;
+
+    if (pendingRestore?.activeBase && this.data) {
+      if (this.getBasesNormalized().some((b) => b.path === pendingRestore.activeBase)) {
+        this.data.activeBase = pendingRestore.activeBase;
+      }
+    }
 
     await this.applyYamlOnFirstLoad();
 
@@ -2593,7 +2728,9 @@ export class MapInstance extends Component {
     this.ro.observe(this.el);
     this.register(() => this.ro?.disconnect());
 
-	if (this.cfg.responsive) {
+    if (pendingRestore && !this.cfg.responsive) {
+      this.applyInitialView(pendingRestore.scale, pendingRestore.center);
+    } else if (this.cfg.responsive) {
 	  this.fitToView();
 	} else if (this.cfg.initialViewRect) {
 	  this.applyInitialViewRect(this.cfg.initialViewRect);
@@ -2602,6 +2739,10 @@ export class MapInstance extends Component {
 	} else {
 	  this.fitToView();
 	}
+	
+    if (pendingRestore && !this.cfg.responsive) {
+      this.captureViewIfVisible();
+    }
 	
     // If the map is inside a collapsed callout on note load, apply the initial view when it is first opened.
     this.scheduleTryApplyInitialViewFromCallout();
@@ -2615,6 +2756,7 @@ export class MapInstance extends Component {
 
     this.renderAll();
     this.ready = true;
+	this.updateZoomControlsVisibility();
   }
 
   private updateResponsiveAspectRatio(): void {
@@ -3401,7 +3543,7 @@ export class MapInstance extends Component {
     this.renderDrawingEditHandles();
 
     if (mode === "points") {
-      new Notice("Edit points: drag handles, drag green midpoint handles to add points, double-click a point to delete it. Press esc to cancel.", 6000);
+      new Notice("Edit points: drag handles, drag green midpoint handles to add points, ctrl/cmd-click a point to delete it. Press esc to cancel.", 6000);
     } else if (mode === "rect") {
       new Notice("Edit rectangle: drag corner handles. Press esc to cancel.", 4000);
     } else {
@@ -3579,18 +3721,19 @@ export class MapInstance extends Component {
         if (this.drawEditPointIndex === i) h.classList.add("zm-draw-handle--active");
         h.style.left = `${sx}px`;
         h.style.top = `${sy}px`;
-        h.title = "Drag to move. Double click to delete.";
+        h.title = "Drag to move. Ctrl/Cmd + click to delete.";
 
         h.addEventListener("pointerdown", (e: PointerEvent) => {
+          if (e.button === 0 && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.deletePointFromEditedDrawing(i);
+            return;
+          }
+
           e.preventDefault();
           e.stopPropagation();
           startDrag(i, "point", e.pointerId);
-        });
-
-        h.addEventListener("dblclick", (e: MouseEvent) => {
-          e.preventDefault();
-          e.stopPropagation();
-          this.deletePointFromEditedDrawing(i);
         });
       }
 
@@ -9960,9 +10103,9 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       const next = this.buildPingNoteText(text, {
         defaultTitle,
         baseYamlFallback,
-        tooltipBody,
         relatedBody,
         travelBody,
+		tooltipBody,
         includeBases,
         includeTooltips,
         includeRelated,
@@ -9970,6 +10113,13 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       });
       return next === text ? text : next;
     });
+
+    const shouldRefreshSourceNote = preset?.refreshSourceNoteOnUpdate !== false;
+    if (!shouldRefreshSourceNote) return;
+
+    this.plugin.snapshotMapsForSourceNote(this.cfg.sourcePath);
+
+    await this.refreshOpenMarkdownViewsForPaths([this.cfg.sourcePath]);
   }
 
   private async deletePingNoteIfOwned(m: Marker): Promise<void> {
@@ -11270,6 +11420,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     this.renderMeasure();
 	this.renderDrawingEditHandles();
     this.renderCalibrate();
+	this.updateZoomControlsVisibility();
     this.renderDrawings();
 
     if (this.isCanvas()) this.renderCanvas();

@@ -22,6 +22,7 @@ import type {
   TerrainDef,
   TravelTimePreset,
   TravelRulesPack,
+  MapRestoreState,
 } from "./map";
 
 import { ViewEditorModal, type ViewEditorConfig } from "./viewEditorModal";
@@ -165,6 +166,7 @@ const DEFAULT_SETTINGS: ZoomMapSettingsExtended = {
   enableTextLayers: false,
   enableMeasurePro: false,
   enableSessionImageCache: false,
+  showZoomButtonsHud: false,
   sessionImageCacheMb: 512,
   keepOverlaysLoaded: false,
   preferCanvasImagesWhenCaching: false, 
@@ -414,10 +416,53 @@ export default class ZoomMapPlugin extends Plugin {
   settings: ZoomMapSettings = DEFAULT_SETTINGS;
   imageCache: ImageCache | null = null;
 
+  private mapInstances = new Set<MapInstance>();
+  private pendingMapRestores = new Map<string, MapRestoreState>();
   activeMap: MapInstance | null = null;
+  
+  private makeMapRestoreKey(sourcePath: string, mapId: string): string {
+    return `${normalizePath(sourcePath)}::${mapId.trim()}`;
+  }
+
+  registerMapInstance(inst: MapInstance): void {
+    this.mapInstances.add(inst);
+  }
+
+  unregisterMapInstance(inst: MapInstance): void {
+    this.mapInstances.delete(inst);
+    if (this.activeMap === inst) this.activeMap = null;
+  }
+
+  stashMapRestore(sourcePath: string, mapId: string, state: MapRestoreState): void {
+    if (!mapId.trim()) return;
+    this.pendingMapRestores.set(this.makeMapRestoreKey(sourcePath, mapId), state);
+  }
+
+  consumeMapRestore(sourcePath: string, mapId: string): MapRestoreState | null {
+    if (!mapId.trim()) return null;
+    const key = this.makeMapRestoreKey(sourcePath, mapId);
+    const state = this.pendingMapRestores.get(key) ?? null;
+    if (state) this.pendingMapRestores.delete(key);
+    return state;
+  }
+
+  snapshotMapsForSourceNote(sourcePath: string): void {
+    for (const inst of this.mapInstances) {
+      if (normalizePath(inst.getSourcePath()) !== normalizePath(sourcePath)) continue;
+      const mapId = inst.getMapId();
+      const state = inst.captureRestoreState();
+      if (state && mapId.trim()) this.stashMapRestore(sourcePath, mapId, state);
+    }
+  }
 
   setActiveMap(inst: MapInstance): void {
     this.activeMap = inst;
+  }
+  
+  private notifyMapInstancesSettingsChanged(): void {
+    for (const inst of this.mapInstances) {
+      inst.onPluginSettingsChanged();
+    }
   }
   
   private getUiDocument(): Document {
@@ -897,6 +942,7 @@ export default class ZoomMapPlugin extends Plugin {
 	this.settings.enableTextLayers ??= false;
 	this.settings.enableMeasurePro ??= false;
 	this.settings.showLinkFileNameInTooltip ??= false;
+	this.settings.showZoomButtonsHud ??= false;
 	this.settings.enableGrid ??= false;
 	this.settings.applyHoverPopoverSizeGlobally ??= false;
 	
@@ -920,6 +966,7 @@ export default class ZoomMapPlugin extends Plugin {
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
 	this.applyGlobalHoverPopoverSettings();
+	this.notifyMapInstancesSettingsChanged();
     this.applyImageCacheSettings();
   }
   
