@@ -1,4 +1,4 @@
-# TTRPG Tools: Maps (Obsidian Plugin)
+# TTRPG Tools - Maps (Obsidian Plugin)
 
 This Map tool lets you embed an image as an interactive, zoomable map inside Obsidian and place markers, stickers, drawings, measurements, HUD pins and (optionally) editable text layers on top.
 
