@@ -284,6 +284,13 @@ export interface MeasurementConfig {
   travelDayPresetId?: string;
 }
 
+export interface SecondScreenViewState {
+  activeBase?: string;
+  scale: number;
+  tx: number;
+  ty: number;
+}
+
 export interface SecondScreenConfig {
   markerLayerIds?: string[];
   drawLayerIds?: string[];
@@ -291,6 +298,10 @@ export interface SecondScreenConfig {
   textLayerIds?: string[];
   notePath?: string;
   markersPath?: string;
+  revealedMarkerIds?: string[];
+  view?: SecondScreenViewState;
+  fogMaskPath?: string;
+  fogVersion?: number;
 }
 
 export interface DeletedIndexedMarker {

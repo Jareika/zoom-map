@@ -4695,6 +4695,8 @@ var MapInstance = class extends import_obsidian20.Component {
     this.frameSaveTimer = null;
     this.userResizing = false;
     this.yamlAppliedOnce = false;
+    this.secondScreenViewSaveTimer = null;
+    this.applyingSecondScreenView = false;
     this.tintedSvgCache = /* @__PURE__ */ new Map();
     this.onNativeTouchStart = (e) => {
       if (!this.canUseNativeTouchCapture()) return;
@@ -5508,7 +5510,22 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
     const registry = (_b = (_a = this.app.plugins) == null ? void 0 : _a.plugins) != null ? _b : {};
     const raw = registry["ttrpg-tools-screen"];
     if (!raw || typeof raw.sendNoteByPath !== "function" || typeof raw.sendMarkdownWithFog !== "function") return null;
-    return { sendNoteByPath: raw.sendNoteByPath.bind(raw), sendMarkdownWithFog: raw.sendMarkdownWithFog.bind(raw) };
+    return {
+      sendNoteByPath: raw.sendNoteByPath.bind(raw),
+      sendMarkdownWithFog: raw.sendMarkdownWithFog.bind(raw),
+      sendZoomMap: typeof raw.sendZoomMap === "function" ? raw.sendZoomMap.bind(raw) : void 0
+    };
+  }
+  isSecondScreenPlayerView() {
+    return this.cfg.screenRole === "player";
+  }
+  isSecondScreenControllerView() {
+    return this.cfg.screenRole === "controller";
+  }
+  getRevealedMarkerIdSet() {
+    var _a, _b;
+    const ids = (_b = (_a = this.data) == null ? void 0 : _a.secondScreen) == null ? void 0 : _b.revealedMarkerIds;
+    return new Set(Array.isArray(ids) ? ids : []);
   }
   secondScreenFeatureEnabled() {
     return !!this.plugin.settings.enableSecondScreen;
@@ -5582,8 +5599,66 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
       }
     ).open();
   }
-  buildSecondScreenSnapshot() {
-    var _a, _b, _c, _d, _e, _f;
+  async readMarkerFileDataFromPath(path) {
+    try {
+      const af = this.app.vault.getAbstractFileByPath((0, import_obsidian20.normalizePath)(path));
+      if (!(af instanceof import_obsidian20.TFile)) return null;
+      const raw = await this.app.vault.read(af);
+      return JSON.parse(raw);
+    } catch (e) {
+      return null;
+    }
+  }
+  mergeSecondScreenSnapshotWithExisting(snapshot, existing) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
+    if (!existing) {
+      (_a = snapshot.secondScreen) != null ? _a : snapshot.secondScreen = {};
+      (_c = (_b = snapshot.secondScreen).revealedMarkerIds) != null ? _c : _b.revealedMarkerIds = [];
+      return snapshot;
+    }
+    const existingSecond = (_d = existing.secondScreen) != null ? _d : {};
+    snapshot.secondScreen = {
+      ...(_e = snapshot.secondScreen) != null ? _e : {},
+      revealedMarkerIds: Array.isArray(existingSecond.revealedMarkerIds) ? [...existingSecond.revealedMarkerIds] : [],
+      view: existingSecond.view,
+      fogMaskPath: existingSecond.fogMaskPath,
+      fogVersion: existingSecond.fogVersion,
+      notePath: (_g = (_f = snapshot.secondScreen) == null ? void 0 : _f.notePath) != null ? _g : existingSecond.notePath,
+      markersPath: (_i = (_h = snapshot.secondScreen) == null ? void 0 : _h.markersPath) != null ? _i : existingSecond.markersPath,
+      markerLayerIds: (_k = (_j = snapshot.secondScreen) == null ? void 0 : _j.markerLayerIds) != null ? _k : existingSecond.markerLayerIds,
+      drawLayerIds: (_m = (_l = snapshot.secondScreen) == null ? void 0 : _l.drawLayerIds) != null ? _m : existingSecond.drawLayerIds,
+      textLayerIds: (_o = (_n = snapshot.secondScreen) == null ? void 0 : _n.textLayerIds) != null ? _o : existingSecond.textLayerIds,
+      showGrids: (_q = (_p = snapshot.secondScreen) == null ? void 0 : _p.showGrids) != null ? _q : existingSecond.showGrids
+    };
+    const existingMarkers = new Map(((_r = existing.markers) != null ? _r : []).map((m) => [m.id, m]));
+    snapshot.markers = ((_s = snapshot.markers) != null ? _s : []).map((fresh) => {
+      const old = existingMarkers.get(fresh.id);
+      if (!old) return fresh;
+      const merged = {
+        ...fresh,
+        x: old.x,
+        y: old.y,
+        anchorSpace: old.anchorSpace,
+        hudX: old.hudX,
+        hudY: old.hudY,
+        hudModeX: old.hudModeX,
+        hudModeY: old.hudModeY,
+        hudLastWidth: old.hudLastWidth,
+        hudLastHeight: old.hudLastHeight
+      };
+      if (typeof old.swapIndex === "number") merged.swapIndex = old.swapIndex;
+      return merged;
+    });
+    const existingBasePaths = new Set(
+      ((_t = snapshot.bases) != null ? _t : []).map((b) => typeof b === "string" ? b : b.path)
+    );
+    if (existing.activeBase && existingBasePaths.has(existing.activeBase)) {
+      snapshot.activeBase = existing.activeBase;
+    }
+    return snapshot;
+  }
+  async buildSecondScreenSnapshot(playerMarkersPath, notePath) {
+    var _a, _b, _c, _d, _e, _f, _g;
     if (!this.data) throw new Error("Map data not loaded.");
     const snapshot = JSON.parse(
       JSON.stringify(sanitizeMarkerFileDataForSave(this.data))
@@ -5605,7 +5680,15 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
     const showGrids = sec.showGrids !== false;
     snapshot.grids = showGrids ? ((_e = snapshot.grids) != null ? _e : []).filter((g) => g.visible !== false && g.playerScreen !== "gm-only") : [];
     snapshot.textLayers = ((_f = snapshot.textLayers) != null ? _f : []).filter((t) => textLayerIds.has(t.id));
-    return snapshot;
+    (_g = snapshot.secondScreen) != null ? _g : snapshot.secondScreen = {};
+    snapshot.secondScreen.notePath = notePath;
+    snapshot.secondScreen.markersPath = playerMarkersPath;
+    snapshot.secondScreen.markerLayerIds = [...markerLayerIds];
+    snapshot.secondScreen.drawLayerIds = [...drawLayerIds];
+    snapshot.secondScreen.textLayerIds = [...textLayerIds];
+    snapshot.secondScreen.showGrids = sec.showGrids !== false;
+    const existing = await this.readMarkerFileDataFromPath(playerMarkersPath);
+    return this.mergeSecondScreenSnapshotWithExisting(snapshot, existing);
   }
   getCurrentViewForSecondScreen() {
     if (!this.imgW || !this.imgH) return null;
@@ -5641,7 +5724,7 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
     if (w < 2 || h < 2) return null;
     return w / h;
   }
-  buildSecondScreenNoteContent(markersPath) {
+  buildSecondScreenNoteContent(markersPath, role) {
     var _a;
     const view = this.getCurrentViewForSecondScreen();
     const viewRect = this.getCurrentViewRectForSecondScreen();
@@ -5663,7 +5746,8 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
       responsive: false,
       wrap: false,
       render: this.cfg.renderMode,
-      displayOnly: true
+      displayOnly: role === "player",
+      screenRole: role
     };
     if ((_a = this.cfg.viewportFrame) == null ? void 0 : _a.trim()) {
       yaml.viewportFrame = this.cfg.viewportFrame.trim();
@@ -5697,7 +5781,7 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
 `;
   }
   async sendToSecondScreen(useFog = false) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     if (!this.data) return;
     if (!this.secondScreenFeatureEnabled()) {
       new import_obsidian20.Notice("Player screen integration is disabled in preferences.", 2500);
@@ -5718,9 +5802,10 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
     const markersPath = (0, import_obsidian20.normalizePath)((_d = sec.markersPath) != null ? _d : `${folder}/${safeStem}.markers.json`);
     await this.ensureFolderForPath(notePath);
     await this.ensureFolderForPath(markersPath);
-    const snapshot = this.buildSecondScreenSnapshot();
+    const snapshot = await this.buildSecondScreenSnapshot(markersPath, notePath);
     const json = JSON.stringify(sanitizeMarkerFileDataForSave(snapshot), null, 2);
-    const noteContent = this.buildSecondScreenNoteContent(markersPath);
+    const screenMarkdown = this.buildSecondScreenNoteContent(markersPath, "player");
+    const controllerMarkdown = this.buildSecondScreenNoteContent(markersPath, "controller");
     const markerAf = this.app.vault.getAbstractFileByPath(markersPath);
     if (markerAf instanceof import_obsidian20.TFile) {
       await this.app.vault.modify(markerAf, json);
@@ -5729,16 +5814,28 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
     }
     const noteAf = this.app.vault.getAbstractFileByPath(notePath);
     if (noteAf instanceof import_obsidian20.TFile) {
-      await this.app.vault.modify(noteAf, noteContent);
+      await this.app.vault.modify(noteAf, screenMarkdown);
     } else {
-      await this.app.vault.create(notePath, noteContent);
+      await this.app.vault.create(notePath, screenMarkdown);
     }
     const fogKey = `zoommap-secondscreen:${markersPath}`;
     sec.notePath = notePath;
     sec.markersPath = markersPath;
     await this.saveDataSoon();
-    if (useFog) {
-      await screen.sendMarkdownWithFog(noteContent, notePath, fogKey);
+    if (screen.sendZoomMap) {
+      await screen.sendZoomMap({
+        title: ((_e = this.cfg.mapId) == null ? void 0 : _e.trim()) || basename(this.getActiveBasePath()),
+        screenMarkdown,
+        controllerMarkdown,
+        sourcePath: notePath,
+        sourceMarkersPath: this.store.getPath(),
+        playerMarkersPath: markersPath,
+        playerNotePath: notePath,
+        mapId: this.cfg.mapId,
+        fogKey: useFog ? fogKey : void 0
+      });
+    } else if (useFog) {
+      await screen.sendMarkdownWithFog(screenMarkdown, notePath, fogKey);
     } else {
       await screen.sendNoteByPath(notePath);
     }
@@ -6419,6 +6516,9 @@ ${(0, import_obsidian20.stringifyYaml)(yaml).trimEnd()}
       this.applyInitialView(this.cfg.initialZoom, this.cfg.initialCenter);
     } else {
       this.fitToView();
+    }
+    if (this.isSecondScreenPlayerView() || this.isSecondScreenControllerView()) {
+      this.applySecondScreenViewFromData();
     }
     if (pendingRestore && !this.cfg.responsive) {
       this.captureViewIfVisible();
@@ -11493,6 +11593,42 @@ Total: ${local.total}`, 6e3);
         return "\u2713";
     }
   }
+  applySecondScreenViewFromData() {
+    var _a, _b;
+    if (!((_b = (_a = this.data) == null ? void 0 : _a.secondScreen) == null ? void 0 : _b.view)) return false;
+    const v = this.data.secondScreen.view;
+    if (!Number.isFinite(v.scale) || !Number.isFinite(v.tx) || !Number.isFinite(v.ty)) {
+      return false;
+    }
+    this.applyingSecondScreenView = true;
+    try {
+      this.applyTransform(v.scale, v.tx, v.ty);
+    } finally {
+      this.applyingSecondScreenView = false;
+    }
+    return true;
+  }
+  persistSecondScreenViewSoon(delayMs = 250) {
+    if (!this.isSecondScreenControllerView()) return;
+    if (!this.ready || !this.data) return;
+    if (this.applyingSecondScreenView) return;
+    if (this.secondScreenViewSaveTimer !== null) {
+      window.clearTimeout(this.secondScreenViewSaveTimer);
+    }
+    this.secondScreenViewSaveTimer = window.setTimeout(() => {
+      var _a, _b;
+      this.secondScreenViewSaveTimer = null;
+      if (!this.data) return;
+      (_b = (_a = this.data).secondScreen) != null ? _b : _a.secondScreen = {};
+      this.data.secondScreen.view = {
+        activeBase: this.getActiveBasePath(),
+        scale: this.scale,
+        tx: this.tx,
+        ty: this.ty
+      };
+      void this.saveDataSoon();
+    }, delayMs);
+  }
   applyTransform(scale, tx, ty, render = true) {
     var _a, _b;
     const prevScale = this.scale;
@@ -11535,6 +11671,7 @@ Total: ${local.total}`, 6e3);
       if (this.isCanvas()) this.renderCanvas();
       this.renderDrawingEditHandles();
     }
+    this.persistSecondScreenViewSoon();
   }
   panBy(dx, dy) {
     this.applyTransform(this.scale, this.tx + dx, this.ty + dy);
@@ -13569,8 +13706,14 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
     const visibleLayers = new Set(
       this.data.layers.filter((l) => l.visible).map((l) => l.id)
     );
+    const isPlayerView = this.isSecondScreenPlayerView();
+    const isControllerView = this.isSecondScreenControllerView();
+    const revealedMarkerIds = this.getRevealedMarkerIdSet();
     const rank = (m) => m.type === "sticker" ? 0 : 1;
-    const toRender = this.data.markers.filter((m) => visibleLayers.has(m.layer)).sort((a, b) => rank(a) - rank(b));
+    const toRender = this.data.markers.filter((m) => visibleLayers.has(m.layer)).filter((m) => {
+      if (!isPlayerView) return true;
+      return revealedMarkerIds.has(m.id);
+    }).sort((a, b) => rank(a) - rank(b));
     const vpRect = this.viewportEl.getBoundingClientRect();
     const vw = vpRect.width || 1;
     const vh = vpRect.height || 1;
@@ -13606,6 +13749,9 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
         if (!visibleByZoom) host.classList.add("zm-hidden");
       }
       if (this.isLayerLocked(m.layer)) host.classList.add("zm-marker--locked");
+      if (isControllerView && !revealedMarkerIds.has(m.id)) {
+        host.classList.add("zm-marker--player-hidden");
+      }
       let icon;
       if (m.type === "sticker") {
         const size = Math.max(1, Math.round((_e = m.stickerSize) != null ? _e : 64));
@@ -13799,7 +13945,7 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
               void this.applySwitchPin(m);
               return;
             }
-            const items2 = [
+            const items2 = this.applyPlayerRevealItems([
               {
                 label: "Switch base now",
                 action: () => {
@@ -13870,13 +14016,13 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
                   this.deleteMarker(m);
                 }
               }
-            ];
+            ], m);
             this.openMenu = new ZMMenu(this.el.ownerDocument);
             this.openMenu.open(ev.clientX, ev.clientY, items2);
             return;
           }
           if (m.type === "dice") {
-            const items2 = [
+            const items2 = this.applyPlayerRevealItems([
               {
                 label: "Roll dice",
                 action: () => {
@@ -13950,13 +14096,13 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
                   this.deleteMarker(m);
                 }
               }
-            ];
+            ], m);
             this.openMenu = new ZMMenu(this.el.ownerDocument);
             this.openMenu.open(ev.clientX, ev.clientY, items2);
             return;
           }
           if (m.type === "ping") {
-            const items2 = [
+            const items2 = this.applyPlayerRevealItems([
               {
                 label: "Open party note",
                 action: () => {
@@ -13980,7 +14126,7 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
                   this.deleteMarker(m);
                 }
               }
-            ];
+            ], m);
             this.openMenu = new ZMMenu(this.el.ownerDocument);
             this.openMenu.open(ev.clientX, ev.clientY, items2);
             return;
@@ -13994,7 +14140,7 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
               this.renderMarkersOnly();
               return;
             }
-            const items2 = [
+            const items2 = this.applyPlayerRevealItems([
               {
                 label: "Edit swap pin links\u2026 ",
                 action: () => {
@@ -14057,7 +14203,7 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
                   this.deleteMarker(m);
                 }
               }
-            ];
+            ], m);
             this.openMenu = new ZMMenu(this.el.ownerDocument);
             this.openMenu.open(ev.clientX, ev.clientY, items2);
             const doc2 = this.getOwnerDocument();
@@ -14085,7 +14231,7 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
             });
             return;
           }
-          const items = [
+          const items = this.applyPlayerRevealItems([
             {
               label: m.type === "sticker" ? "Edit sticker" : "Edit marker",
               action: () => {
@@ -14119,7 +14265,7 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
                 this.closeMenu();
               }
             }
-          ];
+          ], m);
           if (m.type !== "sticker") {
             items.push({
               label: "Pin sizes for this map\u2026",
@@ -14156,6 +14302,41 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
         });
       }
     }
+  }
+  buildPlayerRevealMenuItems(m) {
+    if (!this.isSecondScreenControllerView()) return [];
+    if (!this.data) return [];
+    const revealed = this.getRevealedMarkerIdSet();
+    const isRevealed = revealed.has(m.id);
+    return [
+      {
+        label: isRevealed ? "Hide from players" : "Reveal to players",
+        action: () => {
+          this.toggleMarkerRevealedForPlayers(m.id);
+          this.closeMenu();
+        }
+      }
+    ];
+  }
+  toggleMarkerRevealedForPlayers(markerId) {
+    var _a, _b, _c;
+    if (!this.data) return;
+    (_b = (_a = this.data).secondScreen) != null ? _b : _a.secondScreen = {};
+    const current = new Set((_c = this.data.secondScreen.revealedMarkerIds) != null ? _c : []);
+    if (current.has(markerId)) current.delete(markerId);
+    else current.add(markerId);
+    this.data.secondScreen.revealedMarkerIds = [...current].sort();
+    void this.saveDataSoon();
+    this.renderMarkersOnly();
+  }
+  applyPlayerRevealItems(items, m) {
+    const reveal = this.buildPlayerRevealMenuItems(m);
+    if (!reveal.length) return items;
+    return [
+      ...reveal,
+      { type: "separator" },
+      ...items
+    ];
   }
   onMarkerEnter(ev, m, hostEl) {
     if (m.type === "sticker") return;
@@ -14424,6 +14605,7 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
     else this.applyTransform(this.scale, this.tx, this.ty);
     await this.applyBoundBaseVisibility();
     void this.saveDataSoon();
+    this.persistSecondScreenViewSoon();
     if (!this.isCanvas()) this.updateOverlaySizes();
     else this.renderCanvas();
   }
@@ -14490,6 +14672,10 @@ ${(0, import_obsidian20.stringifyYaml)(fm).trimEnd()}
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       new import_obsidian20.Notice(`Failed to reload markers: ${message}`);
+      return;
+    }
+    if (this.isSecondScreenPlayerView()) {
+      this.applySecondScreenViewFromData();
     }
   }
   installGrip(grip, side) {
@@ -17482,6 +17668,7 @@ var ZoomMapPlugin = class extends import_obsidian26.Plugin {
         const defaultId = `map-${(_c = sectionInfo == null ? void 0 : sectionInfo.lineStart) != null ? _c : Date.now()}`;
         const idFromYaml = opts.id;
         const mapId = typeof idFromYaml === "string" && idFromYaml.trim() ? idFromYaml.trim() : defaultId;
+        const screenRole = opts.screenRole === "player" || opts.screenRole === "controller" ? opts.screenRole : void 0;
         const markersPathRaw = typeof opts.markers === "string" ? opts.markers : void 0;
         const minZoom = responsive ? 1e-6 : parseZoomYaml(opts.minZoom, 0.25);
         const maxZoom = responsive ? 1e6 : parseZoomYaml(opts.maxZoom, 8);
@@ -17546,6 +17733,7 @@ var ZoomMapPlugin = class extends import_obsidian26.Plugin {
           initialZoom,
           initialCenter,
           initialViewRect,
+          screenRole,
           viewportFrame: typeof opts.viewportFrame === "string" ? opts.viewportFrame.trim() : void 0,
           viewportFrameInsets: yamlFrameInsets
         };

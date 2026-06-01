@@ -20,7 +20,8 @@ import type {
   TextBox,
   TextBoxAutoConfig,
   TextLayerStyle,
-  DiceRollSpec
+  DiceRollSpec,
+  SecondScreenViewState
 } from "./markerStore";
 import type ZoomMapPlugin from "./main";
 import { MarkerEditorModal } from "./markerEditor";
@@ -177,6 +178,7 @@ export interface ZoomMapConfig {
     bottom: number;
     left: number;
   };
+  screenRole?: "player" | "controller";
   displayOnly?: boolean;
 }
 
@@ -507,6 +509,17 @@ function isScaleLikeSticker(m: Marker): boolean { return !!m.scaleLikeSticker; }
 interface ScreenDisplayPluginApi {
   sendNoteByPath(path: string): Promise<void>;
   sendMarkdownWithFog(markdown: string, sourcePath: string, fogKey?: string): Promise<void>;
+  sendZoomMap?: (payload: {
+    title: string;
+    screenMarkdown: string;
+    controllerMarkdown: string;
+    sourcePath: string;
+    sourceMarkersPath: string;
+    playerMarkersPath: string;
+    playerNotePath?: string;
+    mapId?: string;
+    fogKey?: string;
+  }) => Promise<void>;
 }
 
 export class MapInstance extends Component {
@@ -712,6 +725,8 @@ export class MapInstance extends Component {
   private userResizing = false;
 
   private yamlAppliedOnce = false;
+  private secondScreenViewSaveTimer: number | null = null;
+  private applyingSecondScreenView = false;
   
   private ensureMarkerLayersByNames(names: string[] | undefined): void {
     if (!this.data) return;
@@ -1600,6 +1615,17 @@ export class MapInstance extends Component {
       | {
           sendNoteByPath?: (path: string) => Promise<void>;
           sendMarkdownWithFog?: (markdown: string, sourcePath: string, fogKey?: string) => Promise<void>;
+          sendZoomMap?: (payload: {
+            title: string;
+            screenMarkdown: string;
+            controllerMarkdown: string;
+            sourcePath: string;
+            sourceMarkersPath: string;
+            playerMarkersPath: string;
+            playerNotePath?: string;
+            mapId?: string;
+            fogKey?: string;
+          }) => Promise<void>;
         }
       | undefined;
 
@@ -1609,7 +1635,27 @@ export class MapInstance extends Component {
       typeof raw.sendMarkdownWithFog !== "function"
     ) return null;
 
-    return { sendNoteByPath: raw.sendNoteByPath.bind(raw), sendMarkdownWithFog: raw.sendMarkdownWithFog.bind(raw) };
+    return {
+      sendNoteByPath: raw.sendNoteByPath.bind(raw),
+      sendMarkdownWithFog: raw.sendMarkdownWithFog.bind(raw),
+      sendZoomMap:
+        typeof raw.sendZoomMap === "function"
+          ? raw.sendZoomMap.bind(raw)
+          : undefined,
+    };
+  }
+  
+  private isSecondScreenPlayerView(): boolean {
+    return this.cfg.screenRole === "player";
+  }
+
+  private isSecondScreenControllerView(): boolean {
+    return this.cfg.screenRole === "controller";
+  }
+
+  private getRevealedMarkerIdSet(): Set<string> {
+    const ids = this.data?.secondScreen?.revealedMarkerIds;
+    return new Set(Array.isArray(ids) ? ids : []);
   }
 
   private secondScreenFeatureEnabled(): boolean {
@@ -1702,7 +1748,84 @@ export class MapInstance extends Component {
     ).open();
   }
 
-  private buildSecondScreenSnapshot(): MarkerFileData {
+  private async readMarkerFileDataFromPath(path: string): Promise<MarkerFileData | null> {
+    try {
+      const af = this.app.vault.getAbstractFileByPath(normalizePath(path));
+      if (!(af instanceof TFile)) return null;
+      const raw = await this.app.vault.read(af);
+      return JSON.parse(raw) as MarkerFileData;
+    } catch {
+      return null;
+    }
+  }
+
+  private mergeSecondScreenSnapshotWithExisting(
+    snapshot: MarkerFileData,
+    existing: MarkerFileData | null,
+  ): MarkerFileData {
+    if (!existing) {
+      snapshot.secondScreen ??= {};
+      snapshot.secondScreen.revealedMarkerIds ??= [];
+      return snapshot;
+    }
+
+    const existingSecond = existing.secondScreen ?? {};
+    snapshot.secondScreen = {
+      ...(snapshot.secondScreen ?? {}),
+      revealedMarkerIds: Array.isArray(existingSecond.revealedMarkerIds)
+        ? [...existingSecond.revealedMarkerIds]
+        : [],
+      view: existingSecond.view,
+      fogMaskPath: existingSecond.fogMaskPath,
+      fogVersion: existingSecond.fogVersion,
+      notePath: snapshot.secondScreen?.notePath ?? existingSecond.notePath,
+      markersPath: snapshot.secondScreen?.markersPath ?? existingSecond.markersPath,
+      markerLayerIds: snapshot.secondScreen?.markerLayerIds ?? existingSecond.markerLayerIds,
+      drawLayerIds: snapshot.secondScreen?.drawLayerIds ?? existingSecond.drawLayerIds,
+      textLayerIds: snapshot.secondScreen?.textLayerIds ?? existingSecond.textLayerIds,
+      showGrids: snapshot.secondScreen?.showGrids ?? existingSecond.showGrids,
+    };
+
+    const existingMarkers = new Map((existing.markers ?? []).map((m) => [m.id, m]));
+
+    snapshot.markers = (snapshot.markers ?? []).map((fresh) => {
+      const old = existingMarkers.get(fresh.id);
+      if (!old) return fresh;
+
+      // Keep session-controlled player positions.
+      const merged: Marker = {
+        ...fresh,
+        x: old.x,
+        y: old.y,
+        anchorSpace: old.anchorSpace,
+        hudX: old.hudX,
+        hudY: old.hudY,
+        hudModeX: old.hudModeX,
+        hudModeY: old.hudModeY,
+        hudLastWidth: old.hudLastWidth,
+        hudLastHeight: old.hudLastHeight,
+      };
+
+      // Keep player-session swap frame.
+      if (typeof old.swapIndex === "number") merged.swapIndex = old.swapIndex;
+
+      return merged;
+    });
+
+    const existingBasePaths = new Set(
+      (snapshot.bases ?? []).map((b) => (typeof b === "string" ? b : b.path)),
+    );
+    if (existing.activeBase && existingBasePaths.has(existing.activeBase)) {
+      snapshot.activeBase = existing.activeBase;
+    }
+
+    return snapshot;
+  }
+
+  private async buildSecondScreenSnapshot(
+    playerMarkersPath: string,
+    notePath: string,
+  ): Promise<MarkerFileData> {
     if (!this.data) throw new Error("Map data not loaded.");
 
     const snapshot = JSON.parse(
@@ -1733,7 +1856,16 @@ export class MapInstance extends Component {
 
     snapshot.textLayers = (snapshot.textLayers ?? []).filter((t) => textLayerIds.has(t.id));
 
-    return snapshot;
+    snapshot.secondScreen ??= {};
+    snapshot.secondScreen.notePath = notePath;
+    snapshot.secondScreen.markersPath = playerMarkersPath;
+    snapshot.secondScreen.markerLayerIds = [...markerLayerIds];
+    snapshot.secondScreen.drawLayerIds = [...drawLayerIds];
+    snapshot.secondScreen.textLayerIds = [...textLayerIds];
+    snapshot.secondScreen.showGrids = sec.showGrids !== false;
+
+    const existing = await this.readMarkerFileDataFromPath(playerMarkersPath);
+    return this.mergeSecondScreenSnapshotWithExisting(snapshot, existing);
   }
 
   private getCurrentViewForSecondScreen():
@@ -1782,7 +1914,10 @@ export class MapInstance extends Component {
     return w / h;
   }
 
-  private buildSecondScreenNoteContent(markersPath: string): string {
+  private buildSecondScreenNoteContent(
+    markersPath: string,
+    role: "player" | "controller",
+  ): string {
     const view = this.getCurrentViewForSecondScreen();
 	const viewRect = this.getCurrentViewRectForSecondScreen();
     const aspect = this.getCurrentOuterAspectForSecondScreen();
@@ -1816,7 +1951,8 @@ export class MapInstance extends Component {
       responsive: false,
       wrap: false,
       render: this.cfg.renderMode,
-      displayOnly: true,
+      displayOnly: role === "player",
+      screenRole: role,
     };
 
     if (this.cfg.viewportFrame?.trim()) {
@@ -1886,9 +2022,10 @@ export class MapInstance extends Component {
     await this.ensureFolderForPath(notePath);
     await this.ensureFolderForPath(markersPath);
 
-    const snapshot = this.buildSecondScreenSnapshot();
+    const snapshot = await this.buildSecondScreenSnapshot(markersPath, notePath);
     const json = JSON.stringify(sanitizeMarkerFileDataForSave(snapshot), null, 2);
-    const noteContent = this.buildSecondScreenNoteContent(markersPath);
+    const screenMarkdown = this.buildSecondScreenNoteContent(markersPath, "player");
+    const controllerMarkdown = this.buildSecondScreenNoteContent(markersPath, "controller");
 
     const markerAf = this.app.vault.getAbstractFileByPath(markersPath);
     if (markerAf instanceof TFile) {
@@ -1899,9 +2036,9 @@ export class MapInstance extends Component {
 
     const noteAf = this.app.vault.getAbstractFileByPath(notePath);
     if (noteAf instanceof TFile) {
-      await this.app.vault.modify(noteAf, noteContent);
+      await this.app.vault.modify(noteAf, screenMarkdown);
     } else {
-      await this.app.vault.create(notePath, noteContent);
+      await this.app.vault.create(notePath, screenMarkdown);
     }
 	
     const fogKey = `zoommap-secondscreen:${markersPath}`;
@@ -1910,8 +2047,20 @@ export class MapInstance extends Component {
     sec.markersPath = markersPath;
     await this.saveDataSoon();
 
-    if (useFog) {
-      await screen.sendMarkdownWithFog(noteContent, notePath, fogKey);
+    if (screen.sendZoomMap) {
+      await screen.sendZoomMap({
+        title: this.cfg.mapId?.trim() || basename(this.getActiveBasePath()),
+        screenMarkdown,
+        controllerMarkdown,
+        sourcePath: notePath,
+        sourceMarkersPath: this.store.getPath(),
+        playerMarkersPath: markersPath,
+        playerNotePath: notePath,
+        mapId: this.cfg.mapId,
+        fogKey: useFog ? fogKey : undefined,
+      });
+    } else if (useFog) {
+      await screen.sendMarkdownWithFog(screenMarkdown, notePath, fogKey);
     } else {
       await screen.sendNoteByPath(notePath);
     }
@@ -2739,6 +2888,10 @@ export class MapInstance extends Component {
 	} else {
 	  this.fitToView();
 	}
+	
+    if (this.isSecondScreenPlayerView() || this.isSecondScreenControllerView()) {
+      this.applySecondScreenViewFromData();
+    }
 	
     if (pendingRestore && !this.cfg.responsive) {
       this.captureViewIfVisible();
@@ -8861,6 +9014,49 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       default: return "✓";
     }
   }
+  
+  private applySecondScreenViewFromData(): boolean {
+    if (!this.data?.secondScreen?.view) return false;
+    const v = this.data.secondScreen.view;
+    if (
+      !Number.isFinite(v.scale) ||
+      !Number.isFinite(v.tx) ||
+      !Number.isFinite(v.ty)
+    ) {
+      return false;
+    }
+
+    this.applyingSecondScreenView = true;
+    try {
+      this.applyTransform(v.scale, v.tx, v.ty);
+    } finally {
+      this.applyingSecondScreenView = false;
+    }
+    return true;
+  }
+
+  private persistSecondScreenViewSoon(delayMs = 250): void {
+    if (!this.isSecondScreenControllerView()) return;
+    if (!this.ready || !this.data) return;
+    if (this.applyingSecondScreenView) return;
+
+    if (this.secondScreenViewSaveTimer !== null) {
+      window.clearTimeout(this.secondScreenViewSaveTimer);
+    }
+
+    this.secondScreenViewSaveTimer = window.setTimeout(() => {
+      this.secondScreenViewSaveTimer = null;
+      if (!this.data) return;
+      this.data.secondScreen ??= {};
+      this.data.secondScreen.view = {
+        activeBase: this.getActiveBasePath(),
+        scale: this.scale,
+        tx: this.tx,
+        ty: this.ty,
+      };
+      void this.saveDataSoon();
+    }, delayMs);
+  }
 
   private applyTransform(scale: number, tx: number, ty: number, render = true): void {
     const prevScale = this.scale;
@@ -8915,6 +9111,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       if (this.isCanvas()) this.renderCanvas();
 	  this.renderDrawingEditHandles();
     }
+	this.persistSecondScreenViewSoon();
   }
 
   private panBy(dx: number, dy: number): void {
@@ -11438,10 +11635,17 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     const visibleLayers = new Set(
       this.data.layers.filter((l) => l.visible).map((l) => l.id),
     );
+    const isPlayerView = this.isSecondScreenPlayerView();
+    const isControllerView = this.isSecondScreenControllerView();
+    const revealedMarkerIds = this.getRevealedMarkerIdSet();
 
     const rank = (m: Marker) => (m.type === "sticker" ? 0 : 1);
     const toRender = this.data.markers
       .filter((m) => visibleLayers.has(m.layer))
+      .filter((m) => {
+        if (!isPlayerView) return true;
+        return revealedMarkerIds.has(m.id);
+      })
       .sort((a, b) => rank(a) - rank(b));
 
     const vpRect = this.viewportEl.getBoundingClientRect();
@@ -11488,6 +11692,9 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       }
 
       if (this.isLayerLocked(m.layer)) host.classList.add("zm-marker--locked");
+      if (isControllerView && !revealedMarkerIds.has(m.id)) {
+        host.classList.add("zm-marker--player-hidden");
+      }
 
       let icon: HTMLImageElement;
 
@@ -11732,7 +11939,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
             return;
           }
 
-          const items: ZMMenuItem[] = [
+          const items: ZMMenuItem[] = this.applyPlayerRevealItems([
             {
               label: "Switch base now",
               action: () => {
@@ -11809,7 +12016,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
                 this.deleteMarker(m);
               },
             },
-          ];
+          ], m);
 
           this.openMenu = new ZMMenu(this.el.ownerDocument);
           this.openMenu.open(ev.clientX, ev.clientY, items);
@@ -11817,7 +12024,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         }
 		
         if (m.type === "dice") {
-          const items: ZMMenuItem[] = [
+          const items: ZMMenuItem[] = this.applyPlayerRevealItems([
             {
               label: "Roll dice",
               action: () => {
@@ -11902,7 +12109,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
                 this.deleteMarker(m);
               },
             },
-          ];
+          ], m);
 
           this.openMenu = new ZMMenu(this.el.ownerDocument);
           this.openMenu.open(ev.clientX, ev.clientY, items);
@@ -11910,7 +12117,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         }
 		
         if (m.type === "ping") {
-          const items: ZMMenuItem[] = [
+          const items: ZMMenuItem[] = this.applyPlayerRevealItems([
             {
               label: "Open party note",
               action: () => {
@@ -11934,7 +12141,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
                 this.deleteMarker(m);
               },
             },
-          ];
+          ], m);
 
           this.openMenu = new ZMMenu(this.el.ownerDocument);
           this.openMenu.open(ev.clientX, ev.clientY, items);
@@ -11954,7 +12161,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
             return;
           }
 
-          const items: ZMMenuItem[] = [
+          const items: ZMMenuItem[] = this.applyPlayerRevealItems([
             {
               label: "Edit swap pin links… ",
               action: () => {
@@ -12021,7 +12228,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
                 this.deleteMarker(m);
               },
             },
-          ];
+          ], m);
 
           this.openMenu = new ZMMenu(this.el.ownerDocument);
           this.openMenu.open(ev.clientX, ev.clientY, items);
@@ -12055,7 +12262,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
           return;
         }
 
-        const items: ZMMenuItem[] = [
+        const items: ZMMenuItem[] = this.applyPlayerRevealItems([
           {
             label: m.type === "sticker" ? "Edit sticker" : "Edit marker",
             action: () => {
@@ -12090,7 +12297,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
               this.closeMenu();
             },
           },
-        ];
+        ], m);
 
         if (m.type !== "sticker") {
           items.push({
@@ -12132,6 +12339,48 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       });
       }
     }
+  }
+  
+  private buildPlayerRevealMenuItems(m: Marker): ZMMenuItem[] {
+    if (!this.isSecondScreenControllerView()) return [];
+    if (!this.data) return [];
+
+    const revealed = this.getRevealedMarkerIdSet();
+    const isRevealed = revealed.has(m.id);
+
+    return [
+      {
+        label: isRevealed ? "Hide from players" : "Reveal to players",
+        action: () => {
+          this.toggleMarkerRevealedForPlayers(m.id);
+          this.closeMenu();
+        },
+      },
+    ];
+  }
+
+  private toggleMarkerRevealedForPlayers(markerId: string): void {
+    if (!this.data) return;
+
+    this.data.secondScreen ??= {};
+    const current = new Set(this.data.secondScreen.revealedMarkerIds ?? []);
+
+    if (current.has(markerId)) current.delete(markerId);
+    else current.add(markerId);
+
+    this.data.secondScreen.revealedMarkerIds = [...current].sort();
+    void this.saveDataSoon();
+    this.renderMarkersOnly();
+  }
+
+  private applyPlayerRevealItems(items: ZMMenuItem[], m: Marker): ZMMenuItem[] {
+    const reveal = this.buildPlayerRevealMenuItems(m);
+    if (!reveal.length) return items;
+    return [
+      ...reveal,
+      { type: "separator" },
+      ...items,
+    ];
   }
 
   private onMarkerEnter(ev: MouseEvent, m: Marker, hostEl: HTMLElement): void {
@@ -12463,6 +12712,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 
     await this.applyBoundBaseVisibility();
     void this.saveDataSoon();
+	this.persistSecondScreenViewSoon();
 
     if (!this.isCanvas()) this.updateOverlaySizes();
     else this.renderCanvas();
@@ -12536,6 +12786,11 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
       new Notice(`Failed to reload markers: ${message}`);
+	  return;
+    }
+
+    if (this.isSecondScreenPlayerView()) {
+      this.applySecondScreenViewFromData();
     }
   }
 

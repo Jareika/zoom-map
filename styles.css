@@ -381,6 +381,11 @@ button.zm-btn-sm {
   cursor: not-allowed;
 }
 
+.zm-marker--player-hidden {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
 .zm-hud-markers {
   position: absolute;
   inset: 0;

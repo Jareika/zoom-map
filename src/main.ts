@@ -205,6 +205,7 @@ interface YamlOptions {
 
   storage?: string; // parsed to json|note
   id?: string;
+  screenRole?: string;
 
   align?: string; // parsed to left|center|right
   wrap?: boolean;
@@ -703,6 +704,11 @@ export default class ZoomMapPlugin extends Plugin {
             ? idFromYaml.trim()
             : defaultId;
 
+        const screenRole =
+          opts.screenRole === "player" || opts.screenRole === "controller"
+            ? opts.screenRole
+            : undefined;
+
         const markersPathRaw =
           typeof opts.markers === "string" ? opts.markers : undefined;
 
@@ -799,6 +805,7 @@ export default class ZoomMapPlugin extends Plugin {
 		  initialZoom,
 		  initialCenter,
           initialViewRect,
+		  screenRole,
           viewportFrame: typeof opts.viewportFrame === "string" ? opts.viewportFrame.trim() : undefined,
           viewportFrameInsets: yamlFrameInsets,
 		};
