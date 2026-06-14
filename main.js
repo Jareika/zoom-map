@@ -19671,6 +19671,44 @@ var FolderSuggestModal = class extends import_obsidian26.FuzzySuggestModal {
 
 // src/mapShare.ts
 var BUNDLE_JSON_PATH = "zoommap-bundle.json";
+var IMAGE_EXTENSIONS = /* @__PURE__ */ new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "svg",
+  "bmp",
+  "avif"
+]);
+var VIDEO_EXTENSIONS = /* @__PURE__ */ new Set([
+  "mp4",
+  "webm",
+  "mov",
+  "m4v",
+  "avi",
+  "mkv"
+]);
+var PDF_EXTENSIONS = /* @__PURE__ */ new Set([
+  "pdf"
+]);
+var AUDIO_EXTENSIONS = /* @__PURE__ */ new Set([
+  "mp3",
+  "wav",
+  "ogg",
+  "m4a",
+  "flac",
+  "aac"
+]);
+function classifyNoteMediaKind(ext, options) {
+  const e = (ext != null ? ext : "").trim().toLowerCase();
+  if (!e) return null;
+  if (options.includeNoteImages && IMAGE_EXTENSIONS.has(e)) return "note-image";
+  if (options.includeNoteVideos && VIDEO_EXTENSIONS.has(e)) return "note-video";
+  if (options.includeNotePdfs && PDF_EXTENSIONS.has(e)) return "note-pdf";
+  if (options.includeNoteAudio && AUDIO_EXTENSIONS.has(e)) return "note-audio";
+  return null;
+}
 function deepClone5(value) {
   if (typeof structuredClone === "function") return structuredClone(value);
   return JSON.parse(JSON.stringify(value));
@@ -19730,7 +19768,7 @@ function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function isBundleAssetKind(value) {
-  return value === "base" || value === "overlay" || value === "frame" || value === "sticker" || value === "drawing" || value === "linked-note";
+  return value === "base" || value === "overlay" || value === "frame" || value === "sticker" || value === "drawing" || value === "linked-note" || value === "note-image" || value === "note-video" || value === "note-pdf" || value === "note-audio";
 }
 function isBundleAssetEntry(value) {
   return isRecord2(value) && isBundleAssetKind(value.kind) && typeof value.originalPath === "string" && typeof value.zipPath === "string";
@@ -20191,10 +20229,11 @@ function collectConfiguredAssetPaths(ctx) {
     drawingPaths
   };
 }
-function collectDirectResolvedNoteLinks(app, file) {
-  var _a, _b, _c;
+function collectDirectResolvedNoteLinks(app, file, options) {
+  var _a, _b, _c, _d;
   const resolvedLinks = {};
   const notePaths = /* @__PURE__ */ new Set();
+  const mediaAssetPaths = /* @__PURE__ */ new Map();
   const cache = thisSafeFileCache(app, file);
   const rawLinks = /* @__PURE__ */ new Set();
   for (const entry of (_a = cache == null ? void 0 : cache.links) != null ? _a : []) {
@@ -20208,20 +20247,33 @@ function collectDirectResolvedNoteLinks(app, file) {
   for (const raw of rawLinks) {
     const resolved = resolveFile(app, raw, file.path);
     if (!(resolved instanceof import_obsidian27.TFile)) continue;
-    if (((_c = resolved.extension) == null ? void 0 : _c.toLowerCase()) !== "md") continue;
     resolvedLinks[raw] = resolved.path;
-    notePaths.add(resolved.path);
+    const ext = (_d = (_c = resolved.extension) == null ? void 0 : _c.toLowerCase()) != null ? _d : "";
+    if (ext === "md") {
+      notePaths.add(resolved.path);
+      continue;
+    }
+    const mediaKind = classifyNoteMediaKind(ext, {
+      includeNoteImages: !!(options == null ? void 0 : options.includeNoteImages),
+      includeNoteVideos: !!(options == null ? void 0 : options.includeNoteVideos),
+      includeNotePdfs: !!(options == null ? void 0 : options.includeNotePdfs),
+      includeNoteAudio: !!(options == null ? void 0 : options.includeNoteAudio)
+    });
+    if (mediaKind) {
+      mediaAssetPaths.set(resolved.path, mediaKind);
+    }
   }
-  return { resolvedLinks, notePaths };
+  return { resolvedLinks, notePaths, mediaAssetPaths };
 }
 function thisSafeFileCache(app, file) {
   var _a;
   return (_a = app.metadataCache.getFileCache(file)) != null ? _a : null;
 }
-function collectRecursiveLinkedNotes(app, seedPaths) {
+function collectRecursiveLinkedNotes(app, seedPaths, options) {
   var _a;
   const linkedNotePaths = /* @__PURE__ */ new Set();
   const noteResolvedLinks = {};
+  const mediaAssetPaths = /* @__PURE__ */ new Map();
   const queue = [...seedPaths];
   while (queue.length > 0) {
     const path = queue.shift();
@@ -20230,15 +20282,23 @@ function collectRecursiveLinkedNotes(app, seedPaths) {
     if (!(af instanceof import_obsidian27.TFile)) continue;
     if (((_a = af.extension) == null ? void 0 : _a.toLowerCase()) !== "md") continue;
     linkedNotePaths.add(af.path);
-    const direct = collectDirectResolvedNoteLinks(app, af);
+    const direct = collectDirectResolvedNoteLinks(app, af, options);
     if (Object.keys(direct.resolvedLinks).length > 0) {
       noteResolvedLinks[af.path] = direct.resolvedLinks;
+    }
+    for (const [mediaPath, kind] of direct.mediaAssetPaths.entries()) {
+      if (!mediaAssetPaths.has(mediaPath)) {
+        mediaAssetPaths.set(mediaPath, kind);
+      }
+    }
+    if (!options.includeRecursiveLinkedNotes) {
+      continue;
     }
     for (const childPath of direct.notePaths) {
       if (!linkedNotePaths.has(childPath)) queue.push(childPath);
     }
   }
-  return { linkedNotePaths, noteResolvedLinks };
+  return { linkedNotePaths, noteResolvedLinks, mediaAssetPaths };
 }
 async function prepareExportData(app, plugin, ctx, options) {
   const markerData = deepClone5(sanitizeMarkerFileDataForSave(ctx.markerData));
@@ -20256,14 +20316,25 @@ async function prepareExportData(app, plugin, ctx, options) {
     subset,
     options.includeLinkedNotes
   );
-  const recursive = options.includeLinkedNotes ? collectRecursiveLinkedNotes(app, seedLinks.linkedNotePaths) : { linkedNotePaths: /* @__PURE__ */ new Set(), noteResolvedLinks: {} };
+  const recursive = options.includeLinkedNotes ? collectRecursiveLinkedNotes(app, seedLinks.linkedNotePaths, {
+    includeRecursiveLinkedNotes: options.includeRecursiveLinkedNotes,
+    includeNoteImages: options.includeNoteImages,
+    includeNoteVideos: options.includeNoteVideos,
+    includeNotePdfs: options.includeNotePdfs,
+    includeNoteAudio: options.includeNoteAudio
+  }) : {
+    linkedNotePaths: /* @__PURE__ */ new Set(),
+    noteResolvedLinks: {},
+    mediaAssetPaths: /* @__PURE__ */ new Map()
+  };
   return {
     markerData,
     subset,
     icons,
     resolvedLinks: seedLinks.resolvedLinks,
     linkedNotePaths: recursive.linkedNotePaths,
-    noteResolvedLinks: recursive.noteResolvedLinks
+    noteResolvedLinks: recursive.noteResolvedLinks,
+    mediaAssetPaths: recursive.mediaAssetPaths
   };
 }
 function buildZipAssetPath(kind, originalPath) {
@@ -20272,6 +20343,10 @@ function buildZipAssetPath(kind, originalPath) {
 function parseBundleSummary(bundle) {
   var _a, _b, _c, _d, _e;
   const data = bundle.map.markerData;
+  const noteImages = bundle.assets.filter((a) => a.kind === "note-image").length;
+  const noteVideos = bundle.assets.filter((a) => a.kind === "note-video").length;
+  const notePdfs = bundle.assets.filter((a) => a.kind === "note-pdf").length;
+  const noteAudio = bundle.assets.filter((a) => a.kind === "note-audio").length;
   return [
     `Storage: ${bundle.map.storageMode}`,
     `Bases: ${normalizeBases(data.bases).length}`,
@@ -20280,7 +20355,11 @@ function parseBundleSummary(bundle) {
     `Drawings: ${((_c = data.drawings) != null ? _c : []).length}`,
     `Text layers: ${((_d = data.textLayers) != null ? _d : []).length}`,
     `Icons: ${((_e = bundle.icons) != null ? _e : []).length}`,
-    `Linked notes: ${bundle.assets.filter((a) => a.kind === "linked-note").length}`
+    `Linked notes: ${bundle.assets.filter((a) => a.kind === "linked-note").length}`,
+    `Note images: ${noteImages}`,
+    `Note videos: ${noteVideos}`,
+    `Note PDFs: ${notePdfs}`,
+    `Note audio: ${noteAudio}`
   ];
 }
 function stripWikiLinkToText(raw) {
@@ -20303,13 +20382,13 @@ function isExternalHref(href) {
   const v = href.trim().toLowerCase();
   return v.startsWith("http://") || v.startsWith("https://") || v.startsWith("mailto:") || v.startsWith("ftp://");
 }
-function rewriteImportedNoteText(app, text, originalSourcePath, sourceResolvedLinks, notePathMap, targetNotePath, stripUnresolved) {
+function rewriteImportedNoteText(app, text, originalSourcePath, sourceResolvedLinks, notePathMap, filePathMap, targetNotePath, stripUnresolved) {
   const resolvedLookup = sourceResolvedLinks != null ? sourceResolvedLinks : {};
   const rewriteViaImportedPath = (rawLink, fallbackText) => {
-    var _a, _b;
+    var _a, _b, _c;
     const resolvedOriginalPath = (_b = (_a = resolvedLookup[rawLink.trim()]) != null ? _a : resolvedLookup[extractMarkdownHrefTarget(rawLink)]) != null ? _b : resolvedLookup[splitRawLink(rawLink).path];
     if (!resolvedOriginalPath) return stripUnresolved ? fallbackText : null;
-    const importedPath = notePathMap.get(resolvedOriginalPath);
+    const importedPath = (_c = notePathMap.get(resolvedOriginalPath)) != null ? _c : filePathMap.get(resolvedOriginalPath);
     if (!importedPath) return stripUnresolved ? fallbackText : null;
     const af = app.vault.getAbstractFileByPath(importedPath);
     if (!(af instanceof import_obsidian27.TFile)) return stripUnresolved ? fallbackText : null;
@@ -20337,6 +20416,16 @@ function rewriteImportedNoteText(app, text, originalSourcePath, sourceResolvedLi
 function buildExportSummaryLines(storageMode, prepared) {
   var _a, _b, _c, _d;
   const markerData = prepared.markerData;
+  let noteImages = 0;
+  let noteVideos = 0;
+  let notePdfs = 0;
+  let noteAudio = 0;
+  for (const kind of prepared.mediaAssetPaths.values()) {
+    if (kind === "note-image") noteImages += 1;
+    else if (kind === "note-video") noteVideos += 1;
+    else if (kind === "note-pdf") notePdfs += 1;
+    else if (kind === "note-audio") noteAudio += 1;
+  }
   return [
     `Storage: ${storageMode}`,
     `Bases: ${normalizeBases(markerData.bases).length}`,
@@ -20345,7 +20434,11 @@ function buildExportSummaryLines(storageMode, prepared) {
     `Drawings: ${((_c = markerData.drawings) != null ? _c : []).length}`,
     `Text layers: ${((_d = markerData.textLayers) != null ? _d : []).length}`,
     `Icons: ${prepared.icons.length}`,
-    `Linked notes: ${prepared.linkedNotePaths.size}`
+    `Linked notes: ${prepared.linkedNotePaths.size}`,
+    `Note images: ${noteImages}`,
+    `Note videos: ${noteVideos}`,
+    `Note PDFs: ${notePdfs}`,
+    `Note audio: ${noteAudio}`
   ];
 }
 function addResolvedLink(app, resolvedLinks, includedNotePaths, rawLink, fromPath, includeLinkedNotes) {
@@ -20572,6 +20665,13 @@ async function buildBundleBytes(app, plugin, ctx, options, preparedInput) {
       kind: "linked-note",
       originalPath: notePath,
       zipPath: buildZipAssetPath("linked-note", notePath)
+    });
+  }
+  for (const [mediaPath, kind] of prepared.mediaAssetPaths.entries()) {
+    assets.push({
+      kind,
+      originalPath: mediaPath,
+      zipPath: buildZipAssetPath(kind, mediaPath)
     });
   }
   const bundle = {
@@ -20944,6 +21044,7 @@ async function importBundleToVault(app, plugin, loaded, options) {
           asset.originalPath,
           (_j = bundle.noteResolvedLinks) == null ? void 0 : _j[asset.originalPath],
           notePathMap,
+          filePathMap,
           targetPath2,
           !!options.stripUnresolvedNoteLinks
         );
@@ -20997,6 +21098,22 @@ var ExportMapBundleModal = class extends import_obsidian27.Modal {
     this.ctx = null;
     this.zipName = "zoommap-export";
     this.includeLinkedNotes = true;
+    this.includeRecursiveLinkedNotes = true;
+    this.includeNoteImages = false;
+    this.includeNoteVideos = false;
+    this.includeNotePdfs = false;
+    this.includeNoteAudio = false;
+    this.summaryEl = null;
+    this.refreshSummaryToken = 0;
+    this.includeRecursiveToggleEl = null;
+    this.includeNoteImagesToggleEl = null;
+    this.includeNoteVideosToggleEl = null;
+    this.includeNotePdfsToggleEl = null;
+    this.includeNoteAudioToggleEl = null;
+    this.summaryBodyEl = null;
+    this.summaryStatusEl = null;
+    this.summaryRefreshTimer = null;
+    this.summaryMinHeightPx = 0;
     this.plugin = plugin;
     this.map = map;
   }
@@ -21004,7 +21121,90 @@ var ExportMapBundleModal = class extends import_obsidian27.Modal {
     void this.renderAsync();
   }
   onClose() {
+    if (this.summaryRefreshTimer !== null) {
+      window.clearTimeout(this.summaryRefreshTimer);
+      this.summaryRefreshTimer = null;
+    }
+    this.summaryEl = null;
+    this.summaryBodyEl = null;
+    this.summaryStatusEl = null;
+    this.includeRecursiveToggleEl = null;
+    this.includeNoteImagesToggleEl = null;
+    this.includeNoteVideosToggleEl = null;
+    this.includeNotePdfsToggleEl = null;
+    this.includeNoteAudioToggleEl = null;
     this.contentEl.empty();
+  }
+  currentExportOptions() {
+    return {
+      zipName: this.zipName,
+      includeLinkedNotes: this.includeLinkedNotes,
+      includeRecursiveLinkedNotes: this.includeRecursiveLinkedNotes,
+      includeNoteImages: this.includeNoteImages,
+      includeNoteVideos: this.includeNoteVideos,
+      includeNotePdfs: this.includeNotePdfs,
+      includeNoteAudio: this.includeNoteAudio
+    };
+  }
+  applyLinkedNotesToggleState() {
+    const disabled = !this.includeLinkedNotes;
+    if (this.includeRecursiveToggleEl) this.includeRecursiveToggleEl.disabled = disabled;
+    if (this.includeNoteImagesToggleEl) this.includeNoteImagesToggleEl.disabled = disabled;
+    if (this.includeNoteVideosToggleEl) this.includeNoteVideosToggleEl.disabled = disabled;
+    if (this.includeNotePdfsToggleEl) this.includeNotePdfsToggleEl.disabled = disabled;
+    if (this.includeNoteAudioToggleEl) this.includeNoteAudioToggleEl.disabled = disabled;
+  }
+  setSummaryBusyState(text) {
+    if (!this.summaryStatusEl) return;
+    this.summaryStatusEl.setText(text);
+  }
+  updateSummaryMinHeight() {
+    if (!this.summaryBodyEl) return;
+    const h = Math.ceil(this.summaryBodyEl.getBoundingClientRect().height);
+    if (h > this.summaryMinHeightPx) {
+      this.summaryMinHeightPx = h;
+      this.summaryBodyEl.style.minHeight = `${this.summaryMinHeightPx}px`;
+    }
+  }
+  scheduleRefreshSummary(delay = 160) {
+    if (!this.summaryEl || !this.ctx) return;
+    if (this.summaryRefreshTimer !== null) {
+      window.clearTimeout(this.summaryRefreshTimer);
+    }
+    this.summaryRefreshTimer = window.setTimeout(() => {
+      this.summaryRefreshTimer = null;
+      void this.refreshSummary();
+    }, delay);
+  }
+  async refreshSummary() {
+    if (!this.summaryEl || !this.summaryBodyEl || !this.ctx) return;
+    const token = ++this.refreshSummaryToken;
+    const summaryBodyEl = this.summaryBodyEl;
+    this.updateSummaryMinHeight();
+    try {
+      const prepared = await prepareExportData(
+        this.app,
+        this.plugin,
+        this.ctx,
+        this.currentExportOptions()
+      );
+      if (token !== this.refreshSummaryToken || this.summaryBodyEl !== summaryBodyEl) return;
+      summaryBodyEl.empty();
+      const lines = buildExportSummaryLines(this.ctx.storageMode, prepared);
+      for (const line of lines) {
+        summaryBodyEl.createEl("div", { text: line }).addClass("zoommap-muted");
+      }
+      this.updateSummaryMinHeight();
+      this.setSummaryBusyState("");
+    } catch (err) {
+      if (token !== this.refreshSummaryToken || this.summaryBodyEl !== summaryBodyEl) return;
+      summaryBodyEl.empty();
+      summaryBodyEl.createEl("div", {
+        text: `Summary update failed: ${err instanceof Error ? err.message : String(err)}`
+      }).addClass("zoommap-muted");
+      this.updateSummaryMinHeight();
+      this.setSummaryBusyState("");
+    }
   }
   async renderAsync() {
     const { contentEl } = this;
@@ -21033,24 +21233,57 @@ var ExportMapBundleModal = class extends import_obsidian27.Modal {
     new import_obsidian27.Setting(contentEl).setName("Include linked notes from pins").setDesc("Copies linked .md files referenced by pins, swap-pin frames and imported icon default links.").addToggle((tg) => {
       tg.setValue(this.includeLinkedNotes).onChange((on) => {
         this.includeLinkedNotes = on;
-        void this.renderAsync();
+        this.applyLinkedNotesToggleState();
+        this.scheduleRefreshSummary();
       });
     });
-    const summary = contentEl.createDiv();
-    summary.createEl("h3", { text: "Summary" });
-    const prepared = await prepareExportData(
-      this.app,
-      this.plugin,
-      this.ctx,
-      {
-        zipName: this.zipName,
-        includeLinkedNotes: this.includeLinkedNotes
-      }
-    );
-    const lines = buildExportSummaryLines(this.ctx.storageMode, prepared);
-    for (const line of lines) {
-      summary.createEl("div", { text: line }).addClass("zoommap-muted");
-    }
+    new import_obsidian27.Setting(contentEl).setName("Follow note links recursively").setDesc("Also include notes that are linked inside already included notes.").addToggle((tg) => {
+      tg.setValue(this.includeRecursiveLinkedNotes).onChange((on) => {
+        this.includeRecursiveLinkedNotes = on;
+        this.scheduleRefreshSummary();
+      });
+      this.includeRecursiveToggleEl = tg.toggleEl;
+      tg.setDisabled(!this.includeLinkedNotes);
+    });
+    new import_obsidian27.Setting(contentEl).setName("Include note images").setDesc("Exports image files referenced inside included notes.").addToggle((tg) => {
+      tg.setValue(this.includeNoteImages).onChange((on) => {
+        this.includeNoteImages = on;
+        this.scheduleRefreshSummary();
+      });
+      this.includeNoteImagesToggleEl = tg.toggleEl;
+      tg.setDisabled(!this.includeLinkedNotes);
+    });
+    new import_obsidian27.Setting(contentEl).setName("Include note videos").setDesc("Exports video files referenced inside included notes.").addToggle((tg) => {
+      tg.setValue(this.includeNoteVideos).onChange((on) => {
+        this.includeNoteVideos = on;
+        this.scheduleRefreshSummary();
+      });
+      this.includeNoteVideosToggleEl = tg.toggleEl;
+      tg.setDisabled(!this.includeLinkedNotes);
+    });
+    new import_obsidian27.Setting(contentEl).setName("Include note PDFs").setDesc("Exports PDF files referenced inside included notes.").addToggle((tg) => {
+      tg.setValue(this.includeNotePdfs).onChange((on) => {
+        this.includeNotePdfs = on;
+        this.scheduleRefreshSummary();
+      });
+      this.includeNotePdfsToggleEl = tg.toggleEl;
+      tg.setDisabled(!this.includeLinkedNotes);
+    });
+    new import_obsidian27.Setting(contentEl).setName("Include note audio").setDesc("Exports audio files referenced inside included notes.").addToggle((tg) => {
+      tg.setValue(this.includeNoteAudio).onChange((on) => {
+        this.includeNoteAudio = on;
+        this.scheduleRefreshSummary();
+      });
+      this.includeNoteAudioToggleEl = tg.toggleEl;
+      tg.setDisabled(!this.includeLinkedNotes);
+    });
+    this.summaryEl = contentEl.createDiv();
+    this.summaryEl.createEl("h3", { text: "Summary" });
+    this.summaryBodyEl = this.summaryEl.createDiv();
+    this.summaryStatusEl = this.summaryEl.createDiv();
+    this.summaryStatusEl.addClass("zoommap-muted");
+    this.applyLinkedNotesToggleState();
+    await this.refreshSummary();
     const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });
     const exportBtn = footer.createEl("button", { text: "Export" });
     const cancelBtn = footer.createEl("button", { text: "Cancel" });
@@ -21066,11 +21299,21 @@ var ExportMapBundleModal = class extends import_obsidian27.Modal {
       new import_obsidian27.Notice("Building map package\u2026", 2e3);
       const prepared = await prepareExportData(this.app, this.plugin, this.ctx, {
         zipName: sanitizeFileName(this.zipName || "zoommap-export") || "zoommap-export",
-        includeLinkedNotes: this.includeLinkedNotes
+        includeLinkedNotes: this.includeLinkedNotes,
+        includeRecursiveLinkedNotes: this.includeRecursiveLinkedNotes,
+        includeNoteImages: this.includeNoteImages,
+        includeNoteVideos: this.includeNoteVideos,
+        includeNotePdfs: this.includeNotePdfs,
+        includeNoteAudio: this.includeNoteAudio
       });
       const bytes = await buildBundleBytes(this.app, this.plugin, this.ctx, {
         zipName: sanitizeFileName(this.zipName || "zoommap-export") || "zoommap-export",
-        includeLinkedNotes: this.includeLinkedNotes
+        includeLinkedNotes: this.includeLinkedNotes,
+        includeRecursiveLinkedNotes: this.includeRecursiveLinkedNotes,
+        includeNoteImages: this.includeNoteImages,
+        includeNoteVideos: this.includeNoteVideos,
+        includeNotePdfs: this.includeNotePdfs,
+        includeNoteAudio: this.includeNoteAudio
       }, prepared);
       downloadZip(fileName, bytes);
       new import_obsidian27.Notice(`Export ready: ${fileName}`, 2500);

@@ -37,7 +37,11 @@ type BundleAssetKind =
   | "frame"
   | "sticker"
   | "drawing"
-  | "linked-note";
+  | "linked-note"
+  | "note-image"
+  | "note-video"
+  | "note-pdf"
+  | "note-audio";
 
 interface BundleAssetEntry {
   kind: BundleAssetKind;
@@ -97,6 +101,11 @@ type CollectionImportMode = "create" | "merge" | "none";
 interface ExportOptions {
   zipName: string;
   includeLinkedNotes: boolean;
+  includeRecursiveLinkedNotes: boolean;
+  includeNoteImages: boolean;
+  includeNoteVideos: boolean;
+  includeNotePdfs: boolean;
+  includeNoteAudio: boolean;
 }
 
 interface ImportOptions {
@@ -133,6 +142,36 @@ interface PreparedExport {
   resolvedLinks: Record<string, string>;
   linkedNotePaths: Set<string>;
   noteResolvedLinks: Record<string, Record<string, string>>;
+  mediaAssetPaths: Map<string, BundleAssetKind>;
+}
+
+const IMAGE_EXTENSIONS = new Set([
+  "png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif",
+]);
+const VIDEO_EXTENSIONS = new Set([
+  "mp4", "webm", "mov", "m4v", "avi", "mkv",
+]);
+const PDF_EXTENSIONS = new Set([
+  "pdf",
+]);
+const AUDIO_EXTENSIONS = new Set([
+  "mp3", "wav", "ogg", "m4a", "flac", "aac",
+]);
+
+function classifyNoteMediaKind(
+  ext: string,
+  options: Pick<
+    ExportOptions,
+    "includeNoteImages" | "includeNoteVideos" | "includeNotePdfs" | "includeNoteAudio"
+  >,
+): BundleAssetKind | null {
+  const e = (ext ?? "").trim().toLowerCase();
+  if (!e) return null;
+  if (options.includeNoteImages && IMAGE_EXTENSIONS.has(e)) return "note-image";
+  if (options.includeNoteVideos && VIDEO_EXTENSIONS.has(e)) return "note-video";
+  if (options.includeNotePdfs && PDF_EXTENSIONS.has(e)) return "note-pdf";
+  if (options.includeNoteAudio && AUDIO_EXTENSIONS.has(e)) return "note-audio";
+  return null;
 }
 
 function deepClone<T>(value: T): T {
@@ -219,7 +258,11 @@ function isBundleAssetKind(value: unknown): value is BundleAssetKind {
     value === "frame" ||
     value === "sticker" ||
     value === "drawing" ||
-    value === "linked-note"
+    value === "linked-note" ||
+    value === "note-image" ||
+    value === "note-video" ||
+    value === "note-pdf" ||
+    value === "note-audio"
   );
 }
 
@@ -805,12 +848,18 @@ function collectConfiguredAssetPaths(ctx: MapShareExportContext): {
 function collectDirectResolvedNoteLinks(
   app: App,
   file: TFile,
+  options?: Pick<
+    ExportOptions,
+    "includeNoteImages" | "includeNoteVideos" | "includeNotePdfs" | "includeNoteAudio"
+  >,
 ): {
   resolvedLinks: Record<string, string>;
   notePaths: Set<string>;
+  mediaAssetPaths: Map<string, BundleAssetKind>;
 } {
   const resolvedLinks: Record<string, string> = {};
   const notePaths = new Set<string>();
+  const mediaAssetPaths = new Map<string, BundleAssetKind>();
 
   const cache = thisSafeFileCache(app, file);
   const rawLinks = new Set<string>();
@@ -828,12 +877,26 @@ function collectDirectResolvedNoteLinks(
   for (const raw of rawLinks) {
     const resolved = resolveFile(app, raw, file.path);
     if (!(resolved instanceof TFile)) continue;
-    if (resolved.extension?.toLowerCase() !== "md") continue;
     resolvedLinks[raw] = resolved.path;
-    notePaths.add(resolved.path);
+
+    const ext = resolved.extension?.toLowerCase() ?? "";
+    if (ext === "md") {
+      notePaths.add(resolved.path);
+      continue;
+    }
+
+    const mediaKind = classifyNoteMediaKind(ext, {
+      includeNoteImages: !!options?.includeNoteImages,
+      includeNoteVideos: !!options?.includeNoteVideos,
+      includeNotePdfs: !!options?.includeNotePdfs,
+      includeNoteAudio: !!options?.includeNoteAudio,
+    });
+    if (mediaKind) {
+      mediaAssetPaths.set(resolved.path, mediaKind);
+    }
   }
 
-  return { resolvedLinks, notePaths };
+  return { resolvedLinks, notePaths, mediaAssetPaths };
 }
 
 function thisSafeFileCache(app: App, file: TFile): {
@@ -849,12 +912,22 @@ function thisSafeFileCache(app: App, file: TFile): {
 function collectRecursiveLinkedNotes(
   app: App,
   seedPaths: Set<string>,
+  options: Pick<
+    ExportOptions,
+    | "includeRecursiveLinkedNotes"
+    | "includeNoteImages"
+    | "includeNoteVideos"
+    | "includeNotePdfs"
+    | "includeNoteAudio"
+  >,
 ): {
   linkedNotePaths: Set<string>;
   noteResolvedLinks: Record<string, Record<string, string>>;
+  mediaAssetPaths: Map<string, BundleAssetKind>;
 } {
   const linkedNotePaths = new Set<string>();
   const noteResolvedLinks: Record<string, Record<string, string>> = {};
+  const mediaAssetPaths = new Map<string, BundleAssetKind>();
   const queue = [...seedPaths];
 
   while (queue.length > 0) {
@@ -867,9 +940,19 @@ function collectRecursiveLinkedNotes(
 
     linkedNotePaths.add(af.path);
 
-    const direct = collectDirectResolvedNoteLinks(app, af);
+    const direct = collectDirectResolvedNoteLinks(app, af, options);
     if (Object.keys(direct.resolvedLinks).length > 0) {
       noteResolvedLinks[af.path] = direct.resolvedLinks;
+    }
+
+    for (const [mediaPath, kind] of direct.mediaAssetPaths.entries()) {
+      if (!mediaAssetPaths.has(mediaPath)) {
+        mediaAssetPaths.set(mediaPath, kind);
+      }
+    }
+
+    if (!options.includeRecursiveLinkedNotes) {
+      continue;
     }
 
     for (const childPath of direct.notePaths) {
@@ -877,7 +960,7 @@ function collectRecursiveLinkedNotes(
     }
   }
 
-  return { linkedNotePaths, noteResolvedLinks };
+  return { linkedNotePaths, noteResolvedLinks, mediaAssetPaths };
 }
 
 async function prepareExportData(
@@ -908,8 +991,18 @@ async function prepareExportData(
   );
 
   const recursive = options.includeLinkedNotes
-    ? collectRecursiveLinkedNotes(app, seedLinks.linkedNotePaths)
-    : { linkedNotePaths: new Set<string>(), noteResolvedLinks: {} };
+    ? collectRecursiveLinkedNotes(app, seedLinks.linkedNotePaths, {
+        includeRecursiveLinkedNotes: options.includeRecursiveLinkedNotes,
+        includeNoteImages: options.includeNoteImages,
+        includeNoteVideos: options.includeNoteVideos,
+        includeNotePdfs: options.includeNotePdfs,
+        includeNoteAudio: options.includeNoteAudio,
+      })
+    : {
+        linkedNotePaths: new Set<string>(),
+        noteResolvedLinks: {},
+        mediaAssetPaths: new Map<string, BundleAssetKind>(),
+      };
 
   return {
     markerData,
@@ -918,6 +1011,7 @@ async function prepareExportData(
     resolvedLinks: seedLinks.resolvedLinks,
     linkedNotePaths: recursive.linkedNotePaths,
     noteResolvedLinks: recursive.noteResolvedLinks,
+	mediaAssetPaths: recursive.mediaAssetPaths,
   };
 }
 
@@ -927,6 +1021,10 @@ function buildZipAssetPath(kind: BundleAssetKind, originalPath: string): string 
 
 function parseBundleSummary(bundle: ZoomMapBundleV1): string[] {
   const data = bundle.map.markerData;
+  const noteImages = bundle.assets.filter((a) => a.kind === "note-image").length;
+  const noteVideos = bundle.assets.filter((a) => a.kind === "note-video").length;
+  const notePdfs = bundle.assets.filter((a) => a.kind === "note-pdf").length;
+  const noteAudio = bundle.assets.filter((a) => a.kind === "note-audio").length;
   return [
     `Storage: ${bundle.map.storageMode}`,
     `Bases: ${normalizeBases(data.bases).length}`,
@@ -936,6 +1034,10 @@ function parseBundleSummary(bundle: ZoomMapBundleV1): string[] {
     `Text layers: ${(data.textLayers ?? []).length}`,
     `Icons: ${(bundle.icons ?? []).length}`,
     `Linked notes: ${bundle.assets.filter((a) => a.kind === "linked-note").length}`,
+    `Note images: ${noteImages}`,
+    `Note videos: ${noteVideos}`,
+    `Note PDFs: ${notePdfs}`,
+    `Note audio: ${noteAudio}`,
   ];
 }
 
@@ -972,6 +1074,7 @@ function rewriteImportedNoteText(
   originalSourcePath: string,
   sourceResolvedLinks: Record<string, string> | undefined,
   notePathMap: Map<string, string>,
+  filePathMap: Map<string, string>,
   targetNotePath: string,
   stripUnresolved: boolean,
 ): string {
@@ -988,7 +1091,9 @@ function rewriteImportedNoteText(
 
     if (!resolvedOriginalPath) return stripUnresolved ? fallbackText : null;
 
-    const importedPath = notePathMap.get(resolvedOriginalPath);
+    const importedPath =
+      notePathMap.get(resolvedOriginalPath) ??
+      filePathMap.get(resolvedOriginalPath);
     if (!importedPath) return stripUnresolved ? fallbackText : null;
 
     const af = app.vault.getAbstractFileByPath(importedPath);
@@ -1026,6 +1131,18 @@ function buildExportSummaryLines(
   prepared: PreparedExport,
 ): string[] {
   const markerData = prepared.markerData;
+  let noteImages = 0;
+  let noteVideos = 0;
+  let notePdfs = 0;
+  let noteAudio = 0;
+
+  for (const kind of prepared.mediaAssetPaths.values()) {
+    if (kind === "note-image") noteImages += 1;
+    else if (kind === "note-video") noteVideos += 1;
+    else if (kind === "note-pdf") notePdfs += 1;
+    else if (kind === "note-audio") noteAudio += 1;
+  }
+
   return [
     `Storage: ${storageMode}`,
     `Bases: ${normalizeBases(markerData.bases).length}`,
@@ -1035,6 +1152,10 @@ function buildExportSummaryLines(
     `Text layers: ${(markerData.textLayers ?? []).length}`,
     `Icons: ${prepared.icons.length}`,
     `Linked notes: ${prepared.linkedNotePaths.size}`,
+    `Note images: ${noteImages}`,
+    `Note videos: ${noteVideos}`,
+    `Note PDFs: ${notePdfs}`,
+    `Note audio: ${noteAudio}`,
   ];
 }
 
@@ -1331,6 +1452,14 @@ async function buildBundleBytes(
       kind: "linked-note",
       originalPath: notePath,
       zipPath: buildZipAssetPath("linked-note", notePath),
+    });
+  }
+  
+  for (const [mediaPath, kind] of prepared.mediaAssetPaths.entries()) {
+    assets.push({
+      kind,
+      originalPath: mediaPath,
+      zipPath: buildZipAssetPath(kind, mediaPath),
     });
   }
 
@@ -1785,6 +1914,7 @@ async function importBundleToVault(
           asset.originalPath,
           bundle.noteResolvedLinks?.[asset.originalPath],
           notePathMap,
+		  filePathMap,
           targetPath,
           !!options.stripUnresolvedNoteLinks,
         );
@@ -1854,6 +1984,24 @@ export class ExportMapBundleModal extends Modal {
 
   private zipName = "zoommap-export";
   private includeLinkedNotes = true;
+  private includeRecursiveLinkedNotes = true;
+  private includeNoteImages = false;
+  private includeNoteVideos = false;
+  private includeNotePdfs = false;
+  private includeNoteAudio = false;
+
+  private summaryEl: HTMLDivElement | null = null;
+  private refreshSummaryToken = 0;
+
+  private includeRecursiveToggleEl: HTMLInputElement | null = null;
+  private includeNoteImagesToggleEl: HTMLInputElement | null = null;
+  private includeNoteVideosToggleEl: HTMLInputElement | null = null;
+  private includeNotePdfsToggleEl: HTMLInputElement | null = null;
+  private includeNoteAudioToggleEl: HTMLInputElement | null = null;
+  private summaryBodyEl: HTMLDivElement | null = null;
+  private summaryStatusEl: HTMLDivElement | null = null;
+  private summaryRefreshTimer: number | null = null;
+  private summaryMinHeightPx = 0;
 
   constructor(app: App, plugin: ZoomMapPlugin, map: MapInstance) {
     super(app);
@@ -1866,7 +2014,109 @@ export class ExportMapBundleModal extends Modal {
   }
 
   onClose(): void {
+    if (this.summaryRefreshTimer !== null) {
+      window.clearTimeout(this.summaryRefreshTimer);
+      this.summaryRefreshTimer = null;
+    }
+    this.summaryEl = null;
+    this.summaryBodyEl = null;
+    this.summaryStatusEl = null;
+    this.includeRecursiveToggleEl = null;
+    this.includeNoteImagesToggleEl = null;
+    this.includeNoteVideosToggleEl = null;
+    this.includeNotePdfsToggleEl = null;
+    this.includeNoteAudioToggleEl = null;
     this.contentEl.empty();
+  }
+  
+  private currentExportOptions(): ExportOptions {
+    return {
+      zipName: this.zipName,
+      includeLinkedNotes: this.includeLinkedNotes,
+      includeRecursiveLinkedNotes: this.includeRecursiveLinkedNotes,
+      includeNoteImages: this.includeNoteImages,
+      includeNoteVideos: this.includeNoteVideos,
+      includeNotePdfs: this.includeNotePdfs,
+      includeNoteAudio: this.includeNoteAudio,
+    };
+  }
+
+  private applyLinkedNotesToggleState(): void {
+    const disabled = !this.includeLinkedNotes;
+    if (this.includeRecursiveToggleEl) this.includeRecursiveToggleEl.disabled = disabled;
+    if (this.includeNoteImagesToggleEl) this.includeNoteImagesToggleEl.disabled = disabled;
+    if (this.includeNoteVideosToggleEl) this.includeNoteVideosToggleEl.disabled = disabled;
+    if (this.includeNotePdfsToggleEl) this.includeNotePdfsToggleEl.disabled = disabled;
+    if (this.includeNoteAudioToggleEl) this.includeNoteAudioToggleEl.disabled = disabled;
+  }
+  
+  private setSummaryBusyState(text: string): void {
+    if (!this.summaryStatusEl) return;
+    this.summaryStatusEl.setText(text);
+  }
+
+  private updateSummaryMinHeight(): void {
+    if (!this.summaryBodyEl) return;
+    const h = Math.ceil(this.summaryBodyEl.getBoundingClientRect().height);
+    if (h > this.summaryMinHeightPx) {
+      this.summaryMinHeightPx = h;
+      this.summaryBodyEl.style.minHeight = `${this.summaryMinHeightPx}px`;
+    }
+  }
+
+  private scheduleRefreshSummary(delay = 160): void {
+    if (!this.summaryEl || !this.ctx) return;
+
+    if (this.summaryRefreshTimer !== null) {
+      window.clearTimeout(this.summaryRefreshTimer);
+    }
+
+    //this.setSummaryBusyState("Updating…");
+
+    this.summaryRefreshTimer = window.setTimeout(() => {
+      this.summaryRefreshTimer = null;
+      void this.refreshSummary();
+    }, delay);
+  }
+
+  private async refreshSummary(): Promise<void> {
+    if (!this.summaryEl || !this.summaryBodyEl || !this.ctx) return;
+
+    const token = ++this.refreshSummaryToken;
+    const summaryBodyEl = this.summaryBodyEl;
+
+    this.updateSummaryMinHeight();
+    //this.setSummaryBusyState("Updating…");
+
+    try {
+      const prepared = await prepareExportData(
+        this.app,
+        this.plugin,
+        this.ctx,
+        this.currentExportOptions(),
+      );
+
+      if (token !== this.refreshSummaryToken || this.summaryBodyEl !== summaryBodyEl) return;
+
+      summaryBodyEl.empty();
+      const lines = buildExportSummaryLines(this.ctx.storageMode, prepared);
+      for (const line of lines) {
+        summaryBodyEl.createEl("div", { text: line }).addClass("zoommap-muted");
+      }
+      this.updateSummaryMinHeight();
+      this.setSummaryBusyState("");
+    } catch (err) {
+      if (token !== this.refreshSummaryToken || this.summaryBodyEl !== summaryBodyEl) return;
+
+      summaryBodyEl.empty();
+      summaryBodyEl
+        .createEl("div", {
+          text: `Summary update failed: ${err instanceof Error ? err.message : String(err)}`,
+        })
+        .addClass("zoommap-muted");
+      this.updateSummaryMinHeight();
+      this.setSummaryBusyState("");
+    }
   }
 
   private async renderAsync(): Promise<void> {
@@ -1906,25 +2156,79 @@ export class ExportMapBundleModal extends Modal {
       .addToggle((tg) => {
         tg.setValue(this.includeLinkedNotes).onChange((on) => {
           this.includeLinkedNotes = on;
-		  void this.renderAsync();
+          this.applyLinkedNotesToggleState();
+          this.scheduleRefreshSummary();
         });
       });
+	  
+    new Setting(contentEl)
+      .setName("Follow note links recursively")
+      .setDesc("Also include notes that are linked inside already included notes.")
+      .addToggle((tg) => {
+        tg.setValue(this.includeRecursiveLinkedNotes).onChange((on) => {
+          this.includeRecursiveLinkedNotes = on;
+          this.scheduleRefreshSummary();
+        });
+        this.includeRecursiveToggleEl = tg.toggleEl;
+        tg.setDisabled(!this.includeLinkedNotes);
+      });
 
-    const summary = contentEl.createDiv();
-    summary.createEl("h3", { text: "Summary" });
-    const prepared = await prepareExportData(
-      this.app,
-      this.plugin,
-      this.ctx,
-      {
-        zipName: this.zipName,
-        includeLinkedNotes: this.includeLinkedNotes,
-      },
-    );
-	const lines = buildExportSummaryLines(this.ctx.storageMode, prepared);
-    for (const line of lines) {
-      summary.createEl("div", { text: line }).addClass("zoommap-muted");
-    }
+    new Setting(contentEl)
+      .setName("Include note images")
+      .setDesc("Exports image files referenced inside included notes.")
+      .addToggle((tg) => {
+        tg.setValue(this.includeNoteImages).onChange((on) => {
+          this.includeNoteImages = on;
+          this.scheduleRefreshSummary();
+        });
+        this.includeNoteImagesToggleEl = tg.toggleEl;
+        tg.setDisabled(!this.includeLinkedNotes);
+      });
+
+    new Setting(contentEl)
+      .setName("Include note videos")
+      .setDesc("Exports video files referenced inside included notes.")
+      .addToggle((tg) => {
+        tg.setValue(this.includeNoteVideos).onChange((on) => {
+          this.includeNoteVideos = on;
+          this.scheduleRefreshSummary();
+        });
+        this.includeNoteVideosToggleEl = tg.toggleEl;
+        tg.setDisabled(!this.includeLinkedNotes);
+      });
+
+    new Setting(contentEl)
+      .setName("Include note PDFs")
+      .setDesc("Exports PDF files referenced inside included notes.")
+      .addToggle((tg) => {
+        tg.setValue(this.includeNotePdfs).onChange((on) => {
+          this.includeNotePdfs = on;
+          this.scheduleRefreshSummary();
+        });
+        this.includeNotePdfsToggleEl = tg.toggleEl;
+        tg.setDisabled(!this.includeLinkedNotes);
+      });
+
+    new Setting(contentEl)
+      .setName("Include note audio")
+      .setDesc("Exports audio files referenced inside included notes.")
+      .addToggle((tg) => {
+        tg.setValue(this.includeNoteAudio).onChange((on) => {
+          this.includeNoteAudio = on;
+          this.scheduleRefreshSummary();
+        });
+        this.includeNoteAudioToggleEl = tg.toggleEl;
+        tg.setDisabled(!this.includeLinkedNotes);
+      });
+
+    this.summaryEl = contentEl.createDiv();
+    this.summaryEl.createEl("h3", { text: "Summary" });
+    this.summaryBodyEl = this.summaryEl.createDiv();
+    this.summaryStatusEl = this.summaryEl.createDiv();
+    this.summaryStatusEl.addClass("zoommap-muted");
+
+    this.applyLinkedNotesToggleState();
+    await this.refreshSummary();
 
     const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });
     const exportBtn = footer.createEl("button", { text: "Export" });
@@ -1945,10 +2249,20 @@ export class ExportMapBundleModal extends Modal {
       const prepared = await prepareExportData(this.app, this.plugin, this.ctx, {
         zipName: sanitizeFileName(this.zipName || "zoommap-export") || "zoommap-export",
         includeLinkedNotes: this.includeLinkedNotes,
+        includeRecursiveLinkedNotes: this.includeRecursiveLinkedNotes,
+        includeNoteImages: this.includeNoteImages,
+        includeNoteVideos: this.includeNoteVideos,
+        includeNotePdfs: this.includeNotePdfs,
+        includeNoteAudio: this.includeNoteAudio,
       });
       const bytes = await buildBundleBytes(this.app, this.plugin, this.ctx, {
         zipName: sanitizeFileName(this.zipName || "zoommap-export") || "zoommap-export",
         includeLinkedNotes: this.includeLinkedNotes,
+        includeRecursiveLinkedNotes: this.includeRecursiveLinkedNotes,
+        includeNoteImages: this.includeNoteImages,
+        includeNoteVideos: this.includeNoteVideos,
+        includeNotePdfs: this.includeNotePdfs,
+        includeNoteAudio: this.includeNoteAudio,
       }, prepared);
       downloadZip(fileName, bytes);
       new Notice(`Export ready: ${fileName}`, 2500);
