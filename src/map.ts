@@ -2256,6 +2256,11 @@ export class MapInstance extends Component {
     return this.getOwnerDocument().body;
   }
   
+  private isOwnerElement(value: EventTarget | null): value is Element {
+    const win = this.getOwnerWindow();
+    return !!value && value instanceof win.Element;
+  }
+  
   public getSourcePath(): string {
     return this.cfg.sourcePath;
   }
@@ -6521,7 +6526,7 @@ this.viewDragDist = 0;
     if (e.pointerType !== "touch") return;
 
     const target = e.target;
-    if (!(target instanceof Element)) {
+    if (!this.isOwnerElement(target)) {
       this.resetTouchDoubleTapState();
       return;
     }

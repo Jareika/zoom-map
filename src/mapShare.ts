@@ -1,4 +1,3 @@
-import JSZip from "jszip";
 import {
   Modal,
   Notice,
@@ -8,6 +7,7 @@ import {
   parseYaml,
   stringifyYaml,
 } from "obsidian";
+import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import type { App, Editor, MarkdownView } from "obsidian";
 import type ZoomMapPlugin from "./main";
 import type {
@@ -91,7 +91,7 @@ interface ZoomMapBundleV1 {
 }
 
 type LoadedBundle = {
-  zip: JSZip;
+  files: Record<string, Uint8Array>;
   bundle: ZoomMapBundleV1;
 };
 
@@ -317,26 +317,10 @@ function dataUrlFromBytes(path: string, buf: ArrayBuffer): string {
   return `data:${mimeFromPath(path)};base64,${arrayBufferToBase64(buf)}`;
 }
 
-type BufferLike = {
-  from(data: string, encoding: "binary"): {
-    toString(encoding: "base64"): string;
-  };
-};
-
-
 function safeBtoa(binary: string): string {
-  if (typeof globalThis.btoa === "function") {
-    return globalThis.btoa(binary);
+  if (typeof window.btoa === "function") {
+    return window.btoa(binary);
   }
-
-  const maybeBuffer = (
-    globalThis as typeof globalThis & { Buffer?: BufferLike }
-  ).Buffer;
-
-  if (maybeBuffer && typeof maybeBuffer.from === "function") {
-    return maybeBuffer.from(binary, "binary").toString("base64");
-  }
-
   throw new Error("No base64 encoder available in this runtime.");
 }
 
@@ -446,7 +430,7 @@ function downloadZip(filename: string, bytes: Uint8Array): void {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
-  document.body.appendChild(a);
+  document.body?.appendChild(a);
   a.click();
   a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -1491,41 +1475,39 @@ async function buildBundleBytes(
     },
   };
 
-  const zip = new JSZip();
-  zip.file(BUNDLE_JSON_PATH, JSON.stringify(bundle, null, 2));
+  const files: Record<string, Uint8Array> = {};
+  files[BUNDLE_JSON_PATH] = strToU8(JSON.stringify(bundle, null, 2));
 
   for (const asset of assets) {
     const file = app.vault.getAbstractFileByPath(asset.originalPath);
     if (!(file instanceof TFile)) continue;
 
     if (asset.kind === "linked-note") {
-      zip.file(asset.zipPath, await app.vault.read(file));
+      files[asset.zipPath] = strToU8(await app.vault.read(file));
     } else {
-      zip.file(asset.zipPath, await readVaultBinary(app, file));
+      files[asset.zipPath] = await readVaultBinary(app, file);
     }
   }
 
-  return zip.generateAsync({
-    type: "uint8array",
-    compression: "DEFLATE",
-    compressionOptions: { level: 6 },
+  return zipSync(files, {
+    level: 6,
   });
 }
 
 async function loadBundleFromFile(file: File): Promise<LoadedBundle> {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const zip = await JSZip.loadAsync(bytes);
-  const meta = zip.file(BUNDLE_JSON_PATH);
+  const files = unzipSync(bytes);
+  const meta = files[BUNDLE_JSON_PATH];
   if (!meta) throw new Error("Bundle manifest not found.");
 
-  const parsedUnknown: unknown = JSON.parse(await meta.async("string"));
+  const parsedUnknown: unknown = JSON.parse(strFromU8(meta));
   if (!isZoomMapBundleV1(parsedUnknown)) {
     throw new Error("Unsupported or invalid map bundle.");
   }
   
   const parsed = parsedUnknown;
 
-  return { zip, bundle: parsed };
+  return { files, bundle: parsed };
 }
 
 function nextUniqueMapId(editor: Editor, baseId?: string): string {
@@ -1785,7 +1767,7 @@ async function importBundleToVault(
   loaded: LoadedBundle,
   options: ImportOptions,
 ): Promise<ImportPreparedResult> {
-  const { bundle, zip } = loaded;
+  const { bundle, files } = loaded;
   const warnings: string[] = [];
   const writtenPaths: string[] = [];
 
@@ -1816,7 +1798,7 @@ async function importBundleToVault(
 
   try {
     for (const asset of bundle.assets ?? []) {
-      const entry = zip.file(asset.zipPath);
+      const entry = files[asset.zipPath];
       if (!entry) {
         throw new Error(`Missing asset in ZIP: ${asset.zipPath}`);
       }
@@ -1898,7 +1880,7 @@ async function importBundleToVault(
     }
 
     for (const asset of bundle.assets ?? []) {
-      const entry = zip.file(asset.zipPath);
+      const entry = files[asset.zipPath];
       if (!entry) {
         throw new Error(`Missing asset in ZIP: ${asset.zipPath}`);
       }
@@ -1907,7 +1889,7 @@ async function importBundleToVault(
         const targetPath = notePathMap.get(asset.originalPath);
         if (!targetPath) continue;
 
-        const rawText = await entry.async("string");
+        const rawText = strFromU8(entry);
         const rewrittenText = rewriteImportedNoteText(
           app,
           rawText,
@@ -1925,8 +1907,7 @@ async function importBundleToVault(
 
       const targetPath = filePathMap.get(asset.originalPath);
       if (!targetPath) continue;
-      const bytes = await entry.async("uint8array");
-      await writeVaultBinary(app, targetPath, bytes);
+      await writeVaultBinary(app, targetPath, entry);
       writtenPaths.push(targetPath);
     }
 

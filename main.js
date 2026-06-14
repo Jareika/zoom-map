@@ -1,17 +1,8 @@
 "use strict";
-var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __commonJS = (cb, mod) => function __require() {
-  try {
-    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
-  } catch (e) {
-    throw mod = 0, e;
-  }
-};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -24,2381 +15,7 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-
-// node_modules/jszip/dist/jszip.min.js
-var require_jszip_min = __commonJS({
-  "node_modules/jszip/dist/jszip.min.js"(exports, module2) {
-    !(function(e) {
-      if ("object" == typeof exports && "undefined" != typeof module2) module2.exports = e();
-      else if ("function" == typeof define && define.amd) define([], e);
-      else {
-        ("undefined" != typeof window ? window : "undefined" != typeof global ? global : "undefined" != typeof self ? self : this).JSZip = e();
-      }
-    })(function() {
-      return (function s(a, o, h) {
-        function u(r, e2) {
-          if (!o[r]) {
-            if (!a[r]) {
-              var t = "function" == typeof require && require;
-              if (!e2 && t) return t(r, true);
-              if (l) return l(r, true);
-              var n = new Error("Cannot find module '" + r + "'");
-              throw n.code = "MODULE_NOT_FOUND", n;
-            }
-            var i = o[r] = { exports: {} };
-            a[r][0].call(i.exports, function(e3) {
-              var t2 = a[r][1][e3];
-              return u(t2 || e3);
-            }, i, i.exports, s, a, o, h);
-          }
-          return o[r].exports;
-        }
-        for (var l = "function" == typeof require && require, e = 0; e < h.length; e++) u(h[e]);
-        return u;
-      })({ 1: [function(e, t, r) {
-        "use strict";
-        var d = e("./utils"), c = e("./support"), p = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
-        r.encode = function(e2) {
-          for (var t2, r2, n, i, s, a, o, h = [], u = 0, l = e2.length, f = l, c2 = "string" !== d.getTypeOf(e2); u < e2.length; ) f = l - u, n = c2 ? (t2 = e2[u++], r2 = u < l ? e2[u++] : 0, u < l ? e2[u++] : 0) : (t2 = e2.charCodeAt(u++), r2 = u < l ? e2.charCodeAt(u++) : 0, u < l ? e2.charCodeAt(u++) : 0), i = t2 >> 2, s = (3 & t2) << 4 | r2 >> 4, a = 1 < f ? (15 & r2) << 2 | n >> 6 : 64, o = 2 < f ? 63 & n : 64, h.push(p.charAt(i) + p.charAt(s) + p.charAt(a) + p.charAt(o));
-          return h.join("");
-        }, r.decode = function(e2) {
-          var t2, r2, n, i, s, a, o = 0, h = 0, u = "data:";
-          if (e2.substr(0, u.length) === u) throw new Error("Invalid base64 input, it looks like a data url.");
-          var l, f = 3 * (e2 = e2.replace(/[^A-Za-z0-9+/=]/g, "")).length / 4;
-          if (e2.charAt(e2.length - 1) === p.charAt(64) && f--, e2.charAt(e2.length - 2) === p.charAt(64) && f--, f % 1 != 0) throw new Error("Invalid base64 input, bad content length.");
-          for (l = c.uint8array ? new Uint8Array(0 | f) : new Array(0 | f); o < e2.length; ) t2 = p.indexOf(e2.charAt(o++)) << 2 | (i = p.indexOf(e2.charAt(o++))) >> 4, r2 = (15 & i) << 4 | (s = p.indexOf(e2.charAt(o++))) >> 2, n = (3 & s) << 6 | (a = p.indexOf(e2.charAt(o++))), l[h++] = t2, 64 !== s && (l[h++] = r2), 64 !== a && (l[h++] = n);
-          return l;
-        };
-      }, { "./support": 30, "./utils": 32 }], 2: [function(e, t, r) {
-        "use strict";
-        var n = e("./external"), i = e("./stream/DataWorker"), s = e("./stream/Crc32Probe"), a = e("./stream/DataLengthProbe");
-        function o(e2, t2, r2, n2, i2) {
-          this.compressedSize = e2, this.uncompressedSize = t2, this.crc32 = r2, this.compression = n2, this.compressedContent = i2;
-        }
-        o.prototype = { getContentWorker: function() {
-          var e2 = new i(n.Promise.resolve(this.compressedContent)).pipe(this.compression.uncompressWorker()).pipe(new a("data_length")), t2 = this;
-          return e2.on("end", function() {
-            if (this.streamInfo.data_length !== t2.uncompressedSize) throw new Error("Bug : uncompressed data size mismatch");
-          }), e2;
-        }, getCompressedWorker: function() {
-          return new i(n.Promise.resolve(this.compressedContent)).withStreamInfo("compressedSize", this.compressedSize).withStreamInfo("uncompressedSize", this.uncompressedSize).withStreamInfo("crc32", this.crc32).withStreamInfo("compression", this.compression);
-        } }, o.createWorkerFrom = function(e2, t2, r2) {
-          return e2.pipe(new s()).pipe(new a("uncompressedSize")).pipe(t2.compressWorker(r2)).pipe(new a("compressedSize")).withStreamInfo("compression", t2);
-        }, t.exports = o;
-      }, { "./external": 6, "./stream/Crc32Probe": 25, "./stream/DataLengthProbe": 26, "./stream/DataWorker": 27 }], 3: [function(e, t, r) {
-        "use strict";
-        var n = e("./stream/GenericWorker");
-        r.STORE = { magic: "\0\0", compressWorker: function() {
-          return new n("STORE compression");
-        }, uncompressWorker: function() {
-          return new n("STORE decompression");
-        } }, r.DEFLATE = e("./flate");
-      }, { "./flate": 7, "./stream/GenericWorker": 28 }], 4: [function(e, t, r) {
-        "use strict";
-        var n = e("./utils");
-        var o = (function() {
-          for (var e2, t2 = [], r2 = 0; r2 < 256; r2++) {
-            e2 = r2;
-            for (var n2 = 0; n2 < 8; n2++) e2 = 1 & e2 ? 3988292384 ^ e2 >>> 1 : e2 >>> 1;
-            t2[r2] = e2;
-          }
-          return t2;
-        })();
-        t.exports = function(e2, t2) {
-          return void 0 !== e2 && e2.length ? "string" !== n.getTypeOf(e2) ? (function(e3, t3, r2, n2) {
-            var i = o, s = n2 + r2;
-            e3 ^= -1;
-            for (var a = n2; a < s; a++) e3 = e3 >>> 8 ^ i[255 & (e3 ^ t3[a])];
-            return -1 ^ e3;
-          })(0 | t2, e2, e2.length, 0) : (function(e3, t3, r2, n2) {
-            var i = o, s = n2 + r2;
-            e3 ^= -1;
-            for (var a = n2; a < s; a++) e3 = e3 >>> 8 ^ i[255 & (e3 ^ t3.charCodeAt(a))];
-            return -1 ^ e3;
-          })(0 | t2, e2, e2.length, 0) : 0;
-        };
-      }, { "./utils": 32 }], 5: [function(e, t, r) {
-        "use strict";
-        r.base64 = false, r.binary = false, r.dir = false, r.createFolders = true, r.date = null, r.compression = null, r.compressionOptions = null, r.comment = null, r.unixPermissions = null, r.dosPermissions = null;
-      }, {}], 6: [function(e, t, r) {
-        "use strict";
-        var n = null;
-        n = "undefined" != typeof Promise ? Promise : e("lie"), t.exports = { Promise: n };
-      }, { lie: 37 }], 7: [function(e, t, r) {
-        "use strict";
-        var n = "undefined" != typeof Uint8Array && "undefined" != typeof Uint16Array && "undefined" != typeof Uint32Array, i = e("pako"), s = e("./utils"), a = e("./stream/GenericWorker"), o = n ? "uint8array" : "array";
-        function h(e2, t2) {
-          a.call(this, "FlateWorker/" + e2), this._pako = null, this._pakoAction = e2, this._pakoOptions = t2, this.meta = {};
-        }
-        r.magic = "\b\0", s.inherits(h, a), h.prototype.processChunk = function(e2) {
-          this.meta = e2.meta, null === this._pako && this._createPako(), this._pako.push(s.transformTo(o, e2.data), false);
-        }, h.prototype.flush = function() {
-          a.prototype.flush.call(this), null === this._pako && this._createPako(), this._pako.push([], true);
-        }, h.prototype.cleanUp = function() {
-          a.prototype.cleanUp.call(this), this._pako = null;
-        }, h.prototype._createPako = function() {
-          this._pako = new i[this._pakoAction]({ raw: true, level: this._pakoOptions.level || -1 });
-          var t2 = this;
-          this._pako.onData = function(e2) {
-            t2.push({ data: e2, meta: t2.meta });
-          };
-        }, r.compressWorker = function(e2) {
-          return new h("Deflate", e2);
-        }, r.uncompressWorker = function() {
-          return new h("Inflate", {});
-        };
-      }, { "./stream/GenericWorker": 28, "./utils": 32, pako: 38 }], 8: [function(e, t, r) {
-        "use strict";
-        function A(e2, t2) {
-          var r2, n2 = "";
-          for (r2 = 0; r2 < t2; r2++) n2 += String.fromCharCode(255 & e2), e2 >>>= 8;
-          return n2;
-        }
-        function n(e2, t2, r2, n2, i2, s2) {
-          var a, o, h = e2.file, u = e2.compression, l = s2 !== O.utf8encode, f = I.transformTo("string", s2(h.name)), c = I.transformTo("string", O.utf8encode(h.name)), d = h.comment, p = I.transformTo("string", s2(d)), m = I.transformTo("string", O.utf8encode(d)), _ = c.length !== h.name.length, g = m.length !== d.length, b = "", v = "", y = "", w = h.dir, k = h.date, x = { crc32: 0, compressedSize: 0, uncompressedSize: 0 };
-          t2 && !r2 || (x.crc32 = e2.crc32, x.compressedSize = e2.compressedSize, x.uncompressedSize = e2.uncompressedSize);
-          var S = 0;
-          t2 && (S |= 8), l || !_ && !g || (S |= 2048);
-          var z = 0, C = 0;
-          w && (z |= 16), "UNIX" === i2 ? (C = 798, z |= (function(e3, t3) {
-            var r3 = e3;
-            return e3 || (r3 = t3 ? 16893 : 33204), (65535 & r3) << 16;
-          })(h.unixPermissions, w)) : (C = 20, z |= (function(e3) {
-            return 63 & (e3 || 0);
-          })(h.dosPermissions)), a = k.getUTCHours(), a <<= 6, a |= k.getUTCMinutes(), a <<= 5, a |= k.getUTCSeconds() / 2, o = k.getUTCFullYear() - 1980, o <<= 4, o |= k.getUTCMonth() + 1, o <<= 5, o |= k.getUTCDate(), _ && (v = A(1, 1) + A(B(f), 4) + c, b += "up" + A(v.length, 2) + v), g && (y = A(1, 1) + A(B(p), 4) + m, b += "uc" + A(y.length, 2) + y);
-          var E = "";
-          return E += "\n\0", E += A(S, 2), E += u.magic, E += A(a, 2), E += A(o, 2), E += A(x.crc32, 4), E += A(x.compressedSize, 4), E += A(x.uncompressedSize, 4), E += A(f.length, 2), E += A(b.length, 2), { fileRecord: R.LOCAL_FILE_HEADER + E + f + b, dirRecord: R.CENTRAL_FILE_HEADER + A(C, 2) + E + A(p.length, 2) + "\0\0\0\0" + A(z, 4) + A(n2, 4) + f + b + p };
-        }
-        var I = e("../utils"), i = e("../stream/GenericWorker"), O = e("../utf8"), B = e("../crc32"), R = e("../signature");
-        function s(e2, t2, r2, n2) {
-          i.call(this, "ZipFileWorker"), this.bytesWritten = 0, this.zipComment = t2, this.zipPlatform = r2, this.encodeFileName = n2, this.streamFiles = e2, this.accumulate = false, this.contentBuffer = [], this.dirRecords = [], this.currentSourceOffset = 0, this.entriesCount = 0, this.currentFile = null, this._sources = [];
-        }
-        I.inherits(s, i), s.prototype.push = function(e2) {
-          var t2 = e2.meta.percent || 0, r2 = this.entriesCount, n2 = this._sources.length;
-          this.accumulate ? this.contentBuffer.push(e2) : (this.bytesWritten += e2.data.length, i.prototype.push.call(this, { data: e2.data, meta: { currentFile: this.currentFile, percent: r2 ? (t2 + 100 * (r2 - n2 - 1)) / r2 : 100 } }));
-        }, s.prototype.openedSource = function(e2) {
-          this.currentSourceOffset = this.bytesWritten, this.currentFile = e2.file.name;
-          var t2 = this.streamFiles && !e2.file.dir;
-          if (t2) {
-            var r2 = n(e2, t2, false, this.currentSourceOffset, this.zipPlatform, this.encodeFileName);
-            this.push({ data: r2.fileRecord, meta: { percent: 0 } });
-          } else this.accumulate = true;
-        }, s.prototype.closedSource = function(e2) {
-          this.accumulate = false;
-          var t2 = this.streamFiles && !e2.file.dir, r2 = n(e2, t2, true, this.currentSourceOffset, this.zipPlatform, this.encodeFileName);
-          if (this.dirRecords.push(r2.dirRecord), t2) this.push({ data: (function(e3) {
-            return R.DATA_DESCRIPTOR + A(e3.crc32, 4) + A(e3.compressedSize, 4) + A(e3.uncompressedSize, 4);
-          })(e2), meta: { percent: 100 } });
-          else for (this.push({ data: r2.fileRecord, meta: { percent: 0 } }); this.contentBuffer.length; ) this.push(this.contentBuffer.shift());
-          this.currentFile = null;
-        }, s.prototype.flush = function() {
-          for (var e2 = this.bytesWritten, t2 = 0; t2 < this.dirRecords.length; t2++) this.push({ data: this.dirRecords[t2], meta: { percent: 100 } });
-          var r2 = this.bytesWritten - e2, n2 = (function(e3, t3, r3, n3, i2) {
-            var s2 = I.transformTo("string", i2(n3));
-            return R.CENTRAL_DIRECTORY_END + "\0\0\0\0" + A(e3, 2) + A(e3, 2) + A(t3, 4) + A(r3, 4) + A(s2.length, 2) + s2;
-          })(this.dirRecords.length, r2, e2, this.zipComment, this.encodeFileName);
-          this.push({ data: n2, meta: { percent: 100 } });
-        }, s.prototype.prepareNextSource = function() {
-          this.previous = this._sources.shift(), this.openedSource(this.previous.streamInfo), this.isPaused ? this.previous.pause() : this.previous.resume();
-        }, s.prototype.registerPrevious = function(e2) {
-          this._sources.push(e2);
-          var t2 = this;
-          return e2.on("data", function(e3) {
-            t2.processChunk(e3);
-          }), e2.on("end", function() {
-            t2.closedSource(t2.previous.streamInfo), t2._sources.length ? t2.prepareNextSource() : t2.end();
-          }), e2.on("error", function(e3) {
-            t2.error(e3);
-          }), this;
-        }, s.prototype.resume = function() {
-          return !!i.prototype.resume.call(this) && (!this.previous && this._sources.length ? (this.prepareNextSource(), true) : this.previous || this._sources.length || this.generatedError ? void 0 : (this.end(), true));
-        }, s.prototype.error = function(e2) {
-          var t2 = this._sources;
-          if (!i.prototype.error.call(this, e2)) return false;
-          for (var r2 = 0; r2 < t2.length; r2++) try {
-            t2[r2].error(e2);
-          } catch (e3) {
-          }
-          return true;
-        }, s.prototype.lock = function() {
-          i.prototype.lock.call(this);
-          for (var e2 = this._sources, t2 = 0; t2 < e2.length; t2++) e2[t2].lock();
-        }, t.exports = s;
-      }, { "../crc32": 4, "../signature": 23, "../stream/GenericWorker": 28, "../utf8": 31, "../utils": 32 }], 9: [function(e, t, r) {
-        "use strict";
-        var u = e("../compressions"), n = e("./ZipFileWorker");
-        r.generateWorker = function(e2, a, t2) {
-          var o = new n(a.streamFiles, t2, a.platform, a.encodeFileName), h = 0;
-          try {
-            e2.forEach(function(e3, t3) {
-              h++;
-              var r2 = (function(e4, t4) {
-                var r3 = e4 || t4, n3 = u[r3];
-                if (!n3) throw new Error(r3 + " is not a valid compression method !");
-                return n3;
-              })(t3.options.compression, a.compression), n2 = t3.options.compressionOptions || a.compressionOptions || {}, i = t3.dir, s = t3.date;
-              t3._compressWorker(r2, n2).withStreamInfo("file", { name: e3, dir: i, date: s, comment: t3.comment || "", unixPermissions: t3.unixPermissions, dosPermissions: t3.dosPermissions }).pipe(o);
-            }), o.entriesCount = h;
-          } catch (e3) {
-            o.error(e3);
-          }
-          return o;
-        };
-      }, { "../compressions": 3, "./ZipFileWorker": 8 }], 10: [function(e, t, r) {
-        "use strict";
-        function n() {
-          if (!(this instanceof n)) return new n();
-          if (arguments.length) throw new Error("The constructor with parameters has been removed in JSZip 3.0, please check the upgrade guide.");
-          this.files = /* @__PURE__ */ Object.create(null), this.comment = null, this.root = "", this.clone = function() {
-            var e2 = new n();
-            for (var t2 in this) "function" != typeof this[t2] && (e2[t2] = this[t2]);
-            return e2;
-          };
-        }
-        (n.prototype = e("./object")).loadAsync = e("./load"), n.support = e("./support"), n.defaults = e("./defaults"), n.version = "3.10.1", n.loadAsync = function(e2, t2) {
-          return new n().loadAsync(e2, t2);
-        }, n.external = e("./external"), t.exports = n;
-      }, { "./defaults": 5, "./external": 6, "./load": 11, "./object": 15, "./support": 30 }], 11: [function(e, t, r) {
-        "use strict";
-        var u = e("./utils"), i = e("./external"), n = e("./utf8"), s = e("./zipEntries"), a = e("./stream/Crc32Probe"), l = e("./nodejsUtils");
-        function f(n2) {
-          return new i.Promise(function(e2, t2) {
-            var r2 = n2.decompressed.getContentWorker().pipe(new a());
-            r2.on("error", function(e3) {
-              t2(e3);
-            }).on("end", function() {
-              r2.streamInfo.crc32 !== n2.decompressed.crc32 ? t2(new Error("Corrupted zip : CRC32 mismatch")) : e2();
-            }).resume();
-          });
-        }
-        t.exports = function(e2, o) {
-          var h = this;
-          return o = u.extend(o || {}, { base64: false, checkCRC32: false, optimizedBinaryString: false, createFolders: false, decodeFileName: n.utf8decode }), l.isNode && l.isStream(e2) ? i.Promise.reject(new Error("JSZip can't accept a stream when loading a zip file.")) : u.prepareContent("the loaded zip file", e2, true, o.optimizedBinaryString, o.base64).then(function(e3) {
-            var t2 = new s(o);
-            return t2.load(e3), t2;
-          }).then(function(e3) {
-            var t2 = [i.Promise.resolve(e3)], r2 = e3.files;
-            if (o.checkCRC32) for (var n2 = 0; n2 < r2.length; n2++) t2.push(f(r2[n2]));
-            return i.Promise.all(t2);
-          }).then(function(e3) {
-            for (var t2 = e3.shift(), r2 = t2.files, n2 = 0; n2 < r2.length; n2++) {
-              var i2 = r2[n2], s2 = i2.fileNameStr, a2 = u.resolve(i2.fileNameStr);
-              h.file(a2, i2.decompressed, { binary: true, optimizedBinaryString: true, date: i2.date, dir: i2.dir, comment: i2.fileCommentStr.length ? i2.fileCommentStr : null, unixPermissions: i2.unixPermissions, dosPermissions: i2.dosPermissions, createFolders: o.createFolders }), i2.dir || (h.file(a2).unsafeOriginalName = s2);
-            }
-            return t2.zipComment.length && (h.comment = t2.zipComment), h;
-          });
-        };
-      }, { "./external": 6, "./nodejsUtils": 14, "./stream/Crc32Probe": 25, "./utf8": 31, "./utils": 32, "./zipEntries": 33 }], 12: [function(e, t, r) {
-        "use strict";
-        var n = e("../utils"), i = e("../stream/GenericWorker");
-        function s(e2, t2) {
-          i.call(this, "Nodejs stream input adapter for " + e2), this._upstreamEnded = false, this._bindStream(t2);
-        }
-        n.inherits(s, i), s.prototype._bindStream = function(e2) {
-          var t2 = this;
-          (this._stream = e2).pause(), e2.on("data", function(e3) {
-            t2.push({ data: e3, meta: { percent: 0 } });
-          }).on("error", function(e3) {
-            t2.isPaused ? this.generatedError = e3 : t2.error(e3);
-          }).on("end", function() {
-            t2.isPaused ? t2._upstreamEnded = true : t2.end();
-          });
-        }, s.prototype.pause = function() {
-          return !!i.prototype.pause.call(this) && (this._stream.pause(), true);
-        }, s.prototype.resume = function() {
-          return !!i.prototype.resume.call(this) && (this._upstreamEnded ? this.end() : this._stream.resume(), true);
-        }, t.exports = s;
-      }, { "../stream/GenericWorker": 28, "../utils": 32 }], 13: [function(e, t, r) {
-        "use strict";
-        var i = e("readable-stream").Readable;
-        function n(e2, t2, r2) {
-          i.call(this, t2), this._helper = e2;
-          var n2 = this;
-          e2.on("data", function(e3, t3) {
-            n2.push(e3) || n2._helper.pause(), r2 && r2(t3);
-          }).on("error", function(e3) {
-            n2.emit("error", e3);
-          }).on("end", function() {
-            n2.push(null);
-          });
-        }
-        e("../utils").inherits(n, i), n.prototype._read = function() {
-          this._helper.resume();
-        }, t.exports = n;
-      }, { "../utils": 32, "readable-stream": 16 }], 14: [function(e, t, r) {
-        "use strict";
-        t.exports = { isNode: "undefined" != typeof Buffer, newBufferFrom: function(e2, t2) {
-          if (Buffer.from && Buffer.from !== Uint8Array.from) return Buffer.from(e2, t2);
-          if ("number" == typeof e2) throw new Error('The "data" argument must not be a number');
-          return new Buffer(e2, t2);
-        }, allocBuffer: function(e2) {
-          if (Buffer.alloc) return Buffer.alloc(e2);
-          var t2 = new Buffer(e2);
-          return t2.fill(0), t2;
-        }, isBuffer: function(e2) {
-          return Buffer.isBuffer(e2);
-        }, isStream: function(e2) {
-          return e2 && "function" == typeof e2.on && "function" == typeof e2.pause && "function" == typeof e2.resume;
-        } };
-      }, {}], 15: [function(e, t, r) {
-        "use strict";
-        function s(e2, t2, r2) {
-          var n2, i2 = u.getTypeOf(t2), s2 = u.extend(r2 || {}, f);
-          s2.date = s2.date || /* @__PURE__ */ new Date(), null !== s2.compression && (s2.compression = s2.compression.toUpperCase()), "string" == typeof s2.unixPermissions && (s2.unixPermissions = parseInt(s2.unixPermissions, 8)), s2.unixPermissions && 16384 & s2.unixPermissions && (s2.dir = true), s2.dosPermissions && 16 & s2.dosPermissions && (s2.dir = true), s2.dir && (e2 = g(e2)), s2.createFolders && (n2 = _(e2)) && b.call(this, n2, true);
-          var a2 = "string" === i2 && false === s2.binary && false === s2.base64;
-          r2 && void 0 !== r2.binary || (s2.binary = !a2), (t2 instanceof c && 0 === t2.uncompressedSize || s2.dir || !t2 || 0 === t2.length) && (s2.base64 = false, s2.binary = true, t2 = "", s2.compression = "STORE", i2 = "string");
-          var o2 = null;
-          o2 = t2 instanceof c || t2 instanceof l ? t2 : p.isNode && p.isStream(t2) ? new m(e2, t2) : u.prepareContent(e2, t2, s2.binary, s2.optimizedBinaryString, s2.base64);
-          var h2 = new d(e2, o2, s2);
-          this.files[e2] = h2;
-        }
-        var i = e("./utf8"), u = e("./utils"), l = e("./stream/GenericWorker"), a = e("./stream/StreamHelper"), f = e("./defaults"), c = e("./compressedObject"), d = e("./zipObject"), o = e("./generate"), p = e("./nodejsUtils"), m = e("./nodejs/NodejsStreamInputAdapter"), _ = function(e2) {
-          "/" === e2.slice(-1) && (e2 = e2.substring(0, e2.length - 1));
-          var t2 = e2.lastIndexOf("/");
-          return 0 < t2 ? e2.substring(0, t2) : "";
-        }, g = function(e2) {
-          return "/" !== e2.slice(-1) && (e2 += "/"), e2;
-        }, b = function(e2, t2) {
-          return t2 = void 0 !== t2 ? t2 : f.createFolders, e2 = g(e2), this.files[e2] || s.call(this, e2, null, { dir: true, createFolders: t2 }), this.files[e2];
-        };
-        function h(e2) {
-          return "[object RegExp]" === Object.prototype.toString.call(e2);
-        }
-        var n = { load: function() {
-          throw new Error("This method has been removed in JSZip 3.0, please check the upgrade guide.");
-        }, forEach: function(e2) {
-          var t2, r2, n2;
-          for (t2 in this.files) n2 = this.files[t2], (r2 = t2.slice(this.root.length, t2.length)) && t2.slice(0, this.root.length) === this.root && e2(r2, n2);
-        }, filter: function(r2) {
-          var n2 = [];
-          return this.forEach(function(e2, t2) {
-            r2(e2, t2) && n2.push(t2);
-          }), n2;
-        }, file: function(e2, t2, r2) {
-          if (1 !== arguments.length) return e2 = this.root + e2, s.call(this, e2, t2, r2), this;
-          if (h(e2)) {
-            var n2 = e2;
-            return this.filter(function(e3, t3) {
-              return !t3.dir && n2.test(e3);
-            });
-          }
-          var i2 = this.files[this.root + e2];
-          return i2 && !i2.dir ? i2 : null;
-        }, folder: function(r2) {
-          if (!r2) return this;
-          if (h(r2)) return this.filter(function(e3, t3) {
-            return t3.dir && r2.test(e3);
-          });
-          var e2 = this.root + r2, t2 = b.call(this, e2), n2 = this.clone();
-          return n2.root = t2.name, n2;
-        }, remove: function(r2) {
-          r2 = this.root + r2;
-          var e2 = this.files[r2];
-          if (e2 || ("/" !== r2.slice(-1) && (r2 += "/"), e2 = this.files[r2]), e2 && !e2.dir) delete this.files[r2];
-          else for (var t2 = this.filter(function(e3, t3) {
-            return t3.name.slice(0, r2.length) === r2;
-          }), n2 = 0; n2 < t2.length; n2++) delete this.files[t2[n2].name];
-          return this;
-        }, generate: function() {
-          throw new Error("This method has been removed in JSZip 3.0, please check the upgrade guide.");
-        }, generateInternalStream: function(e2) {
-          var t2, r2 = {};
-          try {
-            if ((r2 = u.extend(e2 || {}, { streamFiles: false, compression: "STORE", compressionOptions: null, type: "", platform: "DOS", comment: null, mimeType: "application/zip", encodeFileName: i.utf8encode })).type = r2.type.toLowerCase(), r2.compression = r2.compression.toUpperCase(), "binarystring" === r2.type && (r2.type = "string"), !r2.type) throw new Error("No output type specified.");
-            u.checkSupport(r2.type), "darwin" !== r2.platform && "freebsd" !== r2.platform && "linux" !== r2.platform && "sunos" !== r2.platform || (r2.platform = "UNIX"), "win32" === r2.platform && (r2.platform = "DOS");
-            var n2 = r2.comment || this.comment || "";
-            t2 = o.generateWorker(this, r2, n2);
-          } catch (e3) {
-            (t2 = new l("error")).error(e3);
-          }
-          return new a(t2, r2.type || "string", r2.mimeType);
-        }, generateAsync: function(e2, t2) {
-          return this.generateInternalStream(e2).accumulate(t2);
-        }, generateNodeStream: function(e2, t2) {
-          return (e2 = e2 || {}).type || (e2.type = "nodebuffer"), this.generateInternalStream(e2).toNodejsStream(t2);
-        } };
-        t.exports = n;
-      }, { "./compressedObject": 2, "./defaults": 5, "./generate": 9, "./nodejs/NodejsStreamInputAdapter": 12, "./nodejsUtils": 14, "./stream/GenericWorker": 28, "./stream/StreamHelper": 29, "./utf8": 31, "./utils": 32, "./zipObject": 35 }], 16: [function(e, t, r) {
-        "use strict";
-        t.exports = e("stream");
-      }, { stream: void 0 }], 17: [function(e, t, r) {
-        "use strict";
-        var n = e("./DataReader");
-        function i(e2) {
-          n.call(this, e2);
-          for (var t2 = 0; t2 < this.data.length; t2++) e2[t2] = 255 & e2[t2];
-        }
-        e("../utils").inherits(i, n), i.prototype.byteAt = function(e2) {
-          return this.data[this.zero + e2];
-        }, i.prototype.lastIndexOfSignature = function(e2) {
-          for (var t2 = e2.charCodeAt(0), r2 = e2.charCodeAt(1), n2 = e2.charCodeAt(2), i2 = e2.charCodeAt(3), s = this.length - 4; 0 <= s; --s) if (this.data[s] === t2 && this.data[s + 1] === r2 && this.data[s + 2] === n2 && this.data[s + 3] === i2) return s - this.zero;
-          return -1;
-        }, i.prototype.readAndCheckSignature = function(e2) {
-          var t2 = e2.charCodeAt(0), r2 = e2.charCodeAt(1), n2 = e2.charCodeAt(2), i2 = e2.charCodeAt(3), s = this.readData(4);
-          return t2 === s[0] && r2 === s[1] && n2 === s[2] && i2 === s[3];
-        }, i.prototype.readData = function(e2) {
-          if (this.checkOffset(e2), 0 === e2) return [];
-          var t2 = this.data.slice(this.zero + this.index, this.zero + this.index + e2);
-          return this.index += e2, t2;
-        }, t.exports = i;
-      }, { "../utils": 32, "./DataReader": 18 }], 18: [function(e, t, r) {
-        "use strict";
-        var n = e("../utils");
-        function i(e2) {
-          this.data = e2, this.length = e2.length, this.index = 0, this.zero = 0;
-        }
-        i.prototype = { checkOffset: function(e2) {
-          this.checkIndex(this.index + e2);
-        }, checkIndex: function(e2) {
-          if (this.length < this.zero + e2 || e2 < 0) throw new Error("End of data reached (data length = " + this.length + ", asked index = " + e2 + "). Corrupted zip ?");
-        }, setIndex: function(e2) {
-          this.checkIndex(e2), this.index = e2;
-        }, skip: function(e2) {
-          this.setIndex(this.index + e2);
-        }, byteAt: function() {
-        }, readInt: function(e2) {
-          var t2, r2 = 0;
-          for (this.checkOffset(e2), t2 = this.index + e2 - 1; t2 >= this.index; t2--) r2 = (r2 << 8) + this.byteAt(t2);
-          return this.index += e2, r2;
-        }, readString: function(e2) {
-          return n.transformTo("string", this.readData(e2));
-        }, readData: function() {
-        }, lastIndexOfSignature: function() {
-        }, readAndCheckSignature: function() {
-        }, readDate: function() {
-          var e2 = this.readInt(4);
-          return new Date(Date.UTC(1980 + (e2 >> 25 & 127), (e2 >> 21 & 15) - 1, e2 >> 16 & 31, e2 >> 11 & 31, e2 >> 5 & 63, (31 & e2) << 1));
-        } }, t.exports = i;
-      }, { "../utils": 32 }], 19: [function(e, t, r) {
-        "use strict";
-        var n = e("./Uint8ArrayReader");
-        function i(e2) {
-          n.call(this, e2);
-        }
-        e("../utils").inherits(i, n), i.prototype.readData = function(e2) {
-          this.checkOffset(e2);
-          var t2 = this.data.slice(this.zero + this.index, this.zero + this.index + e2);
-          return this.index += e2, t2;
-        }, t.exports = i;
-      }, { "../utils": 32, "./Uint8ArrayReader": 21 }], 20: [function(e, t, r) {
-        "use strict";
-        var n = e("./DataReader");
-        function i(e2) {
-          n.call(this, e2);
-        }
-        e("../utils").inherits(i, n), i.prototype.byteAt = function(e2) {
-          return this.data.charCodeAt(this.zero + e2);
-        }, i.prototype.lastIndexOfSignature = function(e2) {
-          return this.data.lastIndexOf(e2) - this.zero;
-        }, i.prototype.readAndCheckSignature = function(e2) {
-          return e2 === this.readData(4);
-        }, i.prototype.readData = function(e2) {
-          this.checkOffset(e2);
-          var t2 = this.data.slice(this.zero + this.index, this.zero + this.index + e2);
-          return this.index += e2, t2;
-        }, t.exports = i;
-      }, { "../utils": 32, "./DataReader": 18 }], 21: [function(e, t, r) {
-        "use strict";
-        var n = e("./ArrayReader");
-        function i(e2) {
-          n.call(this, e2);
-        }
-        e("../utils").inherits(i, n), i.prototype.readData = function(e2) {
-          if (this.checkOffset(e2), 0 === e2) return new Uint8Array(0);
-          var t2 = this.data.subarray(this.zero + this.index, this.zero + this.index + e2);
-          return this.index += e2, t2;
-        }, t.exports = i;
-      }, { "../utils": 32, "./ArrayReader": 17 }], 22: [function(e, t, r) {
-        "use strict";
-        var n = e("../utils"), i = e("../support"), s = e("./ArrayReader"), a = e("./StringReader"), o = e("./NodeBufferReader"), h = e("./Uint8ArrayReader");
-        t.exports = function(e2) {
-          var t2 = n.getTypeOf(e2);
-          return n.checkSupport(t2), "string" !== t2 || i.uint8array ? "nodebuffer" === t2 ? new o(e2) : i.uint8array ? new h(n.transformTo("uint8array", e2)) : new s(n.transformTo("array", e2)) : new a(e2);
-        };
-      }, { "../support": 30, "../utils": 32, "./ArrayReader": 17, "./NodeBufferReader": 19, "./StringReader": 20, "./Uint8ArrayReader": 21 }], 23: [function(e, t, r) {
-        "use strict";
-        r.LOCAL_FILE_HEADER = "PK", r.CENTRAL_FILE_HEADER = "PK", r.CENTRAL_DIRECTORY_END = "PK", r.ZIP64_CENTRAL_DIRECTORY_LOCATOR = "PK\x07", r.ZIP64_CENTRAL_DIRECTORY_END = "PK", r.DATA_DESCRIPTOR = "PK\x07\b";
-      }, {}], 24: [function(e, t, r) {
-        "use strict";
-        var n = e("./GenericWorker"), i = e("../utils");
-        function s(e2) {
-          n.call(this, "ConvertWorker to " + e2), this.destType = e2;
-        }
-        i.inherits(s, n), s.prototype.processChunk = function(e2) {
-          this.push({ data: i.transformTo(this.destType, e2.data), meta: e2.meta });
-        }, t.exports = s;
-      }, { "../utils": 32, "./GenericWorker": 28 }], 25: [function(e, t, r) {
-        "use strict";
-        var n = e("./GenericWorker"), i = e("../crc32");
-        function s() {
-          n.call(this, "Crc32Probe"), this.withStreamInfo("crc32", 0);
-        }
-        e("../utils").inherits(s, n), s.prototype.processChunk = function(e2) {
-          this.streamInfo.crc32 = i(e2.data, this.streamInfo.crc32 || 0), this.push(e2);
-        }, t.exports = s;
-      }, { "../crc32": 4, "../utils": 32, "./GenericWorker": 28 }], 26: [function(e, t, r) {
-        "use strict";
-        var n = e("../utils"), i = e("./GenericWorker");
-        function s(e2) {
-          i.call(this, "DataLengthProbe for " + e2), this.propName = e2, this.withStreamInfo(e2, 0);
-        }
-        n.inherits(s, i), s.prototype.processChunk = function(e2) {
-          if (e2) {
-            var t2 = this.streamInfo[this.propName] || 0;
-            this.streamInfo[this.propName] = t2 + e2.data.length;
-          }
-          i.prototype.processChunk.call(this, e2);
-        }, t.exports = s;
-      }, { "../utils": 32, "./GenericWorker": 28 }], 27: [function(e, t, r) {
-        "use strict";
-        var n = e("../utils"), i = e("./GenericWorker");
-        function s(e2) {
-          i.call(this, "DataWorker");
-          var t2 = this;
-          this.dataIsReady = false, this.index = 0, this.max = 0, this.data = null, this.type = "", this._tickScheduled = false, e2.then(function(e3) {
-            t2.dataIsReady = true, t2.data = e3, t2.max = e3 && e3.length || 0, t2.type = n.getTypeOf(e3), t2.isPaused || t2._tickAndRepeat();
-          }, function(e3) {
-            t2.error(e3);
-          });
-        }
-        n.inherits(s, i), s.prototype.cleanUp = function() {
-          i.prototype.cleanUp.call(this), this.data = null;
-        }, s.prototype.resume = function() {
-          return !!i.prototype.resume.call(this) && (!this._tickScheduled && this.dataIsReady && (this._tickScheduled = true, n.delay(this._tickAndRepeat, [], this)), true);
-        }, s.prototype._tickAndRepeat = function() {
-          this._tickScheduled = false, this.isPaused || this.isFinished || (this._tick(), this.isFinished || (n.delay(this._tickAndRepeat, [], this), this._tickScheduled = true));
-        }, s.prototype._tick = function() {
-          if (this.isPaused || this.isFinished) return false;
-          var e2 = null, t2 = Math.min(this.max, this.index + 16384);
-          if (this.index >= this.max) return this.end();
-          switch (this.type) {
-            case "string":
-              e2 = this.data.substring(this.index, t2);
-              break;
-            case "uint8array":
-              e2 = this.data.subarray(this.index, t2);
-              break;
-            case "array":
-            case "nodebuffer":
-              e2 = this.data.slice(this.index, t2);
-          }
-          return this.index = t2, this.push({ data: e2, meta: { percent: this.max ? this.index / this.max * 100 : 0 } });
-        }, t.exports = s;
-      }, { "../utils": 32, "./GenericWorker": 28 }], 28: [function(e, t, r) {
-        "use strict";
-        function n(e2) {
-          this.name = e2 || "default", this.streamInfo = {}, this.generatedError = null, this.extraStreamInfo = {}, this.isPaused = true, this.isFinished = false, this.isLocked = false, this._listeners = { data: [], end: [], error: [] }, this.previous = null;
-        }
-        n.prototype = { push: function(e2) {
-          this.emit("data", e2);
-        }, end: function() {
-          if (this.isFinished) return false;
-          this.flush();
-          try {
-            this.emit("end"), this.cleanUp(), this.isFinished = true;
-          } catch (e2) {
-            this.emit("error", e2);
-          }
-          return true;
-        }, error: function(e2) {
-          return !this.isFinished && (this.isPaused ? this.generatedError = e2 : (this.isFinished = true, this.emit("error", e2), this.previous && this.previous.error(e2), this.cleanUp()), true);
-        }, on: function(e2, t2) {
-          return this._listeners[e2].push(t2), this;
-        }, cleanUp: function() {
-          this.streamInfo = this.generatedError = this.extraStreamInfo = null, this._listeners = [];
-        }, emit: function(e2, t2) {
-          if (this._listeners[e2]) for (var r2 = 0; r2 < this._listeners[e2].length; r2++) this._listeners[e2][r2].call(this, t2);
-        }, pipe: function(e2) {
-          return e2.registerPrevious(this);
-        }, registerPrevious: function(e2) {
-          if (this.isLocked) throw new Error("The stream '" + this + "' has already been used.");
-          this.streamInfo = e2.streamInfo, this.mergeStreamInfo(), this.previous = e2;
-          var t2 = this;
-          return e2.on("data", function(e3) {
-            t2.processChunk(e3);
-          }), e2.on("end", function() {
-            t2.end();
-          }), e2.on("error", function(e3) {
-            t2.error(e3);
-          }), this;
-        }, pause: function() {
-          return !this.isPaused && !this.isFinished && (this.isPaused = true, this.previous && this.previous.pause(), true);
-        }, resume: function() {
-          if (!this.isPaused || this.isFinished) return false;
-          var e2 = this.isPaused = false;
-          return this.generatedError && (this.error(this.generatedError), e2 = true), this.previous && this.previous.resume(), !e2;
-        }, flush: function() {
-        }, processChunk: function(e2) {
-          this.push(e2);
-        }, withStreamInfo: function(e2, t2) {
-          return this.extraStreamInfo[e2] = t2, this.mergeStreamInfo(), this;
-        }, mergeStreamInfo: function() {
-          for (var e2 in this.extraStreamInfo) Object.prototype.hasOwnProperty.call(this.extraStreamInfo, e2) && (this.streamInfo[e2] = this.extraStreamInfo[e2]);
-        }, lock: function() {
-          if (this.isLocked) throw new Error("The stream '" + this + "' has already been used.");
-          this.isLocked = true, this.previous && this.previous.lock();
-        }, toString: function() {
-          var e2 = "Worker " + this.name;
-          return this.previous ? this.previous + " -> " + e2 : e2;
-        } }, t.exports = n;
-      }, {}], 29: [function(e, t, r) {
-        "use strict";
-        var h = e("../utils"), i = e("./ConvertWorker"), s = e("./GenericWorker"), u = e("../base64"), n = e("../support"), a = e("../external"), o = null;
-        if (n.nodestream) try {
-          o = e("../nodejs/NodejsStreamOutputAdapter");
-        } catch (e2) {
-        }
-        function l(e2, o2) {
-          return new a.Promise(function(t2, r2) {
-            var n2 = [], i2 = e2._internalType, s2 = e2._outputType, a2 = e2._mimeType;
-            e2.on("data", function(e3, t3) {
-              n2.push(e3), o2 && o2(t3);
-            }).on("error", function(e3) {
-              n2 = [], r2(e3);
-            }).on("end", function() {
-              try {
-                var e3 = (function(e4, t3, r3) {
-                  switch (e4) {
-                    case "blob":
-                      return h.newBlob(h.transformTo("arraybuffer", t3), r3);
-                    case "base64":
-                      return u.encode(t3);
-                    default:
-                      return h.transformTo(e4, t3);
-                  }
-                })(s2, (function(e4, t3) {
-                  var r3, n3 = 0, i3 = null, s3 = 0;
-                  for (r3 = 0; r3 < t3.length; r3++) s3 += t3[r3].length;
-                  switch (e4) {
-                    case "string":
-                      return t3.join("");
-                    case "array":
-                      return Array.prototype.concat.apply([], t3);
-                    case "uint8array":
-                      for (i3 = new Uint8Array(s3), r3 = 0; r3 < t3.length; r3++) i3.set(t3[r3], n3), n3 += t3[r3].length;
-                      return i3;
-                    case "nodebuffer":
-                      return Buffer.concat(t3);
-                    default:
-                      throw new Error("concat : unsupported type '" + e4 + "'");
-                  }
-                })(i2, n2), a2);
-                t2(e3);
-              } catch (e4) {
-                r2(e4);
-              }
-              n2 = [];
-            }).resume();
-          });
-        }
-        function f(e2, t2, r2) {
-          var n2 = t2;
-          switch (t2) {
-            case "blob":
-            case "arraybuffer":
-              n2 = "uint8array";
-              break;
-            case "base64":
-              n2 = "string";
-          }
-          try {
-            this._internalType = n2, this._outputType = t2, this._mimeType = r2, h.checkSupport(n2), this._worker = e2.pipe(new i(n2)), e2.lock();
-          } catch (e3) {
-            this._worker = new s("error"), this._worker.error(e3);
-          }
-        }
-        f.prototype = { accumulate: function(e2) {
-          return l(this, e2);
-        }, on: function(e2, t2) {
-          var r2 = this;
-          return "data" === e2 ? this._worker.on(e2, function(e3) {
-            t2.call(r2, e3.data, e3.meta);
-          }) : this._worker.on(e2, function() {
-            h.delay(t2, arguments, r2);
-          }), this;
-        }, resume: function() {
-          return h.delay(this._worker.resume, [], this._worker), this;
-        }, pause: function() {
-          return this._worker.pause(), this;
-        }, toNodejsStream: function(e2) {
-          if (h.checkSupport("nodestream"), "nodebuffer" !== this._outputType) throw new Error(this._outputType + " is not supported by this method");
-          return new o(this, { objectMode: "nodebuffer" !== this._outputType }, e2);
-        } }, t.exports = f;
-      }, { "../base64": 1, "../external": 6, "../nodejs/NodejsStreamOutputAdapter": 13, "../support": 30, "../utils": 32, "./ConvertWorker": 24, "./GenericWorker": 28 }], 30: [function(e, t, r) {
-        "use strict";
-        if (r.base64 = true, r.array = true, r.string = true, r.arraybuffer = "undefined" != typeof ArrayBuffer && "undefined" != typeof Uint8Array, r.nodebuffer = "undefined" != typeof Buffer, r.uint8array = "undefined" != typeof Uint8Array, "undefined" == typeof ArrayBuffer) r.blob = false;
-        else {
-          var n = new ArrayBuffer(0);
-          try {
-            r.blob = 0 === new Blob([n], { type: "application/zip" }).size;
-          } catch (e2) {
-            try {
-              var i = new (self.BlobBuilder || self.WebKitBlobBuilder || self.MozBlobBuilder || self.MSBlobBuilder)();
-              i.append(n), r.blob = 0 === i.getBlob("application/zip").size;
-            } catch (e3) {
-              r.blob = false;
-            }
-          }
-        }
-        try {
-          r.nodestream = !!e("readable-stream").Readable;
-        } catch (e2) {
-          r.nodestream = false;
-        }
-      }, { "readable-stream": 16 }], 31: [function(e, t, s) {
-        "use strict";
-        for (var o = e("./utils"), h = e("./support"), r = e("./nodejsUtils"), n = e("./stream/GenericWorker"), u = new Array(256), i = 0; i < 256; i++) u[i] = 252 <= i ? 6 : 248 <= i ? 5 : 240 <= i ? 4 : 224 <= i ? 3 : 192 <= i ? 2 : 1;
-        u[254] = u[254] = 1;
-        function a() {
-          n.call(this, "utf-8 decode"), this.leftOver = null;
-        }
-        function l() {
-          n.call(this, "utf-8 encode");
-        }
-        s.utf8encode = function(e2) {
-          return h.nodebuffer ? r.newBufferFrom(e2, "utf-8") : (function(e3) {
-            var t2, r2, n2, i2, s2, a2 = e3.length, o2 = 0;
-            for (i2 = 0; i2 < a2; i2++) 55296 == (64512 & (r2 = e3.charCodeAt(i2))) && i2 + 1 < a2 && 56320 == (64512 & (n2 = e3.charCodeAt(i2 + 1))) && (r2 = 65536 + (r2 - 55296 << 10) + (n2 - 56320), i2++), o2 += r2 < 128 ? 1 : r2 < 2048 ? 2 : r2 < 65536 ? 3 : 4;
-            for (t2 = h.uint8array ? new Uint8Array(o2) : new Array(o2), i2 = s2 = 0; s2 < o2; i2++) 55296 == (64512 & (r2 = e3.charCodeAt(i2))) && i2 + 1 < a2 && 56320 == (64512 & (n2 = e3.charCodeAt(i2 + 1))) && (r2 = 65536 + (r2 - 55296 << 10) + (n2 - 56320), i2++), r2 < 128 ? t2[s2++] = r2 : (r2 < 2048 ? t2[s2++] = 192 | r2 >>> 6 : (r2 < 65536 ? t2[s2++] = 224 | r2 >>> 12 : (t2[s2++] = 240 | r2 >>> 18, t2[s2++] = 128 | r2 >>> 12 & 63), t2[s2++] = 128 | r2 >>> 6 & 63), t2[s2++] = 128 | 63 & r2);
-            return t2;
-          })(e2);
-        }, s.utf8decode = function(e2) {
-          return h.nodebuffer ? o.transformTo("nodebuffer", e2).toString("utf-8") : (function(e3) {
-            var t2, r2, n2, i2, s2 = e3.length, a2 = new Array(2 * s2);
-            for (t2 = r2 = 0; t2 < s2; ) if ((n2 = e3[t2++]) < 128) a2[r2++] = n2;
-            else if (4 < (i2 = u[n2])) a2[r2++] = 65533, t2 += i2 - 1;
-            else {
-              for (n2 &= 2 === i2 ? 31 : 3 === i2 ? 15 : 7; 1 < i2 && t2 < s2; ) n2 = n2 << 6 | 63 & e3[t2++], i2--;
-              1 < i2 ? a2[r2++] = 65533 : n2 < 65536 ? a2[r2++] = n2 : (n2 -= 65536, a2[r2++] = 55296 | n2 >> 10 & 1023, a2[r2++] = 56320 | 1023 & n2);
-            }
-            return a2.length !== r2 && (a2.subarray ? a2 = a2.subarray(0, r2) : a2.length = r2), o.applyFromCharCode(a2);
-          })(e2 = o.transformTo(h.uint8array ? "uint8array" : "array", e2));
-        }, o.inherits(a, n), a.prototype.processChunk = function(e2) {
-          var t2 = o.transformTo(h.uint8array ? "uint8array" : "array", e2.data);
-          if (this.leftOver && this.leftOver.length) {
-            if (h.uint8array) {
-              var r2 = t2;
-              (t2 = new Uint8Array(r2.length + this.leftOver.length)).set(this.leftOver, 0), t2.set(r2, this.leftOver.length);
-            } else t2 = this.leftOver.concat(t2);
-            this.leftOver = null;
-          }
-          var n2 = (function(e3, t3) {
-            var r3;
-            for ((t3 = t3 || e3.length) > e3.length && (t3 = e3.length), r3 = t3 - 1; 0 <= r3 && 128 == (192 & e3[r3]); ) r3--;
-            return r3 < 0 ? t3 : 0 === r3 ? t3 : r3 + u[e3[r3]] > t3 ? r3 : t3;
-          })(t2), i2 = t2;
-          n2 !== t2.length && (h.uint8array ? (i2 = t2.subarray(0, n2), this.leftOver = t2.subarray(n2, t2.length)) : (i2 = t2.slice(0, n2), this.leftOver = t2.slice(n2, t2.length))), this.push({ data: s.utf8decode(i2), meta: e2.meta });
-        }, a.prototype.flush = function() {
-          this.leftOver && this.leftOver.length && (this.push({ data: s.utf8decode(this.leftOver), meta: {} }), this.leftOver = null);
-        }, s.Utf8DecodeWorker = a, o.inherits(l, n), l.prototype.processChunk = function(e2) {
-          this.push({ data: s.utf8encode(e2.data), meta: e2.meta });
-        }, s.Utf8EncodeWorker = l;
-      }, { "./nodejsUtils": 14, "./stream/GenericWorker": 28, "./support": 30, "./utils": 32 }], 32: [function(e, t, a) {
-        "use strict";
-        var o = e("./support"), h = e("./base64"), r = e("./nodejsUtils"), u = e("./external");
-        function n(e2) {
-          return e2;
-        }
-        function l(e2, t2) {
-          for (var r2 = 0; r2 < e2.length; ++r2) t2[r2] = 255 & e2.charCodeAt(r2);
-          return t2;
-        }
-        e("setimmediate"), a.newBlob = function(t2, r2) {
-          a.checkSupport("blob");
-          try {
-            return new Blob([t2], { type: r2 });
-          } catch (e2) {
-            try {
-              var n2 = new (self.BlobBuilder || self.WebKitBlobBuilder || self.MozBlobBuilder || self.MSBlobBuilder)();
-              return n2.append(t2), n2.getBlob(r2);
-            } catch (e3) {
-              throw new Error("Bug : can't construct the Blob.");
-            }
-          }
-        };
-        var i = { stringifyByChunk: function(e2, t2, r2) {
-          var n2 = [], i2 = 0, s2 = e2.length;
-          if (s2 <= r2) return String.fromCharCode.apply(null, e2);
-          for (; i2 < s2; ) "array" === t2 || "nodebuffer" === t2 ? n2.push(String.fromCharCode.apply(null, e2.slice(i2, Math.min(i2 + r2, s2)))) : n2.push(String.fromCharCode.apply(null, e2.subarray(i2, Math.min(i2 + r2, s2)))), i2 += r2;
-          return n2.join("");
-        }, stringifyByChar: function(e2) {
-          for (var t2 = "", r2 = 0; r2 < e2.length; r2++) t2 += String.fromCharCode(e2[r2]);
-          return t2;
-        }, applyCanBeUsed: { uint8array: (function() {
-          try {
-            return o.uint8array && 1 === String.fromCharCode.apply(null, new Uint8Array(1)).length;
-          } catch (e2) {
-            return false;
-          }
-        })(), nodebuffer: (function() {
-          try {
-            return o.nodebuffer && 1 === String.fromCharCode.apply(null, r.allocBuffer(1)).length;
-          } catch (e2) {
-            return false;
-          }
-        })() } };
-        function s(e2) {
-          var t2 = 65536, r2 = a.getTypeOf(e2), n2 = true;
-          if ("uint8array" === r2 ? n2 = i.applyCanBeUsed.uint8array : "nodebuffer" === r2 && (n2 = i.applyCanBeUsed.nodebuffer), n2) for (; 1 < t2; ) try {
-            return i.stringifyByChunk(e2, r2, t2);
-          } catch (e3) {
-            t2 = Math.floor(t2 / 2);
-          }
-          return i.stringifyByChar(e2);
-        }
-        function f(e2, t2) {
-          for (var r2 = 0; r2 < e2.length; r2++) t2[r2] = e2[r2];
-          return t2;
-        }
-        a.applyFromCharCode = s;
-        var c = {};
-        c.string = { string: n, array: function(e2) {
-          return l(e2, new Array(e2.length));
-        }, arraybuffer: function(e2) {
-          return c.string.uint8array(e2).buffer;
-        }, uint8array: function(e2) {
-          return l(e2, new Uint8Array(e2.length));
-        }, nodebuffer: function(e2) {
-          return l(e2, r.allocBuffer(e2.length));
-        } }, c.array = { string: s, array: n, arraybuffer: function(e2) {
-          return new Uint8Array(e2).buffer;
-        }, uint8array: function(e2) {
-          return new Uint8Array(e2);
-        }, nodebuffer: function(e2) {
-          return r.newBufferFrom(e2);
-        } }, c.arraybuffer = { string: function(e2) {
-          return s(new Uint8Array(e2));
-        }, array: function(e2) {
-          return f(new Uint8Array(e2), new Array(e2.byteLength));
-        }, arraybuffer: n, uint8array: function(e2) {
-          return new Uint8Array(e2);
-        }, nodebuffer: function(e2) {
-          return r.newBufferFrom(new Uint8Array(e2));
-        } }, c.uint8array = { string: s, array: function(e2) {
-          return f(e2, new Array(e2.length));
-        }, arraybuffer: function(e2) {
-          return e2.buffer;
-        }, uint8array: n, nodebuffer: function(e2) {
-          return r.newBufferFrom(e2);
-        } }, c.nodebuffer = { string: s, array: function(e2) {
-          return f(e2, new Array(e2.length));
-        }, arraybuffer: function(e2) {
-          return c.nodebuffer.uint8array(e2).buffer;
-        }, uint8array: function(e2) {
-          return f(e2, new Uint8Array(e2.length));
-        }, nodebuffer: n }, a.transformTo = function(e2, t2) {
-          if (t2 = t2 || "", !e2) return t2;
-          a.checkSupport(e2);
-          var r2 = a.getTypeOf(t2);
-          return c[r2][e2](t2);
-        }, a.resolve = function(e2) {
-          for (var t2 = e2.split("/"), r2 = [], n2 = 0; n2 < t2.length; n2++) {
-            var i2 = t2[n2];
-            "." === i2 || "" === i2 && 0 !== n2 && n2 !== t2.length - 1 || (".." === i2 ? r2.pop() : r2.push(i2));
-          }
-          return r2.join("/");
-        }, a.getTypeOf = function(e2) {
-          return "string" == typeof e2 ? "string" : "[object Array]" === Object.prototype.toString.call(e2) ? "array" : o.nodebuffer && r.isBuffer(e2) ? "nodebuffer" : o.uint8array && e2 instanceof Uint8Array ? "uint8array" : o.arraybuffer && e2 instanceof ArrayBuffer ? "arraybuffer" : void 0;
-        }, a.checkSupport = function(e2) {
-          if (!o[e2.toLowerCase()]) throw new Error(e2 + " is not supported by this platform");
-        }, a.MAX_VALUE_16BITS = 65535, a.MAX_VALUE_32BITS = -1, a.pretty = function(e2) {
-          var t2, r2, n2 = "";
-          for (r2 = 0; r2 < (e2 || "").length; r2++) n2 += "\\x" + ((t2 = e2.charCodeAt(r2)) < 16 ? "0" : "") + t2.toString(16).toUpperCase();
-          return n2;
-        }, a.delay = function(e2, t2, r2) {
-          setImmediate(function() {
-            e2.apply(r2 || null, t2 || []);
-          });
-        }, a.inherits = function(e2, t2) {
-          function r2() {
-          }
-          r2.prototype = t2.prototype, e2.prototype = new r2();
-        }, a.extend = function() {
-          var e2, t2, r2 = {};
-          for (e2 = 0; e2 < arguments.length; e2++) for (t2 in arguments[e2]) Object.prototype.hasOwnProperty.call(arguments[e2], t2) && void 0 === r2[t2] && (r2[t2] = arguments[e2][t2]);
-          return r2;
-        }, a.prepareContent = function(r2, e2, n2, i2, s2) {
-          return u.Promise.resolve(e2).then(function(n3) {
-            return o.blob && (n3 instanceof Blob || -1 !== ["[object File]", "[object Blob]"].indexOf(Object.prototype.toString.call(n3))) && "undefined" != typeof FileReader ? new u.Promise(function(t2, r3) {
-              var e3 = new FileReader();
-              e3.onload = function(e4) {
-                t2(e4.target.result);
-              }, e3.onerror = function(e4) {
-                r3(e4.target.error);
-              }, e3.readAsArrayBuffer(n3);
-            }) : n3;
-          }).then(function(e3) {
-            var t2 = a.getTypeOf(e3);
-            return t2 ? ("arraybuffer" === t2 ? e3 = a.transformTo("uint8array", e3) : "string" === t2 && (s2 ? e3 = h.decode(e3) : n2 && true !== i2 && (e3 = (function(e4) {
-              return l(e4, o.uint8array ? new Uint8Array(e4.length) : new Array(e4.length));
-            })(e3))), e3) : u.Promise.reject(new Error("Can't read the data of '" + r2 + "'. Is it in a supported JavaScript type (String, Blob, ArrayBuffer, etc) ?"));
-          });
-        };
-      }, { "./base64": 1, "./external": 6, "./nodejsUtils": 14, "./support": 30, setimmediate: 54 }], 33: [function(e, t, r) {
-        "use strict";
-        var n = e("./reader/readerFor"), i = e("./utils"), s = e("./signature"), a = e("./zipEntry"), o = e("./support");
-        function h(e2) {
-          this.files = [], this.loadOptions = e2;
-        }
-        h.prototype = { checkSignature: function(e2) {
-          if (!this.reader.readAndCheckSignature(e2)) {
-            this.reader.index -= 4;
-            var t2 = this.reader.readString(4);
-            throw new Error("Corrupted zip or bug: unexpected signature (" + i.pretty(t2) + ", expected " + i.pretty(e2) + ")");
-          }
-        }, isSignature: function(e2, t2) {
-          var r2 = this.reader.index;
-          this.reader.setIndex(e2);
-          var n2 = this.reader.readString(4) === t2;
-          return this.reader.setIndex(r2), n2;
-        }, readBlockEndOfCentral: function() {
-          this.diskNumber = this.reader.readInt(2), this.diskWithCentralDirStart = this.reader.readInt(2), this.centralDirRecordsOnThisDisk = this.reader.readInt(2), this.centralDirRecords = this.reader.readInt(2), this.centralDirSize = this.reader.readInt(4), this.centralDirOffset = this.reader.readInt(4), this.zipCommentLength = this.reader.readInt(2);
-          var e2 = this.reader.readData(this.zipCommentLength), t2 = o.uint8array ? "uint8array" : "array", r2 = i.transformTo(t2, e2);
-          this.zipComment = this.loadOptions.decodeFileName(r2);
-        }, readBlockZip64EndOfCentral: function() {
-          this.zip64EndOfCentralSize = this.reader.readInt(8), this.reader.skip(4), this.diskNumber = this.reader.readInt(4), this.diskWithCentralDirStart = this.reader.readInt(4), this.centralDirRecordsOnThisDisk = this.reader.readInt(8), this.centralDirRecords = this.reader.readInt(8), this.centralDirSize = this.reader.readInt(8), this.centralDirOffset = this.reader.readInt(8), this.zip64ExtensibleData = {};
-          for (var e2, t2, r2, n2 = this.zip64EndOfCentralSize - 44; 0 < n2; ) e2 = this.reader.readInt(2), t2 = this.reader.readInt(4), r2 = this.reader.readData(t2), this.zip64ExtensibleData[e2] = { id: e2, length: t2, value: r2 };
-        }, readBlockZip64EndOfCentralLocator: function() {
-          if (this.diskWithZip64CentralDirStart = this.reader.readInt(4), this.relativeOffsetEndOfZip64CentralDir = this.reader.readInt(8), this.disksCount = this.reader.readInt(4), 1 < this.disksCount) throw new Error("Multi-volumes zip are not supported");
-        }, readLocalFiles: function() {
-          var e2, t2;
-          for (e2 = 0; e2 < this.files.length; e2++) t2 = this.files[e2], this.reader.setIndex(t2.localHeaderOffset), this.checkSignature(s.LOCAL_FILE_HEADER), t2.readLocalPart(this.reader), t2.handleUTF8(), t2.processAttributes();
-        }, readCentralDir: function() {
-          var e2;
-          for (this.reader.setIndex(this.centralDirOffset); this.reader.readAndCheckSignature(s.CENTRAL_FILE_HEADER); ) (e2 = new a({ zip64: this.zip64 }, this.loadOptions)).readCentralPart(this.reader), this.files.push(e2);
-          if (this.centralDirRecords !== this.files.length && 0 !== this.centralDirRecords && 0 === this.files.length) throw new Error("Corrupted zip or bug: expected " + this.centralDirRecords + " records in central dir, got " + this.files.length);
-        }, readEndOfCentral: function() {
-          var e2 = this.reader.lastIndexOfSignature(s.CENTRAL_DIRECTORY_END);
-          if (e2 < 0) throw !this.isSignature(0, s.LOCAL_FILE_HEADER) ? new Error("Can't find end of central directory : is this a zip file ? If it is, see https://stuk.github.io/jszip/documentation/howto/read_zip.html") : new Error("Corrupted zip: can't find end of central directory");
-          this.reader.setIndex(e2);
-          var t2 = e2;
-          if (this.checkSignature(s.CENTRAL_DIRECTORY_END), this.readBlockEndOfCentral(), this.diskNumber === i.MAX_VALUE_16BITS || this.diskWithCentralDirStart === i.MAX_VALUE_16BITS || this.centralDirRecordsOnThisDisk === i.MAX_VALUE_16BITS || this.centralDirRecords === i.MAX_VALUE_16BITS || this.centralDirSize === i.MAX_VALUE_32BITS || this.centralDirOffset === i.MAX_VALUE_32BITS) {
-            if (this.zip64 = true, (e2 = this.reader.lastIndexOfSignature(s.ZIP64_CENTRAL_DIRECTORY_LOCATOR)) < 0) throw new Error("Corrupted zip: can't find the ZIP64 end of central directory locator");
-            if (this.reader.setIndex(e2), this.checkSignature(s.ZIP64_CENTRAL_DIRECTORY_LOCATOR), this.readBlockZip64EndOfCentralLocator(), !this.isSignature(this.relativeOffsetEndOfZip64CentralDir, s.ZIP64_CENTRAL_DIRECTORY_END) && (this.relativeOffsetEndOfZip64CentralDir = this.reader.lastIndexOfSignature(s.ZIP64_CENTRAL_DIRECTORY_END), this.relativeOffsetEndOfZip64CentralDir < 0)) throw new Error("Corrupted zip: can't find the ZIP64 end of central directory");
-            this.reader.setIndex(this.relativeOffsetEndOfZip64CentralDir), this.checkSignature(s.ZIP64_CENTRAL_DIRECTORY_END), this.readBlockZip64EndOfCentral();
-          }
-          var r2 = this.centralDirOffset + this.centralDirSize;
-          this.zip64 && (r2 += 20, r2 += 12 + this.zip64EndOfCentralSize);
-          var n2 = t2 - r2;
-          if (0 < n2) this.isSignature(t2, s.CENTRAL_FILE_HEADER) || (this.reader.zero = n2);
-          else if (n2 < 0) throw new Error("Corrupted zip: missing " + Math.abs(n2) + " bytes.");
-        }, prepareReader: function(e2) {
-          this.reader = n(e2);
-        }, load: function(e2) {
-          this.prepareReader(e2), this.readEndOfCentral(), this.readCentralDir(), this.readLocalFiles();
-        } }, t.exports = h;
-      }, { "./reader/readerFor": 22, "./signature": 23, "./support": 30, "./utils": 32, "./zipEntry": 34 }], 34: [function(e, t, r) {
-        "use strict";
-        var n = e("./reader/readerFor"), s = e("./utils"), i = e("./compressedObject"), a = e("./crc32"), o = e("./utf8"), h = e("./compressions"), u = e("./support");
-        function l(e2, t2) {
-          this.options = e2, this.loadOptions = t2;
-        }
-        l.prototype = { isEncrypted: function() {
-          return 1 == (1 & this.bitFlag);
-        }, useUTF8: function() {
-          return 2048 == (2048 & this.bitFlag);
-        }, readLocalPart: function(e2) {
-          var t2, r2;
-          if (e2.skip(22), this.fileNameLength = e2.readInt(2), r2 = e2.readInt(2), this.fileName = e2.readData(this.fileNameLength), e2.skip(r2), -1 === this.compressedSize || -1 === this.uncompressedSize) throw new Error("Bug or corrupted zip : didn't get enough information from the central directory (compressedSize === -1 || uncompressedSize === -1)");
-          if (null === (t2 = (function(e3) {
-            for (var t3 in h) if (Object.prototype.hasOwnProperty.call(h, t3) && h[t3].magic === e3) return h[t3];
-            return null;
-          })(this.compressionMethod))) throw new Error("Corrupted zip : compression " + s.pretty(this.compressionMethod) + " unknown (inner file : " + s.transformTo("string", this.fileName) + ")");
-          this.decompressed = new i(this.compressedSize, this.uncompressedSize, this.crc32, t2, e2.readData(this.compressedSize));
-        }, readCentralPart: function(e2) {
-          this.versionMadeBy = e2.readInt(2), e2.skip(2), this.bitFlag = e2.readInt(2), this.compressionMethod = e2.readString(2), this.date = e2.readDate(), this.crc32 = e2.readInt(4), this.compressedSize = e2.readInt(4), this.uncompressedSize = e2.readInt(4);
-          var t2 = e2.readInt(2);
-          if (this.extraFieldsLength = e2.readInt(2), this.fileCommentLength = e2.readInt(2), this.diskNumberStart = e2.readInt(2), this.internalFileAttributes = e2.readInt(2), this.externalFileAttributes = e2.readInt(4), this.localHeaderOffset = e2.readInt(4), this.isEncrypted()) throw new Error("Encrypted zip are not supported");
-          e2.skip(t2), this.readExtraFields(e2), this.parseZIP64ExtraField(e2), this.fileComment = e2.readData(this.fileCommentLength);
-        }, processAttributes: function() {
-          this.unixPermissions = null, this.dosPermissions = null;
-          var e2 = this.versionMadeBy >> 8;
-          this.dir = !!(16 & this.externalFileAttributes), 0 == e2 && (this.dosPermissions = 63 & this.externalFileAttributes), 3 == e2 && (this.unixPermissions = this.externalFileAttributes >> 16 & 65535), this.dir || "/" !== this.fileNameStr.slice(-1) || (this.dir = true);
-        }, parseZIP64ExtraField: function() {
-          if (this.extraFields[1]) {
-            var e2 = n(this.extraFields[1].value);
-            this.uncompressedSize === s.MAX_VALUE_32BITS && (this.uncompressedSize = e2.readInt(8)), this.compressedSize === s.MAX_VALUE_32BITS && (this.compressedSize = e2.readInt(8)), this.localHeaderOffset === s.MAX_VALUE_32BITS && (this.localHeaderOffset = e2.readInt(8)), this.diskNumberStart === s.MAX_VALUE_32BITS && (this.diskNumberStart = e2.readInt(4));
-          }
-        }, readExtraFields: function(e2) {
-          var t2, r2, n2, i2 = e2.index + this.extraFieldsLength;
-          for (this.extraFields || (this.extraFields = {}); e2.index + 4 < i2; ) t2 = e2.readInt(2), r2 = e2.readInt(2), n2 = e2.readData(r2), this.extraFields[t2] = { id: t2, length: r2, value: n2 };
-          e2.setIndex(i2);
-        }, handleUTF8: function() {
-          var e2 = u.uint8array ? "uint8array" : "array";
-          if (this.useUTF8()) this.fileNameStr = o.utf8decode(this.fileName), this.fileCommentStr = o.utf8decode(this.fileComment);
-          else {
-            var t2 = this.findExtraFieldUnicodePath();
-            if (null !== t2) this.fileNameStr = t2;
-            else {
-              var r2 = s.transformTo(e2, this.fileName);
-              this.fileNameStr = this.loadOptions.decodeFileName(r2);
-            }
-            var n2 = this.findExtraFieldUnicodeComment();
-            if (null !== n2) this.fileCommentStr = n2;
-            else {
-              var i2 = s.transformTo(e2, this.fileComment);
-              this.fileCommentStr = this.loadOptions.decodeFileName(i2);
-            }
-          }
-        }, findExtraFieldUnicodePath: function() {
-          var e2 = this.extraFields[28789];
-          if (e2) {
-            var t2 = n(e2.value);
-            return 1 !== t2.readInt(1) ? null : a(this.fileName) !== t2.readInt(4) ? null : o.utf8decode(t2.readData(e2.length - 5));
-          }
-          return null;
-        }, findExtraFieldUnicodeComment: function() {
-          var e2 = this.extraFields[25461];
-          if (e2) {
-            var t2 = n(e2.value);
-            return 1 !== t2.readInt(1) ? null : a(this.fileComment) !== t2.readInt(4) ? null : o.utf8decode(t2.readData(e2.length - 5));
-          }
-          return null;
-        } }, t.exports = l;
-      }, { "./compressedObject": 2, "./compressions": 3, "./crc32": 4, "./reader/readerFor": 22, "./support": 30, "./utf8": 31, "./utils": 32 }], 35: [function(e, t, r) {
-        "use strict";
-        function n(e2, t2, r2) {
-          this.name = e2, this.dir = r2.dir, this.date = r2.date, this.comment = r2.comment, this.unixPermissions = r2.unixPermissions, this.dosPermissions = r2.dosPermissions, this._data = t2, this._dataBinary = r2.binary, this.options = { compression: r2.compression, compressionOptions: r2.compressionOptions };
-        }
-        var s = e("./stream/StreamHelper"), i = e("./stream/DataWorker"), a = e("./utf8"), o = e("./compressedObject"), h = e("./stream/GenericWorker");
-        n.prototype = { internalStream: function(e2) {
-          var t2 = null, r2 = "string";
-          try {
-            if (!e2) throw new Error("No output type specified.");
-            var n2 = "string" === (r2 = e2.toLowerCase()) || "text" === r2;
-            "binarystring" !== r2 && "text" !== r2 || (r2 = "string"), t2 = this._decompressWorker();
-            var i2 = !this._dataBinary;
-            i2 && !n2 && (t2 = t2.pipe(new a.Utf8EncodeWorker())), !i2 && n2 && (t2 = t2.pipe(new a.Utf8DecodeWorker()));
-          } catch (e3) {
-            (t2 = new h("error")).error(e3);
-          }
-          return new s(t2, r2, "");
-        }, async: function(e2, t2) {
-          return this.internalStream(e2).accumulate(t2);
-        }, nodeStream: function(e2, t2) {
-          return this.internalStream(e2 || "nodebuffer").toNodejsStream(t2);
-        }, _compressWorker: function(e2, t2) {
-          if (this._data instanceof o && this._data.compression.magic === e2.magic) return this._data.getCompressedWorker();
-          var r2 = this._decompressWorker();
-          return this._dataBinary || (r2 = r2.pipe(new a.Utf8EncodeWorker())), o.createWorkerFrom(r2, e2, t2);
-        }, _decompressWorker: function() {
-          return this._data instanceof o ? this._data.getContentWorker() : this._data instanceof h ? this._data : new i(this._data);
-        } };
-        for (var u = ["asText", "asBinary", "asNodeBuffer", "asUint8Array", "asArrayBuffer"], l = function() {
-          throw new Error("This method has been removed in JSZip 3.0, please check the upgrade guide.");
-        }, f = 0; f < u.length; f++) n.prototype[u[f]] = l;
-        t.exports = n;
-      }, { "./compressedObject": 2, "./stream/DataWorker": 27, "./stream/GenericWorker": 28, "./stream/StreamHelper": 29, "./utf8": 31 }], 36: [function(e, l, t) {
-        (function(t2) {
-          "use strict";
-          var r, n, e2 = t2.MutationObserver || t2.WebKitMutationObserver;
-          if (e2) {
-            var i = 0, s = new e2(u), a = t2.document.createTextNode("");
-            s.observe(a, { characterData: true }), r = function() {
-              a.data = i = ++i % 2;
-            };
-          } else if (t2.setImmediate || void 0 === t2.MessageChannel) r = "document" in t2 && "onreadystatechange" in t2.document.createElement("script") ? function() {
-            var e3 = t2.document.createElement("script");
-            e3.onreadystatechange = function() {
-              u(), e3.onreadystatechange = null, e3.parentNode.removeChild(e3), e3 = null;
-            }, t2.document.documentElement.appendChild(e3);
-          } : function() {
-            setTimeout(u, 0);
-          };
-          else {
-            var o = new t2.MessageChannel();
-            o.port1.onmessage = u, r = function() {
-              o.port2.postMessage(0);
-            };
-          }
-          var h = [];
-          function u() {
-            var e3, t3;
-            n = true;
-            for (var r2 = h.length; r2; ) {
-              for (t3 = h, h = [], e3 = -1; ++e3 < r2; ) t3[e3]();
-              r2 = h.length;
-            }
-            n = false;
-          }
-          l.exports = function(e3) {
-            1 !== h.push(e3) || n || r();
-          };
-        }).call(this, "undefined" != typeof global ? global : "undefined" != typeof self ? self : "undefined" != typeof window ? window : {});
-      }, {}], 37: [function(e, t, r) {
-        "use strict";
-        var i = e("immediate");
-        function u() {
-        }
-        var l = {}, s = ["REJECTED"], a = ["FULFILLED"], n = ["PENDING"];
-        function o(e2) {
-          if ("function" != typeof e2) throw new TypeError("resolver must be a function");
-          this.state = n, this.queue = [], this.outcome = void 0, e2 !== u && d(this, e2);
-        }
-        function h(e2, t2, r2) {
-          this.promise = e2, "function" == typeof t2 && (this.onFulfilled = t2, this.callFulfilled = this.otherCallFulfilled), "function" == typeof r2 && (this.onRejected = r2, this.callRejected = this.otherCallRejected);
-        }
-        function f(t2, r2, n2) {
-          i(function() {
-            var e2;
-            try {
-              e2 = r2(n2);
-            } catch (e3) {
-              return l.reject(t2, e3);
-            }
-            e2 === t2 ? l.reject(t2, new TypeError("Cannot resolve promise with itself")) : l.resolve(t2, e2);
-          });
-        }
-        function c(e2) {
-          var t2 = e2 && e2.then;
-          if (e2 && ("object" == typeof e2 || "function" == typeof e2) && "function" == typeof t2) return function() {
-            t2.apply(e2, arguments);
-          };
-        }
-        function d(t2, e2) {
-          var r2 = false;
-          function n2(e3) {
-            r2 || (r2 = true, l.reject(t2, e3));
-          }
-          function i2(e3) {
-            r2 || (r2 = true, l.resolve(t2, e3));
-          }
-          var s2 = p(function() {
-            e2(i2, n2);
-          });
-          "error" === s2.status && n2(s2.value);
-        }
-        function p(e2, t2) {
-          var r2 = {};
-          try {
-            r2.value = e2(t2), r2.status = "success";
-          } catch (e3) {
-            r2.status = "error", r2.value = e3;
-          }
-          return r2;
-        }
-        (t.exports = o).prototype.finally = function(t2) {
-          if ("function" != typeof t2) return this;
-          var r2 = this.constructor;
-          return this.then(function(e2) {
-            return r2.resolve(t2()).then(function() {
-              return e2;
-            });
-          }, function(e2) {
-            return r2.resolve(t2()).then(function() {
-              throw e2;
-            });
-          });
-        }, o.prototype.catch = function(e2) {
-          return this.then(null, e2);
-        }, o.prototype.then = function(e2, t2) {
-          if ("function" != typeof e2 && this.state === a || "function" != typeof t2 && this.state === s) return this;
-          var r2 = new this.constructor(u);
-          this.state !== n ? f(r2, this.state === a ? e2 : t2, this.outcome) : this.queue.push(new h(r2, e2, t2));
-          return r2;
-        }, h.prototype.callFulfilled = function(e2) {
-          l.resolve(this.promise, e2);
-        }, h.prototype.otherCallFulfilled = function(e2) {
-          f(this.promise, this.onFulfilled, e2);
-        }, h.prototype.callRejected = function(e2) {
-          l.reject(this.promise, e2);
-        }, h.prototype.otherCallRejected = function(e2) {
-          f(this.promise, this.onRejected, e2);
-        }, l.resolve = function(e2, t2) {
-          var r2 = p(c, t2);
-          if ("error" === r2.status) return l.reject(e2, r2.value);
-          var n2 = r2.value;
-          if (n2) d(e2, n2);
-          else {
-            e2.state = a, e2.outcome = t2;
-            for (var i2 = -1, s2 = e2.queue.length; ++i2 < s2; ) e2.queue[i2].callFulfilled(t2);
-          }
-          return e2;
-        }, l.reject = function(e2, t2) {
-          e2.state = s, e2.outcome = t2;
-          for (var r2 = -1, n2 = e2.queue.length; ++r2 < n2; ) e2.queue[r2].callRejected(t2);
-          return e2;
-        }, o.resolve = function(e2) {
-          if (e2 instanceof this) return e2;
-          return l.resolve(new this(u), e2);
-        }, o.reject = function(e2) {
-          var t2 = new this(u);
-          return l.reject(t2, e2);
-        }, o.all = function(e2) {
-          var r2 = this;
-          if ("[object Array]" !== Object.prototype.toString.call(e2)) return this.reject(new TypeError("must be an array"));
-          var n2 = e2.length, i2 = false;
-          if (!n2) return this.resolve([]);
-          var s2 = new Array(n2), a2 = 0, t2 = -1, o2 = new this(u);
-          for (; ++t2 < n2; ) h2(e2[t2], t2);
-          return o2;
-          function h2(e3, t3) {
-            r2.resolve(e3).then(function(e4) {
-              s2[t3] = e4, ++a2 !== n2 || i2 || (i2 = true, l.resolve(o2, s2));
-            }, function(e4) {
-              i2 || (i2 = true, l.reject(o2, e4));
-            });
-          }
-        }, o.race = function(e2) {
-          var t2 = this;
-          if ("[object Array]" !== Object.prototype.toString.call(e2)) return this.reject(new TypeError("must be an array"));
-          var r2 = e2.length, n2 = false;
-          if (!r2) return this.resolve([]);
-          var i2 = -1, s2 = new this(u);
-          for (; ++i2 < r2; ) a2 = e2[i2], t2.resolve(a2).then(function(e3) {
-            n2 || (n2 = true, l.resolve(s2, e3));
-          }, function(e3) {
-            n2 || (n2 = true, l.reject(s2, e3));
-          });
-          var a2;
-          return s2;
-        };
-      }, { immediate: 36 }], 38: [function(e, t, r) {
-        "use strict";
-        var n = {};
-        (0, e("./lib/utils/common").assign)(n, e("./lib/deflate"), e("./lib/inflate"), e("./lib/zlib/constants")), t.exports = n;
-      }, { "./lib/deflate": 39, "./lib/inflate": 40, "./lib/utils/common": 41, "./lib/zlib/constants": 44 }], 39: [function(e, t, r) {
-        "use strict";
-        var a = e("./zlib/deflate"), o = e("./utils/common"), h = e("./utils/strings"), i = e("./zlib/messages"), s = e("./zlib/zstream"), u = Object.prototype.toString, l = 0, f = -1, c = 0, d = 8;
-        function p(e2) {
-          if (!(this instanceof p)) return new p(e2);
-          this.options = o.assign({ level: f, method: d, chunkSize: 16384, windowBits: 15, memLevel: 8, strategy: c, to: "" }, e2 || {});
-          var t2 = this.options;
-          t2.raw && 0 < t2.windowBits ? t2.windowBits = -t2.windowBits : t2.gzip && 0 < t2.windowBits && t2.windowBits < 16 && (t2.windowBits += 16), this.err = 0, this.msg = "", this.ended = false, this.chunks = [], this.strm = new s(), this.strm.avail_out = 0;
-          var r2 = a.deflateInit2(this.strm, t2.level, t2.method, t2.windowBits, t2.memLevel, t2.strategy);
-          if (r2 !== l) throw new Error(i[r2]);
-          if (t2.header && a.deflateSetHeader(this.strm, t2.header), t2.dictionary) {
-            var n2;
-            if (n2 = "string" == typeof t2.dictionary ? h.string2buf(t2.dictionary) : "[object ArrayBuffer]" === u.call(t2.dictionary) ? new Uint8Array(t2.dictionary) : t2.dictionary, (r2 = a.deflateSetDictionary(this.strm, n2)) !== l) throw new Error(i[r2]);
-            this._dict_set = true;
-          }
-        }
-        function n(e2, t2) {
-          var r2 = new p(t2);
-          if (r2.push(e2, true), r2.err) throw r2.msg || i[r2.err];
-          return r2.result;
-        }
-        p.prototype.push = function(e2, t2) {
-          var r2, n2, i2 = this.strm, s2 = this.options.chunkSize;
-          if (this.ended) return false;
-          n2 = t2 === ~~t2 ? t2 : true === t2 ? 4 : 0, "string" == typeof e2 ? i2.input = h.string2buf(e2) : "[object ArrayBuffer]" === u.call(e2) ? i2.input = new Uint8Array(e2) : i2.input = e2, i2.next_in = 0, i2.avail_in = i2.input.length;
-          do {
-            if (0 === i2.avail_out && (i2.output = new o.Buf8(s2), i2.next_out = 0, i2.avail_out = s2), 1 !== (r2 = a.deflate(i2, n2)) && r2 !== l) return this.onEnd(r2), !(this.ended = true);
-            0 !== i2.avail_out && (0 !== i2.avail_in || 4 !== n2 && 2 !== n2) || ("string" === this.options.to ? this.onData(h.buf2binstring(o.shrinkBuf(i2.output, i2.next_out))) : this.onData(o.shrinkBuf(i2.output, i2.next_out)));
-          } while ((0 < i2.avail_in || 0 === i2.avail_out) && 1 !== r2);
-          return 4 === n2 ? (r2 = a.deflateEnd(this.strm), this.onEnd(r2), this.ended = true, r2 === l) : 2 !== n2 || (this.onEnd(l), !(i2.avail_out = 0));
-        }, p.prototype.onData = function(e2) {
-          this.chunks.push(e2);
-        }, p.prototype.onEnd = function(e2) {
-          e2 === l && ("string" === this.options.to ? this.result = this.chunks.join("") : this.result = o.flattenChunks(this.chunks)), this.chunks = [], this.err = e2, this.msg = this.strm.msg;
-        }, r.Deflate = p, r.deflate = n, r.deflateRaw = function(e2, t2) {
-          return (t2 = t2 || {}).raw = true, n(e2, t2);
-        }, r.gzip = function(e2, t2) {
-          return (t2 = t2 || {}).gzip = true, n(e2, t2);
-        };
-      }, { "./utils/common": 41, "./utils/strings": 42, "./zlib/deflate": 46, "./zlib/messages": 51, "./zlib/zstream": 53 }], 40: [function(e, t, r) {
-        "use strict";
-        var c = e("./zlib/inflate"), d = e("./utils/common"), p = e("./utils/strings"), m = e("./zlib/constants"), n = e("./zlib/messages"), i = e("./zlib/zstream"), s = e("./zlib/gzheader"), _ = Object.prototype.toString;
-        function a(e2) {
-          if (!(this instanceof a)) return new a(e2);
-          this.options = d.assign({ chunkSize: 16384, windowBits: 0, to: "" }, e2 || {});
-          var t2 = this.options;
-          t2.raw && 0 <= t2.windowBits && t2.windowBits < 16 && (t2.windowBits = -t2.windowBits, 0 === t2.windowBits && (t2.windowBits = -15)), !(0 <= t2.windowBits && t2.windowBits < 16) || e2 && e2.windowBits || (t2.windowBits += 32), 15 < t2.windowBits && t2.windowBits < 48 && 0 == (15 & t2.windowBits) && (t2.windowBits |= 15), this.err = 0, this.msg = "", this.ended = false, this.chunks = [], this.strm = new i(), this.strm.avail_out = 0;
-          var r2 = c.inflateInit2(this.strm, t2.windowBits);
-          if (r2 !== m.Z_OK) throw new Error(n[r2]);
-          this.header = new s(), c.inflateGetHeader(this.strm, this.header);
-        }
-        function o(e2, t2) {
-          var r2 = new a(t2);
-          if (r2.push(e2, true), r2.err) throw r2.msg || n[r2.err];
-          return r2.result;
-        }
-        a.prototype.push = function(e2, t2) {
-          var r2, n2, i2, s2, a2, o2, h = this.strm, u = this.options.chunkSize, l = this.options.dictionary, f = false;
-          if (this.ended) return false;
-          n2 = t2 === ~~t2 ? t2 : true === t2 ? m.Z_FINISH : m.Z_NO_FLUSH, "string" == typeof e2 ? h.input = p.binstring2buf(e2) : "[object ArrayBuffer]" === _.call(e2) ? h.input = new Uint8Array(e2) : h.input = e2, h.next_in = 0, h.avail_in = h.input.length;
-          do {
-            if (0 === h.avail_out && (h.output = new d.Buf8(u), h.next_out = 0, h.avail_out = u), (r2 = c.inflate(h, m.Z_NO_FLUSH)) === m.Z_NEED_DICT && l && (o2 = "string" == typeof l ? p.string2buf(l) : "[object ArrayBuffer]" === _.call(l) ? new Uint8Array(l) : l, r2 = c.inflateSetDictionary(this.strm, o2)), r2 === m.Z_BUF_ERROR && true === f && (r2 = m.Z_OK, f = false), r2 !== m.Z_STREAM_END && r2 !== m.Z_OK) return this.onEnd(r2), !(this.ended = true);
-            h.next_out && (0 !== h.avail_out && r2 !== m.Z_STREAM_END && (0 !== h.avail_in || n2 !== m.Z_FINISH && n2 !== m.Z_SYNC_FLUSH) || ("string" === this.options.to ? (i2 = p.utf8border(h.output, h.next_out), s2 = h.next_out - i2, a2 = p.buf2string(h.output, i2), h.next_out = s2, h.avail_out = u - s2, s2 && d.arraySet(h.output, h.output, i2, s2, 0), this.onData(a2)) : this.onData(d.shrinkBuf(h.output, h.next_out)))), 0 === h.avail_in && 0 === h.avail_out && (f = true);
-          } while ((0 < h.avail_in || 0 === h.avail_out) && r2 !== m.Z_STREAM_END);
-          return r2 === m.Z_STREAM_END && (n2 = m.Z_FINISH), n2 === m.Z_FINISH ? (r2 = c.inflateEnd(this.strm), this.onEnd(r2), this.ended = true, r2 === m.Z_OK) : n2 !== m.Z_SYNC_FLUSH || (this.onEnd(m.Z_OK), !(h.avail_out = 0));
-        }, a.prototype.onData = function(e2) {
-          this.chunks.push(e2);
-        }, a.prototype.onEnd = function(e2) {
-          e2 === m.Z_OK && ("string" === this.options.to ? this.result = this.chunks.join("") : this.result = d.flattenChunks(this.chunks)), this.chunks = [], this.err = e2, this.msg = this.strm.msg;
-        }, r.Inflate = a, r.inflate = o, r.inflateRaw = function(e2, t2) {
-          return (t2 = t2 || {}).raw = true, o(e2, t2);
-        }, r.ungzip = o;
-      }, { "./utils/common": 41, "./utils/strings": 42, "./zlib/constants": 44, "./zlib/gzheader": 47, "./zlib/inflate": 49, "./zlib/messages": 51, "./zlib/zstream": 53 }], 41: [function(e, t, r) {
-        "use strict";
-        var n = "undefined" != typeof Uint8Array && "undefined" != typeof Uint16Array && "undefined" != typeof Int32Array;
-        r.assign = function(e2) {
-          for (var t2 = Array.prototype.slice.call(arguments, 1); t2.length; ) {
-            var r2 = t2.shift();
-            if (r2) {
-              if ("object" != typeof r2) throw new TypeError(r2 + "must be non-object");
-              for (var n2 in r2) r2.hasOwnProperty(n2) && (e2[n2] = r2[n2]);
-            }
-          }
-          return e2;
-        }, r.shrinkBuf = function(e2, t2) {
-          return e2.length === t2 ? e2 : e2.subarray ? e2.subarray(0, t2) : (e2.length = t2, e2);
-        };
-        var i = { arraySet: function(e2, t2, r2, n2, i2) {
-          if (t2.subarray && e2.subarray) e2.set(t2.subarray(r2, r2 + n2), i2);
-          else for (var s2 = 0; s2 < n2; s2++) e2[i2 + s2] = t2[r2 + s2];
-        }, flattenChunks: function(e2) {
-          var t2, r2, n2, i2, s2, a;
-          for (t2 = n2 = 0, r2 = e2.length; t2 < r2; t2++) n2 += e2[t2].length;
-          for (a = new Uint8Array(n2), t2 = i2 = 0, r2 = e2.length; t2 < r2; t2++) s2 = e2[t2], a.set(s2, i2), i2 += s2.length;
-          return a;
-        } }, s = { arraySet: function(e2, t2, r2, n2, i2) {
-          for (var s2 = 0; s2 < n2; s2++) e2[i2 + s2] = t2[r2 + s2];
-        }, flattenChunks: function(e2) {
-          return [].concat.apply([], e2);
-        } };
-        r.setTyped = function(e2) {
-          e2 ? (r.Buf8 = Uint8Array, r.Buf16 = Uint16Array, r.Buf32 = Int32Array, r.assign(r, i)) : (r.Buf8 = Array, r.Buf16 = Array, r.Buf32 = Array, r.assign(r, s));
-        }, r.setTyped(n);
-      }, {}], 42: [function(e, t, r) {
-        "use strict";
-        var h = e("./common"), i = true, s = true;
-        try {
-          String.fromCharCode.apply(null, [0]);
-        } catch (e2) {
-          i = false;
-        }
-        try {
-          String.fromCharCode.apply(null, new Uint8Array(1));
-        } catch (e2) {
-          s = false;
-        }
-        for (var u = new h.Buf8(256), n = 0; n < 256; n++) u[n] = 252 <= n ? 6 : 248 <= n ? 5 : 240 <= n ? 4 : 224 <= n ? 3 : 192 <= n ? 2 : 1;
-        function l(e2, t2) {
-          if (t2 < 65537 && (e2.subarray && s || !e2.subarray && i)) return String.fromCharCode.apply(null, h.shrinkBuf(e2, t2));
-          for (var r2 = "", n2 = 0; n2 < t2; n2++) r2 += String.fromCharCode(e2[n2]);
-          return r2;
-        }
-        u[254] = u[254] = 1, r.string2buf = function(e2) {
-          var t2, r2, n2, i2, s2, a = e2.length, o = 0;
-          for (i2 = 0; i2 < a; i2++) 55296 == (64512 & (r2 = e2.charCodeAt(i2))) && i2 + 1 < a && 56320 == (64512 & (n2 = e2.charCodeAt(i2 + 1))) && (r2 = 65536 + (r2 - 55296 << 10) + (n2 - 56320), i2++), o += r2 < 128 ? 1 : r2 < 2048 ? 2 : r2 < 65536 ? 3 : 4;
-          for (t2 = new h.Buf8(o), i2 = s2 = 0; s2 < o; i2++) 55296 == (64512 & (r2 = e2.charCodeAt(i2))) && i2 + 1 < a && 56320 == (64512 & (n2 = e2.charCodeAt(i2 + 1))) && (r2 = 65536 + (r2 - 55296 << 10) + (n2 - 56320), i2++), r2 < 128 ? t2[s2++] = r2 : (r2 < 2048 ? t2[s2++] = 192 | r2 >>> 6 : (r2 < 65536 ? t2[s2++] = 224 | r2 >>> 12 : (t2[s2++] = 240 | r2 >>> 18, t2[s2++] = 128 | r2 >>> 12 & 63), t2[s2++] = 128 | r2 >>> 6 & 63), t2[s2++] = 128 | 63 & r2);
-          return t2;
-        }, r.buf2binstring = function(e2) {
-          return l(e2, e2.length);
-        }, r.binstring2buf = function(e2) {
-          for (var t2 = new h.Buf8(e2.length), r2 = 0, n2 = t2.length; r2 < n2; r2++) t2[r2] = e2.charCodeAt(r2);
-          return t2;
-        }, r.buf2string = function(e2, t2) {
-          var r2, n2, i2, s2, a = t2 || e2.length, o = new Array(2 * a);
-          for (r2 = n2 = 0; r2 < a; ) if ((i2 = e2[r2++]) < 128) o[n2++] = i2;
-          else if (4 < (s2 = u[i2])) o[n2++] = 65533, r2 += s2 - 1;
-          else {
-            for (i2 &= 2 === s2 ? 31 : 3 === s2 ? 15 : 7; 1 < s2 && r2 < a; ) i2 = i2 << 6 | 63 & e2[r2++], s2--;
-            1 < s2 ? o[n2++] = 65533 : i2 < 65536 ? o[n2++] = i2 : (i2 -= 65536, o[n2++] = 55296 | i2 >> 10 & 1023, o[n2++] = 56320 | 1023 & i2);
-          }
-          return l(o, n2);
-        }, r.utf8border = function(e2, t2) {
-          var r2;
-          for ((t2 = t2 || e2.length) > e2.length && (t2 = e2.length), r2 = t2 - 1; 0 <= r2 && 128 == (192 & e2[r2]); ) r2--;
-          return r2 < 0 ? t2 : 0 === r2 ? t2 : r2 + u[e2[r2]] > t2 ? r2 : t2;
-        };
-      }, { "./common": 41 }], 43: [function(e, t, r) {
-        "use strict";
-        t.exports = function(e2, t2, r2, n) {
-          for (var i = 65535 & e2 | 0, s = e2 >>> 16 & 65535 | 0, a = 0; 0 !== r2; ) {
-            for (r2 -= a = 2e3 < r2 ? 2e3 : r2; s = s + (i = i + t2[n++] | 0) | 0, --a; ) ;
-            i %= 65521, s %= 65521;
-          }
-          return i | s << 16 | 0;
-        };
-      }, {}], 44: [function(e, t, r) {
-        "use strict";
-        t.exports = { Z_NO_FLUSH: 0, Z_PARTIAL_FLUSH: 1, Z_SYNC_FLUSH: 2, Z_FULL_FLUSH: 3, Z_FINISH: 4, Z_BLOCK: 5, Z_TREES: 6, Z_OK: 0, Z_STREAM_END: 1, Z_NEED_DICT: 2, Z_ERRNO: -1, Z_STREAM_ERROR: -2, Z_DATA_ERROR: -3, Z_BUF_ERROR: -5, Z_NO_COMPRESSION: 0, Z_BEST_SPEED: 1, Z_BEST_COMPRESSION: 9, Z_DEFAULT_COMPRESSION: -1, Z_FILTERED: 1, Z_HUFFMAN_ONLY: 2, Z_RLE: 3, Z_FIXED: 4, Z_DEFAULT_STRATEGY: 0, Z_BINARY: 0, Z_TEXT: 1, Z_UNKNOWN: 2, Z_DEFLATED: 8 };
-      }, {}], 45: [function(e, t, r) {
-        "use strict";
-        var o = (function() {
-          for (var e2, t2 = [], r2 = 0; r2 < 256; r2++) {
-            e2 = r2;
-            for (var n = 0; n < 8; n++) e2 = 1 & e2 ? 3988292384 ^ e2 >>> 1 : e2 >>> 1;
-            t2[r2] = e2;
-          }
-          return t2;
-        })();
-        t.exports = function(e2, t2, r2, n) {
-          var i = o, s = n + r2;
-          e2 ^= -1;
-          for (var a = n; a < s; a++) e2 = e2 >>> 8 ^ i[255 & (e2 ^ t2[a])];
-          return -1 ^ e2;
-        };
-      }, {}], 46: [function(e, t, r) {
-        "use strict";
-        var h, c = e("../utils/common"), u = e("./trees"), d = e("./adler32"), p = e("./crc32"), n = e("./messages"), l = 0, f = 4, m = 0, _ = -2, g = -1, b = 4, i = 2, v = 8, y = 9, s = 286, a = 30, o = 19, w = 2 * s + 1, k = 15, x = 3, S = 258, z = S + x + 1, C = 42, E = 113, A = 1, I = 2, O = 3, B = 4;
-        function R(e2, t2) {
-          return e2.msg = n[t2], t2;
-        }
-        function T(e2) {
-          return (e2 << 1) - (4 < e2 ? 9 : 0);
-        }
-        function D(e2) {
-          for (var t2 = e2.length; 0 <= --t2; ) e2[t2] = 0;
-        }
-        function F(e2) {
-          var t2 = e2.state, r2 = t2.pending;
-          r2 > e2.avail_out && (r2 = e2.avail_out), 0 !== r2 && (c.arraySet(e2.output, t2.pending_buf, t2.pending_out, r2, e2.next_out), e2.next_out += r2, t2.pending_out += r2, e2.total_out += r2, e2.avail_out -= r2, t2.pending -= r2, 0 === t2.pending && (t2.pending_out = 0));
-        }
-        function N(e2, t2) {
-          u._tr_flush_block(e2, 0 <= e2.block_start ? e2.block_start : -1, e2.strstart - e2.block_start, t2), e2.block_start = e2.strstart, F(e2.strm);
-        }
-        function U(e2, t2) {
-          e2.pending_buf[e2.pending++] = t2;
-        }
-        function P(e2, t2) {
-          e2.pending_buf[e2.pending++] = t2 >>> 8 & 255, e2.pending_buf[e2.pending++] = 255 & t2;
-        }
-        function L(e2, t2) {
-          var r2, n2, i2 = e2.max_chain_length, s2 = e2.strstart, a2 = e2.prev_length, o2 = e2.nice_match, h2 = e2.strstart > e2.w_size - z ? e2.strstart - (e2.w_size - z) : 0, u2 = e2.window, l2 = e2.w_mask, f2 = e2.prev, c2 = e2.strstart + S, d2 = u2[s2 + a2 - 1], p2 = u2[s2 + a2];
-          e2.prev_length >= e2.good_match && (i2 >>= 2), o2 > e2.lookahead && (o2 = e2.lookahead);
-          do {
-            if (u2[(r2 = t2) + a2] === p2 && u2[r2 + a2 - 1] === d2 && u2[r2] === u2[s2] && u2[++r2] === u2[s2 + 1]) {
-              s2 += 2, r2++;
-              do {
-              } while (u2[++s2] === u2[++r2] && u2[++s2] === u2[++r2] && u2[++s2] === u2[++r2] && u2[++s2] === u2[++r2] && u2[++s2] === u2[++r2] && u2[++s2] === u2[++r2] && u2[++s2] === u2[++r2] && u2[++s2] === u2[++r2] && s2 < c2);
-              if (n2 = S - (c2 - s2), s2 = c2 - S, a2 < n2) {
-                if (e2.match_start = t2, o2 <= (a2 = n2)) break;
-                d2 = u2[s2 + a2 - 1], p2 = u2[s2 + a2];
-              }
-            }
-          } while ((t2 = f2[t2 & l2]) > h2 && 0 != --i2);
-          return a2 <= e2.lookahead ? a2 : e2.lookahead;
-        }
-        function j(e2) {
-          var t2, r2, n2, i2, s2, a2, o2, h2, u2, l2, f2 = e2.w_size;
-          do {
-            if (i2 = e2.window_size - e2.lookahead - e2.strstart, e2.strstart >= f2 + (f2 - z)) {
-              for (c.arraySet(e2.window, e2.window, f2, f2, 0), e2.match_start -= f2, e2.strstart -= f2, e2.block_start -= f2, t2 = r2 = e2.hash_size; n2 = e2.head[--t2], e2.head[t2] = f2 <= n2 ? n2 - f2 : 0, --r2; ) ;
-              for (t2 = r2 = f2; n2 = e2.prev[--t2], e2.prev[t2] = f2 <= n2 ? n2 - f2 : 0, --r2; ) ;
-              i2 += f2;
-            }
-            if (0 === e2.strm.avail_in) break;
-            if (a2 = e2.strm, o2 = e2.window, h2 = e2.strstart + e2.lookahead, u2 = i2, l2 = void 0, l2 = a2.avail_in, u2 < l2 && (l2 = u2), r2 = 0 === l2 ? 0 : (a2.avail_in -= l2, c.arraySet(o2, a2.input, a2.next_in, l2, h2), 1 === a2.state.wrap ? a2.adler = d(a2.adler, o2, l2, h2) : 2 === a2.state.wrap && (a2.adler = p(a2.adler, o2, l2, h2)), a2.next_in += l2, a2.total_in += l2, l2), e2.lookahead += r2, e2.lookahead + e2.insert >= x) for (s2 = e2.strstart - e2.insert, e2.ins_h = e2.window[s2], e2.ins_h = (e2.ins_h << e2.hash_shift ^ e2.window[s2 + 1]) & e2.hash_mask; e2.insert && (e2.ins_h = (e2.ins_h << e2.hash_shift ^ e2.window[s2 + x - 1]) & e2.hash_mask, e2.prev[s2 & e2.w_mask] = e2.head[e2.ins_h], e2.head[e2.ins_h] = s2, s2++, e2.insert--, !(e2.lookahead + e2.insert < x)); ) ;
-          } while (e2.lookahead < z && 0 !== e2.strm.avail_in);
-        }
-        function Z(e2, t2) {
-          for (var r2, n2; ; ) {
-            if (e2.lookahead < z) {
-              if (j(e2), e2.lookahead < z && t2 === l) return A;
-              if (0 === e2.lookahead) break;
-            }
-            if (r2 = 0, e2.lookahead >= x && (e2.ins_h = (e2.ins_h << e2.hash_shift ^ e2.window[e2.strstart + x - 1]) & e2.hash_mask, r2 = e2.prev[e2.strstart & e2.w_mask] = e2.head[e2.ins_h], e2.head[e2.ins_h] = e2.strstart), 0 !== r2 && e2.strstart - r2 <= e2.w_size - z && (e2.match_length = L(e2, r2)), e2.match_length >= x) if (n2 = u._tr_tally(e2, e2.strstart - e2.match_start, e2.match_length - x), e2.lookahead -= e2.match_length, e2.match_length <= e2.max_lazy_match && e2.lookahead >= x) {
-              for (e2.match_length--; e2.strstart++, e2.ins_h = (e2.ins_h << e2.hash_shift ^ e2.window[e2.strstart + x - 1]) & e2.hash_mask, r2 = e2.prev[e2.strstart & e2.w_mask] = e2.head[e2.ins_h], e2.head[e2.ins_h] = e2.strstart, 0 != --e2.match_length; ) ;
-              e2.strstart++;
-            } else e2.strstart += e2.match_length, e2.match_length = 0, e2.ins_h = e2.window[e2.strstart], e2.ins_h = (e2.ins_h << e2.hash_shift ^ e2.window[e2.strstart + 1]) & e2.hash_mask;
-            else n2 = u._tr_tally(e2, 0, e2.window[e2.strstart]), e2.lookahead--, e2.strstart++;
-            if (n2 && (N(e2, false), 0 === e2.strm.avail_out)) return A;
-          }
-          return e2.insert = e2.strstart < x - 1 ? e2.strstart : x - 1, t2 === f ? (N(e2, true), 0 === e2.strm.avail_out ? O : B) : e2.last_lit && (N(e2, false), 0 === e2.strm.avail_out) ? A : I;
-        }
-        function W(e2, t2) {
-          for (var r2, n2, i2; ; ) {
-            if (e2.lookahead < z) {
-              if (j(e2), e2.lookahead < z && t2 === l) return A;
-              if (0 === e2.lookahead) break;
-            }
-            if (r2 = 0, e2.lookahead >= x && (e2.ins_h = (e2.ins_h << e2.hash_shift ^ e2.window[e2.strstart + x - 1]) & e2.hash_mask, r2 = e2.prev[e2.strstart & e2.w_mask] = e2.head[e2.ins_h], e2.head[e2.ins_h] = e2.strstart), e2.prev_length = e2.match_length, e2.prev_match = e2.match_start, e2.match_length = x - 1, 0 !== r2 && e2.prev_length < e2.max_lazy_match && e2.strstart - r2 <= e2.w_size - z && (e2.match_length = L(e2, r2), e2.match_length <= 5 && (1 === e2.strategy || e2.match_length === x && 4096 < e2.strstart - e2.match_start) && (e2.match_length = x - 1)), e2.prev_length >= x && e2.match_length <= e2.prev_length) {
-              for (i2 = e2.strstart + e2.lookahead - x, n2 = u._tr_tally(e2, e2.strstart - 1 - e2.prev_match, e2.prev_length - x), e2.lookahead -= e2.prev_length - 1, e2.prev_length -= 2; ++e2.strstart <= i2 && (e2.ins_h = (e2.ins_h << e2.hash_shift ^ e2.window[e2.strstart + x - 1]) & e2.hash_mask, r2 = e2.prev[e2.strstart & e2.w_mask] = e2.head[e2.ins_h], e2.head[e2.ins_h] = e2.strstart), 0 != --e2.prev_length; ) ;
-              if (e2.match_available = 0, e2.match_length = x - 1, e2.strstart++, n2 && (N(e2, false), 0 === e2.strm.avail_out)) return A;
-            } else if (e2.match_available) {
-              if ((n2 = u._tr_tally(e2, 0, e2.window[e2.strstart - 1])) && N(e2, false), e2.strstart++, e2.lookahead--, 0 === e2.strm.avail_out) return A;
-            } else e2.match_available = 1, e2.strstart++, e2.lookahead--;
-          }
-          return e2.match_available && (n2 = u._tr_tally(e2, 0, e2.window[e2.strstart - 1]), e2.match_available = 0), e2.insert = e2.strstart < x - 1 ? e2.strstart : x - 1, t2 === f ? (N(e2, true), 0 === e2.strm.avail_out ? O : B) : e2.last_lit && (N(e2, false), 0 === e2.strm.avail_out) ? A : I;
-        }
-        function M(e2, t2, r2, n2, i2) {
-          this.good_length = e2, this.max_lazy = t2, this.nice_length = r2, this.max_chain = n2, this.func = i2;
-        }
-        function H() {
-          this.strm = null, this.status = 0, this.pending_buf = null, this.pending_buf_size = 0, this.pending_out = 0, this.pending = 0, this.wrap = 0, this.gzhead = null, this.gzindex = 0, this.method = v, this.last_flush = -1, this.w_size = 0, this.w_bits = 0, this.w_mask = 0, this.window = null, this.window_size = 0, this.prev = null, this.head = null, this.ins_h = 0, this.hash_size = 0, this.hash_bits = 0, this.hash_mask = 0, this.hash_shift = 0, this.block_start = 0, this.match_length = 0, this.prev_match = 0, this.match_available = 0, this.strstart = 0, this.match_start = 0, this.lookahead = 0, this.prev_length = 0, this.max_chain_length = 0, this.max_lazy_match = 0, this.level = 0, this.strategy = 0, this.good_match = 0, this.nice_match = 0, this.dyn_ltree = new c.Buf16(2 * w), this.dyn_dtree = new c.Buf16(2 * (2 * a + 1)), this.bl_tree = new c.Buf16(2 * (2 * o + 1)), D(this.dyn_ltree), D(this.dyn_dtree), D(this.bl_tree), this.l_desc = null, this.d_desc = null, this.bl_desc = null, this.bl_count = new c.Buf16(k + 1), this.heap = new c.Buf16(2 * s + 1), D(this.heap), this.heap_len = 0, this.heap_max = 0, this.depth = new c.Buf16(2 * s + 1), D(this.depth), this.l_buf = 0, this.lit_bufsize = 0, this.last_lit = 0, this.d_buf = 0, this.opt_len = 0, this.static_len = 0, this.matches = 0, this.insert = 0, this.bi_buf = 0, this.bi_valid = 0;
-        }
-        function G(e2) {
-          var t2;
-          return e2 && e2.state ? (e2.total_in = e2.total_out = 0, e2.data_type = i, (t2 = e2.state).pending = 0, t2.pending_out = 0, t2.wrap < 0 && (t2.wrap = -t2.wrap), t2.status = t2.wrap ? C : E, e2.adler = 2 === t2.wrap ? 0 : 1, t2.last_flush = l, u._tr_init(t2), m) : R(e2, _);
-        }
-        function K(e2) {
-          var t2 = G(e2);
-          return t2 === m && (function(e3) {
-            e3.window_size = 2 * e3.w_size, D(e3.head), e3.max_lazy_match = h[e3.level].max_lazy, e3.good_match = h[e3.level].good_length, e3.nice_match = h[e3.level].nice_length, e3.max_chain_length = h[e3.level].max_chain, e3.strstart = 0, e3.block_start = 0, e3.lookahead = 0, e3.insert = 0, e3.match_length = e3.prev_length = x - 1, e3.match_available = 0, e3.ins_h = 0;
-          })(e2.state), t2;
-        }
-        function Y(e2, t2, r2, n2, i2, s2) {
-          if (!e2) return _;
-          var a2 = 1;
-          if (t2 === g && (t2 = 6), n2 < 0 ? (a2 = 0, n2 = -n2) : 15 < n2 && (a2 = 2, n2 -= 16), i2 < 1 || y < i2 || r2 !== v || n2 < 8 || 15 < n2 || t2 < 0 || 9 < t2 || s2 < 0 || b < s2) return R(e2, _);
-          8 === n2 && (n2 = 9);
-          var o2 = new H();
-          return (e2.state = o2).strm = e2, o2.wrap = a2, o2.gzhead = null, o2.w_bits = n2, o2.w_size = 1 << o2.w_bits, o2.w_mask = o2.w_size - 1, o2.hash_bits = i2 + 7, o2.hash_size = 1 << o2.hash_bits, o2.hash_mask = o2.hash_size - 1, o2.hash_shift = ~~((o2.hash_bits + x - 1) / x), o2.window = new c.Buf8(2 * o2.w_size), o2.head = new c.Buf16(o2.hash_size), o2.prev = new c.Buf16(o2.w_size), o2.lit_bufsize = 1 << i2 + 6, o2.pending_buf_size = 4 * o2.lit_bufsize, o2.pending_buf = new c.Buf8(o2.pending_buf_size), o2.d_buf = 1 * o2.lit_bufsize, o2.l_buf = 3 * o2.lit_bufsize, o2.level = t2, o2.strategy = s2, o2.method = r2, K(e2);
-        }
-        h = [new M(0, 0, 0, 0, function(e2, t2) {
-          var r2 = 65535;
-          for (r2 > e2.pending_buf_size - 5 && (r2 = e2.pending_buf_size - 5); ; ) {
-            if (e2.lookahead <= 1) {
-              if (j(e2), 0 === e2.lookahead && t2 === l) return A;
-              if (0 === e2.lookahead) break;
-            }
-            e2.strstart += e2.lookahead, e2.lookahead = 0;
-            var n2 = e2.block_start + r2;
-            if ((0 === e2.strstart || e2.strstart >= n2) && (e2.lookahead = e2.strstart - n2, e2.strstart = n2, N(e2, false), 0 === e2.strm.avail_out)) return A;
-            if (e2.strstart - e2.block_start >= e2.w_size - z && (N(e2, false), 0 === e2.strm.avail_out)) return A;
-          }
-          return e2.insert = 0, t2 === f ? (N(e2, true), 0 === e2.strm.avail_out ? O : B) : (e2.strstart > e2.block_start && (N(e2, false), e2.strm.avail_out), A);
-        }), new M(4, 4, 8, 4, Z), new M(4, 5, 16, 8, Z), new M(4, 6, 32, 32, Z), new M(4, 4, 16, 16, W), new M(8, 16, 32, 32, W), new M(8, 16, 128, 128, W), new M(8, 32, 128, 256, W), new M(32, 128, 258, 1024, W), new M(32, 258, 258, 4096, W)], r.deflateInit = function(e2, t2) {
-          return Y(e2, t2, v, 15, 8, 0);
-        }, r.deflateInit2 = Y, r.deflateReset = K, r.deflateResetKeep = G, r.deflateSetHeader = function(e2, t2) {
-          return e2 && e2.state ? 2 !== e2.state.wrap ? _ : (e2.state.gzhead = t2, m) : _;
-        }, r.deflate = function(e2, t2) {
-          var r2, n2, i2, s2;
-          if (!e2 || !e2.state || 5 < t2 || t2 < 0) return e2 ? R(e2, _) : _;
-          if (n2 = e2.state, !e2.output || !e2.input && 0 !== e2.avail_in || 666 === n2.status && t2 !== f) return R(e2, 0 === e2.avail_out ? -5 : _);
-          if (n2.strm = e2, r2 = n2.last_flush, n2.last_flush = t2, n2.status === C) if (2 === n2.wrap) e2.adler = 0, U(n2, 31), U(n2, 139), U(n2, 8), n2.gzhead ? (U(n2, (n2.gzhead.text ? 1 : 0) + (n2.gzhead.hcrc ? 2 : 0) + (n2.gzhead.extra ? 4 : 0) + (n2.gzhead.name ? 8 : 0) + (n2.gzhead.comment ? 16 : 0)), U(n2, 255 & n2.gzhead.time), U(n2, n2.gzhead.time >> 8 & 255), U(n2, n2.gzhead.time >> 16 & 255), U(n2, n2.gzhead.time >> 24 & 255), U(n2, 9 === n2.level ? 2 : 2 <= n2.strategy || n2.level < 2 ? 4 : 0), U(n2, 255 & n2.gzhead.os), n2.gzhead.extra && n2.gzhead.extra.length && (U(n2, 255 & n2.gzhead.extra.length), U(n2, n2.gzhead.extra.length >> 8 & 255)), n2.gzhead.hcrc && (e2.adler = p(e2.adler, n2.pending_buf, n2.pending, 0)), n2.gzindex = 0, n2.status = 69) : (U(n2, 0), U(n2, 0), U(n2, 0), U(n2, 0), U(n2, 0), U(n2, 9 === n2.level ? 2 : 2 <= n2.strategy || n2.level < 2 ? 4 : 0), U(n2, 3), n2.status = E);
-          else {
-            var a2 = v + (n2.w_bits - 8 << 4) << 8;
-            a2 |= (2 <= n2.strategy || n2.level < 2 ? 0 : n2.level < 6 ? 1 : 6 === n2.level ? 2 : 3) << 6, 0 !== n2.strstart && (a2 |= 32), a2 += 31 - a2 % 31, n2.status = E, P(n2, a2), 0 !== n2.strstart && (P(n2, e2.adler >>> 16), P(n2, 65535 & e2.adler)), e2.adler = 1;
-          }
-          if (69 === n2.status) if (n2.gzhead.extra) {
-            for (i2 = n2.pending; n2.gzindex < (65535 & n2.gzhead.extra.length) && (n2.pending !== n2.pending_buf_size || (n2.gzhead.hcrc && n2.pending > i2 && (e2.adler = p(e2.adler, n2.pending_buf, n2.pending - i2, i2)), F(e2), i2 = n2.pending, n2.pending !== n2.pending_buf_size)); ) U(n2, 255 & n2.gzhead.extra[n2.gzindex]), n2.gzindex++;
-            n2.gzhead.hcrc && n2.pending > i2 && (e2.adler = p(e2.adler, n2.pending_buf, n2.pending - i2, i2)), n2.gzindex === n2.gzhead.extra.length && (n2.gzindex = 0, n2.status = 73);
-          } else n2.status = 73;
-          if (73 === n2.status) if (n2.gzhead.name) {
-            i2 = n2.pending;
-            do {
-              if (n2.pending === n2.pending_buf_size && (n2.gzhead.hcrc && n2.pending > i2 && (e2.adler = p(e2.adler, n2.pending_buf, n2.pending - i2, i2)), F(e2), i2 = n2.pending, n2.pending === n2.pending_buf_size)) {
-                s2 = 1;
-                break;
-              }
-              s2 = n2.gzindex < n2.gzhead.name.length ? 255 & n2.gzhead.name.charCodeAt(n2.gzindex++) : 0, U(n2, s2);
-            } while (0 !== s2);
-            n2.gzhead.hcrc && n2.pending > i2 && (e2.adler = p(e2.adler, n2.pending_buf, n2.pending - i2, i2)), 0 === s2 && (n2.gzindex = 0, n2.status = 91);
-          } else n2.status = 91;
-          if (91 === n2.status) if (n2.gzhead.comment) {
-            i2 = n2.pending;
-            do {
-              if (n2.pending === n2.pending_buf_size && (n2.gzhead.hcrc && n2.pending > i2 && (e2.adler = p(e2.adler, n2.pending_buf, n2.pending - i2, i2)), F(e2), i2 = n2.pending, n2.pending === n2.pending_buf_size)) {
-                s2 = 1;
-                break;
-              }
-              s2 = n2.gzindex < n2.gzhead.comment.length ? 255 & n2.gzhead.comment.charCodeAt(n2.gzindex++) : 0, U(n2, s2);
-            } while (0 !== s2);
-            n2.gzhead.hcrc && n2.pending > i2 && (e2.adler = p(e2.adler, n2.pending_buf, n2.pending - i2, i2)), 0 === s2 && (n2.status = 103);
-          } else n2.status = 103;
-          if (103 === n2.status && (n2.gzhead.hcrc ? (n2.pending + 2 > n2.pending_buf_size && F(e2), n2.pending + 2 <= n2.pending_buf_size && (U(n2, 255 & e2.adler), U(n2, e2.adler >> 8 & 255), e2.adler = 0, n2.status = E)) : n2.status = E), 0 !== n2.pending) {
-            if (F(e2), 0 === e2.avail_out) return n2.last_flush = -1, m;
-          } else if (0 === e2.avail_in && T(t2) <= T(r2) && t2 !== f) return R(e2, -5);
-          if (666 === n2.status && 0 !== e2.avail_in) return R(e2, -5);
-          if (0 !== e2.avail_in || 0 !== n2.lookahead || t2 !== l && 666 !== n2.status) {
-            var o2 = 2 === n2.strategy ? (function(e3, t3) {
-              for (var r3; ; ) {
-                if (0 === e3.lookahead && (j(e3), 0 === e3.lookahead)) {
-                  if (t3 === l) return A;
-                  break;
-                }
-                if (e3.match_length = 0, r3 = u._tr_tally(e3, 0, e3.window[e3.strstart]), e3.lookahead--, e3.strstart++, r3 && (N(e3, false), 0 === e3.strm.avail_out)) return A;
-              }
-              return e3.insert = 0, t3 === f ? (N(e3, true), 0 === e3.strm.avail_out ? O : B) : e3.last_lit && (N(e3, false), 0 === e3.strm.avail_out) ? A : I;
-            })(n2, t2) : 3 === n2.strategy ? (function(e3, t3) {
-              for (var r3, n3, i3, s3, a3 = e3.window; ; ) {
-                if (e3.lookahead <= S) {
-                  if (j(e3), e3.lookahead <= S && t3 === l) return A;
-                  if (0 === e3.lookahead) break;
-                }
-                if (e3.match_length = 0, e3.lookahead >= x && 0 < e3.strstart && (n3 = a3[i3 = e3.strstart - 1]) === a3[++i3] && n3 === a3[++i3] && n3 === a3[++i3]) {
-                  s3 = e3.strstart + S;
-                  do {
-                  } while (n3 === a3[++i3] && n3 === a3[++i3] && n3 === a3[++i3] && n3 === a3[++i3] && n3 === a3[++i3] && n3 === a3[++i3] && n3 === a3[++i3] && n3 === a3[++i3] && i3 < s3);
-                  e3.match_length = S - (s3 - i3), e3.match_length > e3.lookahead && (e3.match_length = e3.lookahead);
-                }
-                if (e3.match_length >= x ? (r3 = u._tr_tally(e3, 1, e3.match_length - x), e3.lookahead -= e3.match_length, e3.strstart += e3.match_length, e3.match_length = 0) : (r3 = u._tr_tally(e3, 0, e3.window[e3.strstart]), e3.lookahead--, e3.strstart++), r3 && (N(e3, false), 0 === e3.strm.avail_out)) return A;
-              }
-              return e3.insert = 0, t3 === f ? (N(e3, true), 0 === e3.strm.avail_out ? O : B) : e3.last_lit && (N(e3, false), 0 === e3.strm.avail_out) ? A : I;
-            })(n2, t2) : h[n2.level].func(n2, t2);
-            if (o2 !== O && o2 !== B || (n2.status = 666), o2 === A || o2 === O) return 0 === e2.avail_out && (n2.last_flush = -1), m;
-            if (o2 === I && (1 === t2 ? u._tr_align(n2) : 5 !== t2 && (u._tr_stored_block(n2, 0, 0, false), 3 === t2 && (D(n2.head), 0 === n2.lookahead && (n2.strstart = 0, n2.block_start = 0, n2.insert = 0))), F(e2), 0 === e2.avail_out)) return n2.last_flush = -1, m;
-          }
-          return t2 !== f ? m : n2.wrap <= 0 ? 1 : (2 === n2.wrap ? (U(n2, 255 & e2.adler), U(n2, e2.adler >> 8 & 255), U(n2, e2.adler >> 16 & 255), U(n2, e2.adler >> 24 & 255), U(n2, 255 & e2.total_in), U(n2, e2.total_in >> 8 & 255), U(n2, e2.total_in >> 16 & 255), U(n2, e2.total_in >> 24 & 255)) : (P(n2, e2.adler >>> 16), P(n2, 65535 & e2.adler)), F(e2), 0 < n2.wrap && (n2.wrap = -n2.wrap), 0 !== n2.pending ? m : 1);
-        }, r.deflateEnd = function(e2) {
-          var t2;
-          return e2 && e2.state ? (t2 = e2.state.status) !== C && 69 !== t2 && 73 !== t2 && 91 !== t2 && 103 !== t2 && t2 !== E && 666 !== t2 ? R(e2, _) : (e2.state = null, t2 === E ? R(e2, -3) : m) : _;
-        }, r.deflateSetDictionary = function(e2, t2) {
-          var r2, n2, i2, s2, a2, o2, h2, u2, l2 = t2.length;
-          if (!e2 || !e2.state) return _;
-          if (2 === (s2 = (r2 = e2.state).wrap) || 1 === s2 && r2.status !== C || r2.lookahead) return _;
-          for (1 === s2 && (e2.adler = d(e2.adler, t2, l2, 0)), r2.wrap = 0, l2 >= r2.w_size && (0 === s2 && (D(r2.head), r2.strstart = 0, r2.block_start = 0, r2.insert = 0), u2 = new c.Buf8(r2.w_size), c.arraySet(u2, t2, l2 - r2.w_size, r2.w_size, 0), t2 = u2, l2 = r2.w_size), a2 = e2.avail_in, o2 = e2.next_in, h2 = e2.input, e2.avail_in = l2, e2.next_in = 0, e2.input = t2, j(r2); r2.lookahead >= x; ) {
-            for (n2 = r2.strstart, i2 = r2.lookahead - (x - 1); r2.ins_h = (r2.ins_h << r2.hash_shift ^ r2.window[n2 + x - 1]) & r2.hash_mask, r2.prev[n2 & r2.w_mask] = r2.head[r2.ins_h], r2.head[r2.ins_h] = n2, n2++, --i2; ) ;
-            r2.strstart = n2, r2.lookahead = x - 1, j(r2);
-          }
-          return r2.strstart += r2.lookahead, r2.block_start = r2.strstart, r2.insert = r2.lookahead, r2.lookahead = 0, r2.match_length = r2.prev_length = x - 1, r2.match_available = 0, e2.next_in = o2, e2.input = h2, e2.avail_in = a2, r2.wrap = s2, m;
-        }, r.deflateInfo = "pako deflate (from Nodeca project)";
-      }, { "../utils/common": 41, "./adler32": 43, "./crc32": 45, "./messages": 51, "./trees": 52 }], 47: [function(e, t, r) {
-        "use strict";
-        t.exports = function() {
-          this.text = 0, this.time = 0, this.xflags = 0, this.os = 0, this.extra = null, this.extra_len = 0, this.name = "", this.comment = "", this.hcrc = 0, this.done = false;
-        };
-      }, {}], 48: [function(e, t, r) {
-        "use strict";
-        t.exports = function(e2, t2) {
-          var r2, n, i, s, a, o, h, u, l, f, c, d, p, m, _, g, b, v, y, w, k, x, S, z, C;
-          r2 = e2.state, n = e2.next_in, z = e2.input, i = n + (e2.avail_in - 5), s = e2.next_out, C = e2.output, a = s - (t2 - e2.avail_out), o = s + (e2.avail_out - 257), h = r2.dmax, u = r2.wsize, l = r2.whave, f = r2.wnext, c = r2.window, d = r2.hold, p = r2.bits, m = r2.lencode, _ = r2.distcode, g = (1 << r2.lenbits) - 1, b = (1 << r2.distbits) - 1;
-          e: do {
-            p < 15 && (d += z[n++] << p, p += 8, d += z[n++] << p, p += 8), v = m[d & g];
-            t: for (; ; ) {
-              if (d >>>= y = v >>> 24, p -= y, 0 === (y = v >>> 16 & 255)) C[s++] = 65535 & v;
-              else {
-                if (!(16 & y)) {
-                  if (0 == (64 & y)) {
-                    v = m[(65535 & v) + (d & (1 << y) - 1)];
-                    continue t;
-                  }
-                  if (32 & y) {
-                    r2.mode = 12;
-                    break e;
-                  }
-                  e2.msg = "invalid literal/length code", r2.mode = 30;
-                  break e;
-                }
-                w = 65535 & v, (y &= 15) && (p < y && (d += z[n++] << p, p += 8), w += d & (1 << y) - 1, d >>>= y, p -= y), p < 15 && (d += z[n++] << p, p += 8, d += z[n++] << p, p += 8), v = _[d & b];
-                r: for (; ; ) {
-                  if (d >>>= y = v >>> 24, p -= y, !(16 & (y = v >>> 16 & 255))) {
-                    if (0 == (64 & y)) {
-                      v = _[(65535 & v) + (d & (1 << y) - 1)];
-                      continue r;
-                    }
-                    e2.msg = "invalid distance code", r2.mode = 30;
-                    break e;
-                  }
-                  if (k = 65535 & v, p < (y &= 15) && (d += z[n++] << p, (p += 8) < y && (d += z[n++] << p, p += 8)), h < (k += d & (1 << y) - 1)) {
-                    e2.msg = "invalid distance too far back", r2.mode = 30;
-                    break e;
-                  }
-                  if (d >>>= y, p -= y, (y = s - a) < k) {
-                    if (l < (y = k - y) && r2.sane) {
-                      e2.msg = "invalid distance too far back", r2.mode = 30;
-                      break e;
-                    }
-                    if (S = c, (x = 0) === f) {
-                      if (x += u - y, y < w) {
-                        for (w -= y; C[s++] = c[x++], --y; ) ;
-                        x = s - k, S = C;
-                      }
-                    } else if (f < y) {
-                      if (x += u + f - y, (y -= f) < w) {
-                        for (w -= y; C[s++] = c[x++], --y; ) ;
-                        if (x = 0, f < w) {
-                          for (w -= y = f; C[s++] = c[x++], --y; ) ;
-                          x = s - k, S = C;
-                        }
-                      }
-                    } else if (x += f - y, y < w) {
-                      for (w -= y; C[s++] = c[x++], --y; ) ;
-                      x = s - k, S = C;
-                    }
-                    for (; 2 < w; ) C[s++] = S[x++], C[s++] = S[x++], C[s++] = S[x++], w -= 3;
-                    w && (C[s++] = S[x++], 1 < w && (C[s++] = S[x++]));
-                  } else {
-                    for (x = s - k; C[s++] = C[x++], C[s++] = C[x++], C[s++] = C[x++], 2 < (w -= 3); ) ;
-                    w && (C[s++] = C[x++], 1 < w && (C[s++] = C[x++]));
-                  }
-                  break;
-                }
-              }
-              break;
-            }
-          } while (n < i && s < o);
-          n -= w = p >> 3, d &= (1 << (p -= w << 3)) - 1, e2.next_in = n, e2.next_out = s, e2.avail_in = n < i ? i - n + 5 : 5 - (n - i), e2.avail_out = s < o ? o - s + 257 : 257 - (s - o), r2.hold = d, r2.bits = p;
-        };
-      }, {}], 49: [function(e, t, r) {
-        "use strict";
-        var I = e("../utils/common"), O = e("./adler32"), B = e("./crc32"), R = e("./inffast"), T = e("./inftrees"), D = 1, F = 2, N = 0, U = -2, P = 1, n = 852, i = 592;
-        function L(e2) {
-          return (e2 >>> 24 & 255) + (e2 >>> 8 & 65280) + ((65280 & e2) << 8) + ((255 & e2) << 24);
-        }
-        function s() {
-          this.mode = 0, this.last = false, this.wrap = 0, this.havedict = false, this.flags = 0, this.dmax = 0, this.check = 0, this.total = 0, this.head = null, this.wbits = 0, this.wsize = 0, this.whave = 0, this.wnext = 0, this.window = null, this.hold = 0, this.bits = 0, this.length = 0, this.offset = 0, this.extra = 0, this.lencode = null, this.distcode = null, this.lenbits = 0, this.distbits = 0, this.ncode = 0, this.nlen = 0, this.ndist = 0, this.have = 0, this.next = null, this.lens = new I.Buf16(320), this.work = new I.Buf16(288), this.lendyn = null, this.distdyn = null, this.sane = 0, this.back = 0, this.was = 0;
-        }
-        function a(e2) {
-          var t2;
-          return e2 && e2.state ? (t2 = e2.state, e2.total_in = e2.total_out = t2.total = 0, e2.msg = "", t2.wrap && (e2.adler = 1 & t2.wrap), t2.mode = P, t2.last = 0, t2.havedict = 0, t2.dmax = 32768, t2.head = null, t2.hold = 0, t2.bits = 0, t2.lencode = t2.lendyn = new I.Buf32(n), t2.distcode = t2.distdyn = new I.Buf32(i), t2.sane = 1, t2.back = -1, N) : U;
-        }
-        function o(e2) {
-          var t2;
-          return e2 && e2.state ? ((t2 = e2.state).wsize = 0, t2.whave = 0, t2.wnext = 0, a(e2)) : U;
-        }
-        function h(e2, t2) {
-          var r2, n2;
-          return e2 && e2.state ? (n2 = e2.state, t2 < 0 ? (r2 = 0, t2 = -t2) : (r2 = 1 + (t2 >> 4), t2 < 48 && (t2 &= 15)), t2 && (t2 < 8 || 15 < t2) ? U : (null !== n2.window && n2.wbits !== t2 && (n2.window = null), n2.wrap = r2, n2.wbits = t2, o(e2))) : U;
-        }
-        function u(e2, t2) {
-          var r2, n2;
-          return e2 ? (n2 = new s(), (e2.state = n2).window = null, (r2 = h(e2, t2)) !== N && (e2.state = null), r2) : U;
-        }
-        var l, f, c = true;
-        function j(e2) {
-          if (c) {
-            var t2;
-            for (l = new I.Buf32(512), f = new I.Buf32(32), t2 = 0; t2 < 144; ) e2.lens[t2++] = 8;
-            for (; t2 < 256; ) e2.lens[t2++] = 9;
-            for (; t2 < 280; ) e2.lens[t2++] = 7;
-            for (; t2 < 288; ) e2.lens[t2++] = 8;
-            for (T(D, e2.lens, 0, 288, l, 0, e2.work, { bits: 9 }), t2 = 0; t2 < 32; ) e2.lens[t2++] = 5;
-            T(F, e2.lens, 0, 32, f, 0, e2.work, { bits: 5 }), c = false;
-          }
-          e2.lencode = l, e2.lenbits = 9, e2.distcode = f, e2.distbits = 5;
-        }
-        function Z(e2, t2, r2, n2) {
-          var i2, s2 = e2.state;
-          return null === s2.window && (s2.wsize = 1 << s2.wbits, s2.wnext = 0, s2.whave = 0, s2.window = new I.Buf8(s2.wsize)), n2 >= s2.wsize ? (I.arraySet(s2.window, t2, r2 - s2.wsize, s2.wsize, 0), s2.wnext = 0, s2.whave = s2.wsize) : (n2 < (i2 = s2.wsize - s2.wnext) && (i2 = n2), I.arraySet(s2.window, t2, r2 - n2, i2, s2.wnext), (n2 -= i2) ? (I.arraySet(s2.window, t2, r2 - n2, n2, 0), s2.wnext = n2, s2.whave = s2.wsize) : (s2.wnext += i2, s2.wnext === s2.wsize && (s2.wnext = 0), s2.whave < s2.wsize && (s2.whave += i2))), 0;
-        }
-        r.inflateReset = o, r.inflateReset2 = h, r.inflateResetKeep = a, r.inflateInit = function(e2) {
-          return u(e2, 15);
-        }, r.inflateInit2 = u, r.inflate = function(e2, t2) {
-          var r2, n2, i2, s2, a2, o2, h2, u2, l2, f2, c2, d, p, m, _, g, b, v, y, w, k, x, S, z, C = 0, E = new I.Buf8(4), A = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
-          if (!e2 || !e2.state || !e2.output || !e2.input && 0 !== e2.avail_in) return U;
-          12 === (r2 = e2.state).mode && (r2.mode = 13), a2 = e2.next_out, i2 = e2.output, h2 = e2.avail_out, s2 = e2.next_in, n2 = e2.input, o2 = e2.avail_in, u2 = r2.hold, l2 = r2.bits, f2 = o2, c2 = h2, x = N;
-          e: for (; ; ) switch (r2.mode) {
-            case P:
-              if (0 === r2.wrap) {
-                r2.mode = 13;
-                break;
-              }
-              for (; l2 < 16; ) {
-                if (0 === o2) break e;
-                o2--, u2 += n2[s2++] << l2, l2 += 8;
-              }
-              if (2 & r2.wrap && 35615 === u2) {
-                E[r2.check = 0] = 255 & u2, E[1] = u2 >>> 8 & 255, r2.check = B(r2.check, E, 2, 0), l2 = u2 = 0, r2.mode = 2;
-                break;
-              }
-              if (r2.flags = 0, r2.head && (r2.head.done = false), !(1 & r2.wrap) || (((255 & u2) << 8) + (u2 >> 8)) % 31) {
-                e2.msg = "incorrect header check", r2.mode = 30;
-                break;
-              }
-              if (8 != (15 & u2)) {
-                e2.msg = "unknown compression method", r2.mode = 30;
-                break;
-              }
-              if (l2 -= 4, k = 8 + (15 & (u2 >>>= 4)), 0 === r2.wbits) r2.wbits = k;
-              else if (k > r2.wbits) {
-                e2.msg = "invalid window size", r2.mode = 30;
-                break;
-              }
-              r2.dmax = 1 << k, e2.adler = r2.check = 1, r2.mode = 512 & u2 ? 10 : 12, l2 = u2 = 0;
-              break;
-            case 2:
-              for (; l2 < 16; ) {
-                if (0 === o2) break e;
-                o2--, u2 += n2[s2++] << l2, l2 += 8;
-              }
-              if (r2.flags = u2, 8 != (255 & r2.flags)) {
-                e2.msg = "unknown compression method", r2.mode = 30;
-                break;
-              }
-              if (57344 & r2.flags) {
-                e2.msg = "unknown header flags set", r2.mode = 30;
-                break;
-              }
-              r2.head && (r2.head.text = u2 >> 8 & 1), 512 & r2.flags && (E[0] = 255 & u2, E[1] = u2 >>> 8 & 255, r2.check = B(r2.check, E, 2, 0)), l2 = u2 = 0, r2.mode = 3;
-            case 3:
-              for (; l2 < 32; ) {
-                if (0 === o2) break e;
-                o2--, u2 += n2[s2++] << l2, l2 += 8;
-              }
-              r2.head && (r2.head.time = u2), 512 & r2.flags && (E[0] = 255 & u2, E[1] = u2 >>> 8 & 255, E[2] = u2 >>> 16 & 255, E[3] = u2 >>> 24 & 255, r2.check = B(r2.check, E, 4, 0)), l2 = u2 = 0, r2.mode = 4;
-            case 4:
-              for (; l2 < 16; ) {
-                if (0 === o2) break e;
-                o2--, u2 += n2[s2++] << l2, l2 += 8;
-              }
-              r2.head && (r2.head.xflags = 255 & u2, r2.head.os = u2 >> 8), 512 & r2.flags && (E[0] = 255 & u2, E[1] = u2 >>> 8 & 255, r2.check = B(r2.check, E, 2, 0)), l2 = u2 = 0, r2.mode = 5;
-            case 5:
-              if (1024 & r2.flags) {
-                for (; l2 < 16; ) {
-                  if (0 === o2) break e;
-                  o2--, u2 += n2[s2++] << l2, l2 += 8;
-                }
-                r2.length = u2, r2.head && (r2.head.extra_len = u2), 512 & r2.flags && (E[0] = 255 & u2, E[1] = u2 >>> 8 & 255, r2.check = B(r2.check, E, 2, 0)), l2 = u2 = 0;
-              } else r2.head && (r2.head.extra = null);
-              r2.mode = 6;
-            case 6:
-              if (1024 & r2.flags && (o2 < (d = r2.length) && (d = o2), d && (r2.head && (k = r2.head.extra_len - r2.length, r2.head.extra || (r2.head.extra = new Array(r2.head.extra_len)), I.arraySet(r2.head.extra, n2, s2, d, k)), 512 & r2.flags && (r2.check = B(r2.check, n2, d, s2)), o2 -= d, s2 += d, r2.length -= d), r2.length)) break e;
-              r2.length = 0, r2.mode = 7;
-            case 7:
-              if (2048 & r2.flags) {
-                if (0 === o2) break e;
-                for (d = 0; k = n2[s2 + d++], r2.head && k && r2.length < 65536 && (r2.head.name += String.fromCharCode(k)), k && d < o2; ) ;
-                if (512 & r2.flags && (r2.check = B(r2.check, n2, d, s2)), o2 -= d, s2 += d, k) break e;
-              } else r2.head && (r2.head.name = null);
-              r2.length = 0, r2.mode = 8;
-            case 8:
-              if (4096 & r2.flags) {
-                if (0 === o2) break e;
-                for (d = 0; k = n2[s2 + d++], r2.head && k && r2.length < 65536 && (r2.head.comment += String.fromCharCode(k)), k && d < o2; ) ;
-                if (512 & r2.flags && (r2.check = B(r2.check, n2, d, s2)), o2 -= d, s2 += d, k) break e;
-              } else r2.head && (r2.head.comment = null);
-              r2.mode = 9;
-            case 9:
-              if (512 & r2.flags) {
-                for (; l2 < 16; ) {
-                  if (0 === o2) break e;
-                  o2--, u2 += n2[s2++] << l2, l2 += 8;
-                }
-                if (u2 !== (65535 & r2.check)) {
-                  e2.msg = "header crc mismatch", r2.mode = 30;
-                  break;
-                }
-                l2 = u2 = 0;
-              }
-              r2.head && (r2.head.hcrc = r2.flags >> 9 & 1, r2.head.done = true), e2.adler = r2.check = 0, r2.mode = 12;
-              break;
-            case 10:
-              for (; l2 < 32; ) {
-                if (0 === o2) break e;
-                o2--, u2 += n2[s2++] << l2, l2 += 8;
-              }
-              e2.adler = r2.check = L(u2), l2 = u2 = 0, r2.mode = 11;
-            case 11:
-              if (0 === r2.havedict) return e2.next_out = a2, e2.avail_out = h2, e2.next_in = s2, e2.avail_in = o2, r2.hold = u2, r2.bits = l2, 2;
-              e2.adler = r2.check = 1, r2.mode = 12;
-            case 12:
-              if (5 === t2 || 6 === t2) break e;
-            case 13:
-              if (r2.last) {
-                u2 >>>= 7 & l2, l2 -= 7 & l2, r2.mode = 27;
-                break;
-              }
-              for (; l2 < 3; ) {
-                if (0 === o2) break e;
-                o2--, u2 += n2[s2++] << l2, l2 += 8;
-              }
-              switch (r2.last = 1 & u2, l2 -= 1, 3 & (u2 >>>= 1)) {
-                case 0:
-                  r2.mode = 14;
-                  break;
-                case 1:
-                  if (j(r2), r2.mode = 20, 6 !== t2) break;
-                  u2 >>>= 2, l2 -= 2;
-                  break e;
-                case 2:
-                  r2.mode = 17;
-                  break;
-                case 3:
-                  e2.msg = "invalid block type", r2.mode = 30;
-              }
-              u2 >>>= 2, l2 -= 2;
-              break;
-            case 14:
-              for (u2 >>>= 7 & l2, l2 -= 7 & l2; l2 < 32; ) {
-                if (0 === o2) break e;
-                o2--, u2 += n2[s2++] << l2, l2 += 8;
-              }
-              if ((65535 & u2) != (u2 >>> 16 ^ 65535)) {
-                e2.msg = "invalid stored block lengths", r2.mode = 30;
-                break;
-              }
-              if (r2.length = 65535 & u2, l2 = u2 = 0, r2.mode = 15, 6 === t2) break e;
-            case 15:
-              r2.mode = 16;
-            case 16:
-              if (d = r2.length) {
-                if (o2 < d && (d = o2), h2 < d && (d = h2), 0 === d) break e;
-                I.arraySet(i2, n2, s2, d, a2), o2 -= d, s2 += d, h2 -= d, a2 += d, r2.length -= d;
-                break;
-              }
-              r2.mode = 12;
-              break;
-            case 17:
-              for (; l2 < 14; ) {
-                if (0 === o2) break e;
-                o2--, u2 += n2[s2++] << l2, l2 += 8;
-              }
-              if (r2.nlen = 257 + (31 & u2), u2 >>>= 5, l2 -= 5, r2.ndist = 1 + (31 & u2), u2 >>>= 5, l2 -= 5, r2.ncode = 4 + (15 & u2), u2 >>>= 4, l2 -= 4, 286 < r2.nlen || 30 < r2.ndist) {
-                e2.msg = "too many length or distance symbols", r2.mode = 30;
-                break;
-              }
-              r2.have = 0, r2.mode = 18;
-            case 18:
-              for (; r2.have < r2.ncode; ) {
-                for (; l2 < 3; ) {
-                  if (0 === o2) break e;
-                  o2--, u2 += n2[s2++] << l2, l2 += 8;
-                }
-                r2.lens[A[r2.have++]] = 7 & u2, u2 >>>= 3, l2 -= 3;
-              }
-              for (; r2.have < 19; ) r2.lens[A[r2.have++]] = 0;
-              if (r2.lencode = r2.lendyn, r2.lenbits = 7, S = { bits: r2.lenbits }, x = T(0, r2.lens, 0, 19, r2.lencode, 0, r2.work, S), r2.lenbits = S.bits, x) {
-                e2.msg = "invalid code lengths set", r2.mode = 30;
-                break;
-              }
-              r2.have = 0, r2.mode = 19;
-            case 19:
-              for (; r2.have < r2.nlen + r2.ndist; ) {
-                for (; g = (C = r2.lencode[u2 & (1 << r2.lenbits) - 1]) >>> 16 & 255, b = 65535 & C, !((_ = C >>> 24) <= l2); ) {
-                  if (0 === o2) break e;
-                  o2--, u2 += n2[s2++] << l2, l2 += 8;
-                }
-                if (b < 16) u2 >>>= _, l2 -= _, r2.lens[r2.have++] = b;
-                else {
-                  if (16 === b) {
-                    for (z = _ + 2; l2 < z; ) {
-                      if (0 === o2) break e;
-                      o2--, u2 += n2[s2++] << l2, l2 += 8;
-                    }
-                    if (u2 >>>= _, l2 -= _, 0 === r2.have) {
-                      e2.msg = "invalid bit length repeat", r2.mode = 30;
-                      break;
-                    }
-                    k = r2.lens[r2.have - 1], d = 3 + (3 & u2), u2 >>>= 2, l2 -= 2;
-                  } else if (17 === b) {
-                    for (z = _ + 3; l2 < z; ) {
-                      if (0 === o2) break e;
-                      o2--, u2 += n2[s2++] << l2, l2 += 8;
-                    }
-                    l2 -= _, k = 0, d = 3 + (7 & (u2 >>>= _)), u2 >>>= 3, l2 -= 3;
-                  } else {
-                    for (z = _ + 7; l2 < z; ) {
-                      if (0 === o2) break e;
-                      o2--, u2 += n2[s2++] << l2, l2 += 8;
-                    }
-                    l2 -= _, k = 0, d = 11 + (127 & (u2 >>>= _)), u2 >>>= 7, l2 -= 7;
-                  }
-                  if (r2.have + d > r2.nlen + r2.ndist) {
-                    e2.msg = "invalid bit length repeat", r2.mode = 30;
-                    break;
-                  }
-                  for (; d--; ) r2.lens[r2.have++] = k;
-                }
-              }
-              if (30 === r2.mode) break;
-              if (0 === r2.lens[256]) {
-                e2.msg = "invalid code -- missing end-of-block", r2.mode = 30;
-                break;
-              }
-              if (r2.lenbits = 9, S = { bits: r2.lenbits }, x = T(D, r2.lens, 0, r2.nlen, r2.lencode, 0, r2.work, S), r2.lenbits = S.bits, x) {
-                e2.msg = "invalid literal/lengths set", r2.mode = 30;
-                break;
-              }
-              if (r2.distbits = 6, r2.distcode = r2.distdyn, S = { bits: r2.distbits }, x = T(F, r2.lens, r2.nlen, r2.ndist, r2.distcode, 0, r2.work, S), r2.distbits = S.bits, x) {
-                e2.msg = "invalid distances set", r2.mode = 30;
-                break;
-              }
-              if (r2.mode = 20, 6 === t2) break e;
-            case 20:
-              r2.mode = 21;
-            case 21:
-              if (6 <= o2 && 258 <= h2) {
-                e2.next_out = a2, e2.avail_out = h2, e2.next_in = s2, e2.avail_in = o2, r2.hold = u2, r2.bits = l2, R(e2, c2), a2 = e2.next_out, i2 = e2.output, h2 = e2.avail_out, s2 = e2.next_in, n2 = e2.input, o2 = e2.avail_in, u2 = r2.hold, l2 = r2.bits, 12 === r2.mode && (r2.back = -1);
-                break;
-              }
-              for (r2.back = 0; g = (C = r2.lencode[u2 & (1 << r2.lenbits) - 1]) >>> 16 & 255, b = 65535 & C, !((_ = C >>> 24) <= l2); ) {
-                if (0 === o2) break e;
-                o2--, u2 += n2[s2++] << l2, l2 += 8;
-              }
-              if (g && 0 == (240 & g)) {
-                for (v = _, y = g, w = b; g = (C = r2.lencode[w + ((u2 & (1 << v + y) - 1) >> v)]) >>> 16 & 255, b = 65535 & C, !(v + (_ = C >>> 24) <= l2); ) {
-                  if (0 === o2) break e;
-                  o2--, u2 += n2[s2++] << l2, l2 += 8;
-                }
-                u2 >>>= v, l2 -= v, r2.back += v;
-              }
-              if (u2 >>>= _, l2 -= _, r2.back += _, r2.length = b, 0 === g) {
-                r2.mode = 26;
-                break;
-              }
-              if (32 & g) {
-                r2.back = -1, r2.mode = 12;
-                break;
-              }
-              if (64 & g) {
-                e2.msg = "invalid literal/length code", r2.mode = 30;
-                break;
-              }
-              r2.extra = 15 & g, r2.mode = 22;
-            case 22:
-              if (r2.extra) {
-                for (z = r2.extra; l2 < z; ) {
-                  if (0 === o2) break e;
-                  o2--, u2 += n2[s2++] << l2, l2 += 8;
-                }
-                r2.length += u2 & (1 << r2.extra) - 1, u2 >>>= r2.extra, l2 -= r2.extra, r2.back += r2.extra;
-              }
-              r2.was = r2.length, r2.mode = 23;
-            case 23:
-              for (; g = (C = r2.distcode[u2 & (1 << r2.distbits) - 1]) >>> 16 & 255, b = 65535 & C, !((_ = C >>> 24) <= l2); ) {
-                if (0 === o2) break e;
-                o2--, u2 += n2[s2++] << l2, l2 += 8;
-              }
-              if (0 == (240 & g)) {
-                for (v = _, y = g, w = b; g = (C = r2.distcode[w + ((u2 & (1 << v + y) - 1) >> v)]) >>> 16 & 255, b = 65535 & C, !(v + (_ = C >>> 24) <= l2); ) {
-                  if (0 === o2) break e;
-                  o2--, u2 += n2[s2++] << l2, l2 += 8;
-                }
-                u2 >>>= v, l2 -= v, r2.back += v;
-              }
-              if (u2 >>>= _, l2 -= _, r2.back += _, 64 & g) {
-                e2.msg = "invalid distance code", r2.mode = 30;
-                break;
-              }
-              r2.offset = b, r2.extra = 15 & g, r2.mode = 24;
-            case 24:
-              if (r2.extra) {
-                for (z = r2.extra; l2 < z; ) {
-                  if (0 === o2) break e;
-                  o2--, u2 += n2[s2++] << l2, l2 += 8;
-                }
-                r2.offset += u2 & (1 << r2.extra) - 1, u2 >>>= r2.extra, l2 -= r2.extra, r2.back += r2.extra;
-              }
-              if (r2.offset > r2.dmax) {
-                e2.msg = "invalid distance too far back", r2.mode = 30;
-                break;
-              }
-              r2.mode = 25;
-            case 25:
-              if (0 === h2) break e;
-              if (d = c2 - h2, r2.offset > d) {
-                if ((d = r2.offset - d) > r2.whave && r2.sane) {
-                  e2.msg = "invalid distance too far back", r2.mode = 30;
-                  break;
-                }
-                p = d > r2.wnext ? (d -= r2.wnext, r2.wsize - d) : r2.wnext - d, d > r2.length && (d = r2.length), m = r2.window;
-              } else m = i2, p = a2 - r2.offset, d = r2.length;
-              for (h2 < d && (d = h2), h2 -= d, r2.length -= d; i2[a2++] = m[p++], --d; ) ;
-              0 === r2.length && (r2.mode = 21);
-              break;
-            case 26:
-              if (0 === h2) break e;
-              i2[a2++] = r2.length, h2--, r2.mode = 21;
-              break;
-            case 27:
-              if (r2.wrap) {
-                for (; l2 < 32; ) {
-                  if (0 === o2) break e;
-                  o2--, u2 |= n2[s2++] << l2, l2 += 8;
-                }
-                if (c2 -= h2, e2.total_out += c2, r2.total += c2, c2 && (e2.adler = r2.check = r2.flags ? B(r2.check, i2, c2, a2 - c2) : O(r2.check, i2, c2, a2 - c2)), c2 = h2, (r2.flags ? u2 : L(u2)) !== r2.check) {
-                  e2.msg = "incorrect data check", r2.mode = 30;
-                  break;
-                }
-                l2 = u2 = 0;
-              }
-              r2.mode = 28;
-            case 28:
-              if (r2.wrap && r2.flags) {
-                for (; l2 < 32; ) {
-                  if (0 === o2) break e;
-                  o2--, u2 += n2[s2++] << l2, l2 += 8;
-                }
-                if (u2 !== (4294967295 & r2.total)) {
-                  e2.msg = "incorrect length check", r2.mode = 30;
-                  break;
-                }
-                l2 = u2 = 0;
-              }
-              r2.mode = 29;
-            case 29:
-              x = 1;
-              break e;
-            case 30:
-              x = -3;
-              break e;
-            case 31:
-              return -4;
-            case 32:
-            default:
-              return U;
-          }
-          return e2.next_out = a2, e2.avail_out = h2, e2.next_in = s2, e2.avail_in = o2, r2.hold = u2, r2.bits = l2, (r2.wsize || c2 !== e2.avail_out && r2.mode < 30 && (r2.mode < 27 || 4 !== t2)) && Z(e2, e2.output, e2.next_out, c2 - e2.avail_out) ? (r2.mode = 31, -4) : (f2 -= e2.avail_in, c2 -= e2.avail_out, e2.total_in += f2, e2.total_out += c2, r2.total += c2, r2.wrap && c2 && (e2.adler = r2.check = r2.flags ? B(r2.check, i2, c2, e2.next_out - c2) : O(r2.check, i2, c2, e2.next_out - c2)), e2.data_type = r2.bits + (r2.last ? 64 : 0) + (12 === r2.mode ? 128 : 0) + (20 === r2.mode || 15 === r2.mode ? 256 : 0), (0 == f2 && 0 === c2 || 4 === t2) && x === N && (x = -5), x);
-        }, r.inflateEnd = function(e2) {
-          if (!e2 || !e2.state) return U;
-          var t2 = e2.state;
-          return t2.window && (t2.window = null), e2.state = null, N;
-        }, r.inflateGetHeader = function(e2, t2) {
-          var r2;
-          return e2 && e2.state ? 0 == (2 & (r2 = e2.state).wrap) ? U : ((r2.head = t2).done = false, N) : U;
-        }, r.inflateSetDictionary = function(e2, t2) {
-          var r2, n2 = t2.length;
-          return e2 && e2.state ? 0 !== (r2 = e2.state).wrap && 11 !== r2.mode ? U : 11 === r2.mode && O(1, t2, n2, 0) !== r2.check ? -3 : Z(e2, t2, n2, n2) ? (r2.mode = 31, -4) : (r2.havedict = 1, N) : U;
-        }, r.inflateInfo = "pako inflate (from Nodeca project)";
-      }, { "../utils/common": 41, "./adler32": 43, "./crc32": 45, "./inffast": 48, "./inftrees": 50 }], 50: [function(e, t, r) {
-        "use strict";
-        var D = e("../utils/common"), F = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258, 0, 0], N = [16, 16, 16, 16, 16, 16, 16, 16, 17, 17, 17, 17, 18, 18, 18, 18, 19, 19, 19, 19, 20, 20, 20, 20, 21, 21, 21, 21, 16, 72, 78], U = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577, 0, 0], P = [16, 16, 16, 16, 17, 17, 18, 18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 23, 24, 24, 25, 25, 26, 26, 27, 27, 28, 28, 29, 29, 64, 64];
-        t.exports = function(e2, t2, r2, n, i, s, a, o) {
-          var h, u, l, f, c, d, p, m, _, g = o.bits, b = 0, v = 0, y = 0, w = 0, k = 0, x = 0, S = 0, z = 0, C = 0, E = 0, A = null, I = 0, O = new D.Buf16(16), B = new D.Buf16(16), R = null, T = 0;
-          for (b = 0; b <= 15; b++) O[b] = 0;
-          for (v = 0; v < n; v++) O[t2[r2 + v]]++;
-          for (k = g, w = 15; 1 <= w && 0 === O[w]; w--) ;
-          if (w < k && (k = w), 0 === w) return i[s++] = 20971520, i[s++] = 20971520, o.bits = 1, 0;
-          for (y = 1; y < w && 0 === O[y]; y++) ;
-          for (k < y && (k = y), b = z = 1; b <= 15; b++) if (z <<= 1, (z -= O[b]) < 0) return -1;
-          if (0 < z && (0 === e2 || 1 !== w)) return -1;
-          for (B[1] = 0, b = 1; b < 15; b++) B[b + 1] = B[b] + O[b];
-          for (v = 0; v < n; v++) 0 !== t2[r2 + v] && (a[B[t2[r2 + v]]++] = v);
-          if (d = 0 === e2 ? (A = R = a, 19) : 1 === e2 ? (A = F, I -= 257, R = N, T -= 257, 256) : (A = U, R = P, -1), b = y, c = s, S = v = E = 0, l = -1, f = (C = 1 << (x = k)) - 1, 1 === e2 && 852 < C || 2 === e2 && 592 < C) return 1;
-          for (; ; ) {
-            for (p = b - S, _ = a[v] < d ? (m = 0, a[v]) : a[v] > d ? (m = R[T + a[v]], A[I + a[v]]) : (m = 96, 0), h = 1 << b - S, y = u = 1 << x; i[c + (E >> S) + (u -= h)] = p << 24 | m << 16 | _ | 0, 0 !== u; ) ;
-            for (h = 1 << b - 1; E & h; ) h >>= 1;
-            if (0 !== h ? (E &= h - 1, E += h) : E = 0, v++, 0 == --O[b]) {
-              if (b === w) break;
-              b = t2[r2 + a[v]];
-            }
-            if (k < b && (E & f) !== l) {
-              for (0 === S && (S = k), c += y, z = 1 << (x = b - S); x + S < w && !((z -= O[x + S]) <= 0); ) x++, z <<= 1;
-              if (C += 1 << x, 1 === e2 && 852 < C || 2 === e2 && 592 < C) return 1;
-              i[l = E & f] = k << 24 | x << 16 | c - s | 0;
-            }
-          }
-          return 0 !== E && (i[c + E] = b - S << 24 | 64 << 16 | 0), o.bits = k, 0;
-        };
-      }, { "../utils/common": 41 }], 51: [function(e, t, r) {
-        "use strict";
-        t.exports = { 2: "need dictionary", 1: "stream end", 0: "", "-1": "file error", "-2": "stream error", "-3": "data error", "-4": "insufficient memory", "-5": "buffer error", "-6": "incompatible version" };
-      }, {}], 52: [function(e, t, r) {
-        "use strict";
-        var i = e("../utils/common"), o = 0, h = 1;
-        function n(e2) {
-          for (var t2 = e2.length; 0 <= --t2; ) e2[t2] = 0;
-        }
-        var s = 0, a = 29, u = 256, l = u + 1 + a, f = 30, c = 19, _ = 2 * l + 1, g = 15, d = 16, p = 7, m = 256, b = 16, v = 17, y = 18, w = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0], k = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13], x = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 3, 7], S = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15], z = new Array(2 * (l + 2));
-        n(z);
-        var C = new Array(2 * f);
-        n(C);
-        var E = new Array(512);
-        n(E);
-        var A = new Array(256);
-        n(A);
-        var I = new Array(a);
-        n(I);
-        var O, B, R, T = new Array(f);
-        function D(e2, t2, r2, n2, i2) {
-          this.static_tree = e2, this.extra_bits = t2, this.extra_base = r2, this.elems = n2, this.max_length = i2, this.has_stree = e2 && e2.length;
-        }
-        function F(e2, t2) {
-          this.dyn_tree = e2, this.max_code = 0, this.stat_desc = t2;
-        }
-        function N(e2) {
-          return e2 < 256 ? E[e2] : E[256 + (e2 >>> 7)];
-        }
-        function U(e2, t2) {
-          e2.pending_buf[e2.pending++] = 255 & t2, e2.pending_buf[e2.pending++] = t2 >>> 8 & 255;
-        }
-        function P(e2, t2, r2) {
-          e2.bi_valid > d - r2 ? (e2.bi_buf |= t2 << e2.bi_valid & 65535, U(e2, e2.bi_buf), e2.bi_buf = t2 >> d - e2.bi_valid, e2.bi_valid += r2 - d) : (e2.bi_buf |= t2 << e2.bi_valid & 65535, e2.bi_valid += r2);
-        }
-        function L(e2, t2, r2) {
-          P(e2, r2[2 * t2], r2[2 * t2 + 1]);
-        }
-        function j(e2, t2) {
-          for (var r2 = 0; r2 |= 1 & e2, e2 >>>= 1, r2 <<= 1, 0 < --t2; ) ;
-          return r2 >>> 1;
-        }
-        function Z(e2, t2, r2) {
-          var n2, i2, s2 = new Array(g + 1), a2 = 0;
-          for (n2 = 1; n2 <= g; n2++) s2[n2] = a2 = a2 + r2[n2 - 1] << 1;
-          for (i2 = 0; i2 <= t2; i2++) {
-            var o2 = e2[2 * i2 + 1];
-            0 !== o2 && (e2[2 * i2] = j(s2[o2]++, o2));
-          }
-        }
-        function W(e2) {
-          var t2;
-          for (t2 = 0; t2 < l; t2++) e2.dyn_ltree[2 * t2] = 0;
-          for (t2 = 0; t2 < f; t2++) e2.dyn_dtree[2 * t2] = 0;
-          for (t2 = 0; t2 < c; t2++) e2.bl_tree[2 * t2] = 0;
-          e2.dyn_ltree[2 * m] = 1, e2.opt_len = e2.static_len = 0, e2.last_lit = e2.matches = 0;
-        }
-        function M(e2) {
-          8 < e2.bi_valid ? U(e2, e2.bi_buf) : 0 < e2.bi_valid && (e2.pending_buf[e2.pending++] = e2.bi_buf), e2.bi_buf = 0, e2.bi_valid = 0;
-        }
-        function H(e2, t2, r2, n2) {
-          var i2 = 2 * t2, s2 = 2 * r2;
-          return e2[i2] < e2[s2] || e2[i2] === e2[s2] && n2[t2] <= n2[r2];
-        }
-        function G(e2, t2, r2) {
-          for (var n2 = e2.heap[r2], i2 = r2 << 1; i2 <= e2.heap_len && (i2 < e2.heap_len && H(t2, e2.heap[i2 + 1], e2.heap[i2], e2.depth) && i2++, !H(t2, n2, e2.heap[i2], e2.depth)); ) e2.heap[r2] = e2.heap[i2], r2 = i2, i2 <<= 1;
-          e2.heap[r2] = n2;
-        }
-        function K(e2, t2, r2) {
-          var n2, i2, s2, a2, o2 = 0;
-          if (0 !== e2.last_lit) for (; n2 = e2.pending_buf[e2.d_buf + 2 * o2] << 8 | e2.pending_buf[e2.d_buf + 2 * o2 + 1], i2 = e2.pending_buf[e2.l_buf + o2], o2++, 0 === n2 ? L(e2, i2, t2) : (L(e2, (s2 = A[i2]) + u + 1, t2), 0 !== (a2 = w[s2]) && P(e2, i2 -= I[s2], a2), L(e2, s2 = N(--n2), r2), 0 !== (a2 = k[s2]) && P(e2, n2 -= T[s2], a2)), o2 < e2.last_lit; ) ;
-          L(e2, m, t2);
-        }
-        function Y(e2, t2) {
-          var r2, n2, i2, s2 = t2.dyn_tree, a2 = t2.stat_desc.static_tree, o2 = t2.stat_desc.has_stree, h2 = t2.stat_desc.elems, u2 = -1;
-          for (e2.heap_len = 0, e2.heap_max = _, r2 = 0; r2 < h2; r2++) 0 !== s2[2 * r2] ? (e2.heap[++e2.heap_len] = u2 = r2, e2.depth[r2] = 0) : s2[2 * r2 + 1] = 0;
-          for (; e2.heap_len < 2; ) s2[2 * (i2 = e2.heap[++e2.heap_len] = u2 < 2 ? ++u2 : 0)] = 1, e2.depth[i2] = 0, e2.opt_len--, o2 && (e2.static_len -= a2[2 * i2 + 1]);
-          for (t2.max_code = u2, r2 = e2.heap_len >> 1; 1 <= r2; r2--) G(e2, s2, r2);
-          for (i2 = h2; r2 = e2.heap[1], e2.heap[1] = e2.heap[e2.heap_len--], G(e2, s2, 1), n2 = e2.heap[1], e2.heap[--e2.heap_max] = r2, e2.heap[--e2.heap_max] = n2, s2[2 * i2] = s2[2 * r2] + s2[2 * n2], e2.depth[i2] = (e2.depth[r2] >= e2.depth[n2] ? e2.depth[r2] : e2.depth[n2]) + 1, s2[2 * r2 + 1] = s2[2 * n2 + 1] = i2, e2.heap[1] = i2++, G(e2, s2, 1), 2 <= e2.heap_len; ) ;
-          e2.heap[--e2.heap_max] = e2.heap[1], (function(e3, t3) {
-            var r3, n3, i3, s3, a3, o3, h3 = t3.dyn_tree, u3 = t3.max_code, l2 = t3.stat_desc.static_tree, f2 = t3.stat_desc.has_stree, c2 = t3.stat_desc.extra_bits, d2 = t3.stat_desc.extra_base, p2 = t3.stat_desc.max_length, m2 = 0;
-            for (s3 = 0; s3 <= g; s3++) e3.bl_count[s3] = 0;
-            for (h3[2 * e3.heap[e3.heap_max] + 1] = 0, r3 = e3.heap_max + 1; r3 < _; r3++) p2 < (s3 = h3[2 * h3[2 * (n3 = e3.heap[r3]) + 1] + 1] + 1) && (s3 = p2, m2++), h3[2 * n3 + 1] = s3, u3 < n3 || (e3.bl_count[s3]++, a3 = 0, d2 <= n3 && (a3 = c2[n3 - d2]), o3 = h3[2 * n3], e3.opt_len += o3 * (s3 + a3), f2 && (e3.static_len += o3 * (l2[2 * n3 + 1] + a3)));
-            if (0 !== m2) {
-              do {
-                for (s3 = p2 - 1; 0 === e3.bl_count[s3]; ) s3--;
-                e3.bl_count[s3]--, e3.bl_count[s3 + 1] += 2, e3.bl_count[p2]--, m2 -= 2;
-              } while (0 < m2);
-              for (s3 = p2; 0 !== s3; s3--) for (n3 = e3.bl_count[s3]; 0 !== n3; ) u3 < (i3 = e3.heap[--r3]) || (h3[2 * i3 + 1] !== s3 && (e3.opt_len += (s3 - h3[2 * i3 + 1]) * h3[2 * i3], h3[2 * i3 + 1] = s3), n3--);
-            }
-          })(e2, t2), Z(s2, u2, e2.bl_count);
-        }
-        function X(e2, t2, r2) {
-          var n2, i2, s2 = -1, a2 = t2[1], o2 = 0, h2 = 7, u2 = 4;
-          for (0 === a2 && (h2 = 138, u2 = 3), t2[2 * (r2 + 1) + 1] = 65535, n2 = 0; n2 <= r2; n2++) i2 = a2, a2 = t2[2 * (n2 + 1) + 1], ++o2 < h2 && i2 === a2 || (o2 < u2 ? e2.bl_tree[2 * i2] += o2 : 0 !== i2 ? (i2 !== s2 && e2.bl_tree[2 * i2]++, e2.bl_tree[2 * b]++) : o2 <= 10 ? e2.bl_tree[2 * v]++ : e2.bl_tree[2 * y]++, s2 = i2, u2 = (o2 = 0) === a2 ? (h2 = 138, 3) : i2 === a2 ? (h2 = 6, 3) : (h2 = 7, 4));
-        }
-        function V(e2, t2, r2) {
-          var n2, i2, s2 = -1, a2 = t2[1], o2 = 0, h2 = 7, u2 = 4;
-          for (0 === a2 && (h2 = 138, u2 = 3), n2 = 0; n2 <= r2; n2++) if (i2 = a2, a2 = t2[2 * (n2 + 1) + 1], !(++o2 < h2 && i2 === a2)) {
-            if (o2 < u2) for (; L(e2, i2, e2.bl_tree), 0 != --o2; ) ;
-            else 0 !== i2 ? (i2 !== s2 && (L(e2, i2, e2.bl_tree), o2--), L(e2, b, e2.bl_tree), P(e2, o2 - 3, 2)) : o2 <= 10 ? (L(e2, v, e2.bl_tree), P(e2, o2 - 3, 3)) : (L(e2, y, e2.bl_tree), P(e2, o2 - 11, 7));
-            s2 = i2, u2 = (o2 = 0) === a2 ? (h2 = 138, 3) : i2 === a2 ? (h2 = 6, 3) : (h2 = 7, 4);
-          }
-        }
-        n(T);
-        var q = false;
-        function J(e2, t2, r2, n2) {
-          P(e2, (s << 1) + (n2 ? 1 : 0), 3), (function(e3, t3, r3, n3) {
-            M(e3), n3 && (U(e3, r3), U(e3, ~r3)), i.arraySet(e3.pending_buf, e3.window, t3, r3, e3.pending), e3.pending += r3;
-          })(e2, t2, r2, true);
-        }
-        r._tr_init = function(e2) {
-          q || ((function() {
-            var e3, t2, r2, n2, i2, s2 = new Array(g + 1);
-            for (n2 = r2 = 0; n2 < a - 1; n2++) for (I[n2] = r2, e3 = 0; e3 < 1 << w[n2]; e3++) A[r2++] = n2;
-            for (A[r2 - 1] = n2, n2 = i2 = 0; n2 < 16; n2++) for (T[n2] = i2, e3 = 0; e3 < 1 << k[n2]; e3++) E[i2++] = n2;
-            for (i2 >>= 7; n2 < f; n2++) for (T[n2] = i2 << 7, e3 = 0; e3 < 1 << k[n2] - 7; e3++) E[256 + i2++] = n2;
-            for (t2 = 0; t2 <= g; t2++) s2[t2] = 0;
-            for (e3 = 0; e3 <= 143; ) z[2 * e3 + 1] = 8, e3++, s2[8]++;
-            for (; e3 <= 255; ) z[2 * e3 + 1] = 9, e3++, s2[9]++;
-            for (; e3 <= 279; ) z[2 * e3 + 1] = 7, e3++, s2[7]++;
-            for (; e3 <= 287; ) z[2 * e3 + 1] = 8, e3++, s2[8]++;
-            for (Z(z, l + 1, s2), e3 = 0; e3 < f; e3++) C[2 * e3 + 1] = 5, C[2 * e3] = j(e3, 5);
-            O = new D(z, w, u + 1, l, g), B = new D(C, k, 0, f, g), R = new D(new Array(0), x, 0, c, p);
-          })(), q = true), e2.l_desc = new F(e2.dyn_ltree, O), e2.d_desc = new F(e2.dyn_dtree, B), e2.bl_desc = new F(e2.bl_tree, R), e2.bi_buf = 0, e2.bi_valid = 0, W(e2);
-        }, r._tr_stored_block = J, r._tr_flush_block = function(e2, t2, r2, n2) {
-          var i2, s2, a2 = 0;
-          0 < e2.level ? (2 === e2.strm.data_type && (e2.strm.data_type = (function(e3) {
-            var t3, r3 = 4093624447;
-            for (t3 = 0; t3 <= 31; t3++, r3 >>>= 1) if (1 & r3 && 0 !== e3.dyn_ltree[2 * t3]) return o;
-            if (0 !== e3.dyn_ltree[18] || 0 !== e3.dyn_ltree[20] || 0 !== e3.dyn_ltree[26]) return h;
-            for (t3 = 32; t3 < u; t3++) if (0 !== e3.dyn_ltree[2 * t3]) return h;
-            return o;
-          })(e2)), Y(e2, e2.l_desc), Y(e2, e2.d_desc), a2 = (function(e3) {
-            var t3;
-            for (X(e3, e3.dyn_ltree, e3.l_desc.max_code), X(e3, e3.dyn_dtree, e3.d_desc.max_code), Y(e3, e3.bl_desc), t3 = c - 1; 3 <= t3 && 0 === e3.bl_tree[2 * S[t3] + 1]; t3--) ;
-            return e3.opt_len += 3 * (t3 + 1) + 5 + 5 + 4, t3;
-          })(e2), i2 = e2.opt_len + 3 + 7 >>> 3, (s2 = e2.static_len + 3 + 7 >>> 3) <= i2 && (i2 = s2)) : i2 = s2 = r2 + 5, r2 + 4 <= i2 && -1 !== t2 ? J(e2, t2, r2, n2) : 4 === e2.strategy || s2 === i2 ? (P(e2, 2 + (n2 ? 1 : 0), 3), K(e2, z, C)) : (P(e2, 4 + (n2 ? 1 : 0), 3), (function(e3, t3, r3, n3) {
-            var i3;
-            for (P(e3, t3 - 257, 5), P(e3, r3 - 1, 5), P(e3, n3 - 4, 4), i3 = 0; i3 < n3; i3++) P(e3, e3.bl_tree[2 * S[i3] + 1], 3);
-            V(e3, e3.dyn_ltree, t3 - 1), V(e3, e3.dyn_dtree, r3 - 1);
-          })(e2, e2.l_desc.max_code + 1, e2.d_desc.max_code + 1, a2 + 1), K(e2, e2.dyn_ltree, e2.dyn_dtree)), W(e2), n2 && M(e2);
-        }, r._tr_tally = function(e2, t2, r2) {
-          return e2.pending_buf[e2.d_buf + 2 * e2.last_lit] = t2 >>> 8 & 255, e2.pending_buf[e2.d_buf + 2 * e2.last_lit + 1] = 255 & t2, e2.pending_buf[e2.l_buf + e2.last_lit] = 255 & r2, e2.last_lit++, 0 === t2 ? e2.dyn_ltree[2 * r2]++ : (e2.matches++, t2--, e2.dyn_ltree[2 * (A[r2] + u + 1)]++, e2.dyn_dtree[2 * N(t2)]++), e2.last_lit === e2.lit_bufsize - 1;
-        }, r._tr_align = function(e2) {
-          P(e2, 2, 3), L(e2, m, z), (function(e3) {
-            16 === e3.bi_valid ? (U(e3, e3.bi_buf), e3.bi_buf = 0, e3.bi_valid = 0) : 8 <= e3.bi_valid && (e3.pending_buf[e3.pending++] = 255 & e3.bi_buf, e3.bi_buf >>= 8, e3.bi_valid -= 8);
-          })(e2);
-        };
-      }, { "../utils/common": 41 }], 53: [function(e, t, r) {
-        "use strict";
-        t.exports = function() {
-          this.input = null, this.next_in = 0, this.avail_in = 0, this.total_in = 0, this.output = null, this.next_out = 0, this.avail_out = 0, this.total_out = 0, this.msg = "", this.state = null, this.data_type = 2, this.adler = 0;
-        };
-      }, {}], 54: [function(e, t, r) {
-        (function(e2) {
-          !(function(r2, n) {
-            "use strict";
-            if (!r2.setImmediate) {
-              var i, s, t2, a, o = 1, h = {}, u = false, l = r2.document, e3 = Object.getPrototypeOf && Object.getPrototypeOf(r2);
-              e3 = e3 && e3.setTimeout ? e3 : r2, i = "[object process]" === {}.toString.call(r2.process) ? function(e4) {
-                process.nextTick(function() {
-                  c(e4);
-                });
-              } : (function() {
-                if (r2.postMessage && !r2.importScripts) {
-                  var e4 = true, t3 = r2.onmessage;
-                  return r2.onmessage = function() {
-                    e4 = false;
-                  }, r2.postMessage("", "*"), r2.onmessage = t3, e4;
-                }
-              })() ? (a = "setImmediate$" + Math.random() + "$", r2.addEventListener ? r2.addEventListener("message", d, false) : r2.attachEvent("onmessage", d), function(e4) {
-                r2.postMessage(a + e4, "*");
-              }) : r2.MessageChannel ? ((t2 = new MessageChannel()).port1.onmessage = function(e4) {
-                c(e4.data);
-              }, function(e4) {
-                t2.port2.postMessage(e4);
-              }) : l && "onreadystatechange" in l.createElement("script") ? (s = l.documentElement, function(e4) {
-                var t3 = l.createElement("script");
-                t3.onreadystatechange = function() {
-                  c(e4), t3.onreadystatechange = null, s.removeChild(t3), t3 = null;
-                }, s.appendChild(t3);
-              }) : function(e4) {
-                setTimeout(c, 0, e4);
-              }, e3.setImmediate = function(e4) {
-                "function" != typeof e4 && (e4 = new Function("" + e4));
-                for (var t3 = new Array(arguments.length - 1), r3 = 0; r3 < t3.length; r3++) t3[r3] = arguments[r3 + 1];
-                var n2 = { callback: e4, args: t3 };
-                return h[o] = n2, i(o), o++;
-              }, e3.clearImmediate = f;
-            }
-            function f(e4) {
-              delete h[e4];
-            }
-            function c(e4) {
-              if (u) setTimeout(c, 0, e4);
-              else {
-                var t3 = h[e4];
-                if (t3) {
-                  u = true;
-                  try {
-                    !(function(e5) {
-                      var t4 = e5.callback, r3 = e5.args;
-                      switch (r3.length) {
-                        case 0:
-                          t4();
-                          break;
-                        case 1:
-                          t4(r3[0]);
-                          break;
-                        case 2:
-                          t4(r3[0], r3[1]);
-                          break;
-                        case 3:
-                          t4(r3[0], r3[1], r3[2]);
-                          break;
-                        default:
-                          t4.apply(n, r3);
-                      }
-                    })(t3);
-                  } finally {
-                    f(e4), u = false;
-                  }
-                }
-              }
-            }
-            function d(e4) {
-              e4.source === r2 && "string" == typeof e4.data && 0 === e4.data.indexOf(a) && c(+e4.data.slice(a.length));
-            }
-          })("undefined" == typeof self ? void 0 === e2 ? this : e2 : self);
-        }).call(this, "undefined" != typeof global ? global : "undefined" != typeof self ? self : "undefined" != typeof window ? window : {});
-      }, {}] }, {}, [10])(10);
-    });
-  }
-});
 
 // src/main.ts
 var main_exports = {};
@@ -2418,12 +35,12 @@ function generateId(prefix = "m") {
   return `${prefix}_${s}`;
 }
 function sanitizeMarkerFileDataForSave(data) {
-  var _a, _b;
+  var _a2, _b2;
   const out = { ...data };
   const deleted = sanitizeDeletedUndoEntries(out.deleted);
   delete out.image;
   delete out.deleted;
-  const du = (_b = (_a = out.measurement) == null ? void 0 : _a.displayUnit) != null ? _b : "";
+  const du = (_b2 = (_a2 = out.measurement) == null ? void 0 : _a2.displayUnit) != null ? _b2 : "";
   if (out.measurement && du) {
     if (du === "auto-metric") out.measurement.displayUnit = "km";
     else if (du === "auto-imperial") out.measurement.displayUnit = "mi";
@@ -2431,29 +48,29 @@ function sanitizeMarkerFileDataForSave(data) {
   if (deleted == null ? void 0 : deleted.length) out.deleted = deleted;
   return out;
 }
-function isRecord(x) {
-  return typeof x === "object" && x !== null && !Array.isArray(x);
+function isRecord(x2) {
+  return typeof x2 === "object" && x2 !== null && !Array.isArray(x2);
 }
-function sanitizeIndex(x) {
-  const n = typeof x === "number" ? x : Number(x);
+function sanitizeIndex(x2) {
+  const n = typeof x2 === "number" ? x2 : Number(x2);
   if (!Number.isFinite(n) || n < 0) return null;
   return Math.floor(n);
 }
-function sanitizeDeletedIndexedMarker(x) {
-  if (!isRecord(x) || !isRecord(x.marker)) return null;
-  const index = sanitizeIndex(x.index);
+function sanitizeDeletedIndexedMarker(x2) {
+  if (!isRecord(x2) || !isRecord(x2.marker)) return null;
+  const index = sanitizeIndex(x2.index);
   if (index === null) return null;
   return {
-    marker: x.marker,
+    marker: x2.marker,
     index
   };
 }
-function sanitizeDeletedIndexedDrawing(x) {
-  if (!isRecord(x) || !isRecord(x.drawing)) return null;
-  const index = sanitizeIndex(x.index);
+function sanitizeDeletedIndexedDrawing(x2) {
+  if (!isRecord(x2) || !isRecord(x2.drawing)) return null;
+  const index = sanitizeIndex(x2.index);
   if (index === null) return null;
   return {
-    drawing: x.drawing,
+    drawing: x2.drawing,
     index
   };
 }
@@ -2517,8 +134,8 @@ function sanitizeDeletedUndoPayload(payload) {
       if (index === null) return null;
       const mode = payload.mode === "move" || payload.mode === "delete-markers" ? payload.mode : null;
       if (!mode) return null;
-      const markers = Array.isArray(payload.markers) ? payload.markers.map(sanitizeDeletedIndexedMarker).filter((x) => !!x) : void 0;
-      const movedMarkerIds = Array.isArray(payload.movedMarkerIds) ? payload.movedMarkerIds.filter((x) => typeof x === "string" && !!x.trim()) : void 0;
+      const markers = Array.isArray(payload.markers) ? payload.markers.map(sanitizeDeletedIndexedMarker).filter((x2) => !!x2) : void 0;
+      const movedMarkerIds = Array.isArray(payload.movedMarkerIds) ? payload.movedMarkerIds.filter((x2) => typeof x2 === "string" && !!x2.trim()) : void 0;
       return {
         kind: "marker-layer",
         layer: payload.layer,
@@ -2533,7 +150,7 @@ function sanitizeDeletedUndoPayload(payload) {
       if (!isRecord(payload.layer)) return null;
       const index = sanitizeIndex(payload.index);
       if (index === null) return null;
-      const drawings = Array.isArray(payload.drawings) ? payload.drawings.map(sanitizeDeletedIndexedDrawing).filter((x) => !!x) : [];
+      const drawings = Array.isArray(payload.drawings) ? payload.drawings.map(sanitizeDeletedIndexedDrawing).filter((x2) => !!x2) : [];
       return {
         kind: "draw-layer",
         layer: payload.layer,
@@ -2557,7 +174,7 @@ function sanitizeDeletedUndoEntries(entries) {
       createdAt: typeof entry.createdAt === "string" && entry.createdAt.trim() ? entry.createdAt : (/* @__PURE__ */ new Date(0)).toISOString(),
       payload
     };
-  }).filter((x) => !!x).slice(0, 3);
+  }).filter((x2) => !!x2).slice(0, 3);
   return out.length ? out : void 0;
 }
 var MarkerStore = class {
@@ -2610,7 +227,7 @@ var MarkerStore = class {
     new import_obsidian.Notice(`Created marker file: ${this.markersFilePath}`, 2500);
   }
   async load() {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
     const f = this.getFileByPath(this.markersFilePath);
     if (!f) throw new Error(`Marker file missing: ${this.markersFilePath}`);
     const raw = await this.app.vault.read(f);
@@ -2621,17 +238,17 @@ var MarkerStore = class {
       ];
     }
     parsed.layers = parsed.layers.map((l) => {
-      var _a2;
+      var _a3;
       return {
         id: l.id,
-        name: (_a2 = l.name) != null ? _a2 : "Layer",
+        name: (_a3 = l.name) != null ? _a3 : "Layer",
         visible: typeof l.visible === "boolean" ? l.visible : true,
         locked: !!l.locked,
         boundBase: typeof l.boundBase === "string" && l.boundBase.trim() ? l.boundBase : void 0
       };
     });
-    (_a = parsed.markers) != null ? _a : parsed.markers = [];
-    (_b = parsed.bases) != null ? _b : parsed.bases = parsed.image ? [parsed.image] : [];
+    (_a2 = parsed.markers) != null ? _a2 : parsed.markers = [];
+    (_b2 = parsed.bases) != null ? _b2 : parsed.bases = parsed.image ? [parsed.image] : [];
     if (!parsed.activeBase) {
       const firstBase = parsed.bases[0];
       const firstPath = typeof firstBase === "string" ? firstBase : isBaseImage(firstBase) ? firstBase.path : "";
@@ -2670,10 +287,10 @@ var MarkerStore = class {
     (_l = parsed.drawings) != null ? _l : parsed.drawings = [];
     (_m = parsed.grids) != null ? _m : parsed.grids = [];
     parsed.grids = parsed.grids.map((g) => {
-      var _a2;
+      var _a3;
       return {
         id: g.id,
-        name: (_a2 = g.name) != null ? _a2 : "Grid",
+        name: (_a3 = g.name) != null ? _a3 : "Grid",
         visible: typeof g.visible === "boolean" ? g.visible : true,
         boundBase: typeof g.boundBase === "string" && g.boundBase.trim() ? g.boundBase : void 0,
         shape: g.shape === "hex" ? "hex" : "square",
@@ -2688,13 +305,13 @@ var MarkerStore = class {
     });
     (_n = parsed.textLayers) != null ? _n : parsed.textLayers = [];
     parsed.textLayers = parsed.textLayers.map((layer) => {
-      var _a2;
+      var _a3;
       const legacy = layer;
       const boxes = Array.isArray(layer.boxes) ? layer.boxes : [];
       const migratedLegacyBox = boxes.length === 0 ? buildLegacyTextBoxFromLayer(legacy) : null;
       return {
         id: layer.id,
-        name: (_a2 = layer.name) != null ? _a2 : "Text layer",
+        name: (_a3 = layer.name) != null ? _a3 : "Text layer",
         visible: typeof layer.visible === "boolean" ? layer.visible : true,
         locked: !!layer.locked,
         boundBase: typeof layer.boundBase === "string" && layer.boundBase.trim() ? layer.boundBase : void 0,
@@ -2757,9 +374,9 @@ var MarkerStore = class {
     if (this.app.vault.getAbstractFileByPath(path)) return;
     try {
       await this.app.vault.createFolder(path);
-    } catch (err) {
+    } catch (err2) {
       if (this.app.vault.getAbstractFileByPath(path)) return;
-      throw err;
+      throw err2;
     }
   }
   async create(content) {
@@ -2767,9 +384,9 @@ var MarkerStore = class {
     await this.ensureFolderExists(dir);
     try {
       await this.app.vault.create(this.markersFilePath, content);
-    } catch (err) {
+    } catch (err2) {
       if (this.getFileByPath(this.markersFilePath)) return;
-      throw err;
+      throw err2;
     }
   }
 };
@@ -2808,14 +425,14 @@ function normalizeLegacyRect(rect) {
 }
 function normalizeLegacyLines(lines) {
   if (!Array.isArray(lines)) return [];
-  return lines.filter((ln) => {
-    return !!ln && Number.isFinite(ln.x0) && Number.isFinite(ln.y0) && Number.isFinite(ln.x1) && Number.isFinite(ln.y1);
+  return lines.filter((ln2) => {
+    return !!ln2 && Number.isFinite(ln2.x0) && Number.isFinite(ln2.y0) && Number.isFinite(ln2.x1) && Number.isFinite(ln2.y1);
   });
 }
 function deriveRectFromLegacyLines(lines) {
   if (!lines.length) return null;
-  const xs = lines.flatMap((ln) => [ln.x0, ln.x1]);
-  const ys = lines.flatMap((ln) => [ln.y0, ln.y1]);
+  const xs = lines.flatMap((ln2) => [ln2.x0, ln2.x1]);
+  const ys = lines.flatMap((ln2) => [ln2.y0, ln2.y1]);
   return {
     x0: Math.min(...xs),
     y0: Math.min(...ys),
@@ -2823,31 +440,31 @@ function deriveRectFromLegacyLines(lines) {
     y1: Math.max(...ys)
   };
 }
-function isBaseImage(x) {
-  return !!x && typeof x === "object" && "path" in x && typeof x.path === "string";
+function isBaseImage(x2) {
+  return !!x2 && typeof x2 === "object" && "path" in x2 && typeof x2.path === "string";
 }
 
 // src/markerEditor.ts
 var import_obsidian2 = require("obsidian");
 function tintSvgMarkup(svg, color) {
-  var _a;
+  var _a2;
   const c = color.trim();
   if (!c) return svg;
   try {
     const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
     const root = doc.querySelector("svg");
     if (!root) return svg;
-    const inner = (_a = root.querySelector("#zm-inner")) != null ? _a : root;
+    const inner = (_a2 = root.querySelector("#zm-inner")) != null ? _a2 : root;
     const base = root.querySelector("#zm-base");
     const outline = root.querySelector("#zm-outline");
     const shapes = inner.querySelectorAll("path, circle, rect, polygon, polyline, line, ellipse");
     let touched = false;
     shapes.forEach((el) => {
-      var _a2, _b;
+      var _a3, _b2;
       if (base && base.contains(el)) return;
       if (outline && outline.contains(el)) return;
-      const styleFill = (_a2 = el.style) == null ? void 0 : _a2.fill;
-      const styleStroke = (_b = el.style) == null ? void 0 : _b.stroke;
+      const styleFill = (_a3 = el.style) == null ? void 0 : _a3.fill;
+      const styleStroke = (_b2 = el.style) == null ? void 0 : _b2.stroke;
       const fillAttr = el.getAttribute("fill");
       const strokeAttr = el.getAttribute("stroke");
       const hasFill = typeof styleFill === "string" && styleFill && styleFill.toLowerCase() !== "none" || typeof fillAttr === "string" && fillAttr && fillAttr.toLowerCase() !== "none";
@@ -2873,7 +490,7 @@ function tintSvgMarkup(svg, color) {
 }
 var MarkerEditorModal = class extends import_obsidian2.Modal {
   constructor(app, plugin, data, marker, onResult) {
-    var _a;
+    var _a2;
     super(app);
     this.suggestionsEl = null;
     this.allSuggestions = [];
@@ -2881,14 +498,14 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
     this.selectedSuggestionIndex = -1;
     this.plugin = plugin;
     this.data = data;
-    this.marker = { type: (_a = marker.type) != null ? _a : "pin", ...marker };
+    this.marker = { type: (_a2 = marker.type) != null ? _a2 : "pin", ...marker };
     this.onResult = onResult;
   }
   findSwapPresetById(id) {
-    var _a, _b, _c;
-    const cols = (_a = this.plugin.settings.baseCollections) != null ? _a : [];
+    var _a2, _b2, _c;
+    const cols = (_a2 = this.plugin.settings.baseCollections) != null ? _a2 : [];
     for (const col of cols) {
-      const list = (_c = (_b = col == null ? void 0 : col.include) == null ? void 0 : _b.swapPins) != null ? _c : [];
+      const list = (_c = (_b2 = col == null ? void 0 : col.include) == null ? void 0 : _b2.swapPins) != null ? _c : [];
       const found = list.find((sp) => (sp == null ? void 0 : sp.id) === id);
       if (found && Array.isArray(found.frames)) return found;
     }
@@ -2913,14 +530,14 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
     if (Object.keys(links).length === 0) delete this.marker.swapLinks;
   }
   buildLinkSuggestions() {
-    var _a, _b, _c, _d;
+    var _a2, _b2, _c, _d;
     const files = this.app.vault.getFiles().filter((f) => {
-      var _a2;
-      return ((_a2 = f.extension) == null ? void 0 : _a2.toLowerCase()) === "md";
+      var _a3;
+      return ((_a3 = f.extension) == null ? void 0 : _a3.toLowerCase()) === "md";
     });
     const suggestions = [];
     const active = this.app.workspace.getActiveFile();
-    const fromPath = (_c = (_b = active == null ? void 0 : active.path) != null ? _b : (_a = files[0]) == null ? void 0 : _a.path) != null ? _c : "";
+    const fromPath = (_c = (_b2 = active == null ? void 0 : active.path) != null ? _b2 : (_a2 = files[0]) == null ? void 0 : _a2.path) != null ? _c : "";
     for (const file of files) {
       const baseLink = this.app.metadataCache.fileToLinktext(file, fromPath);
       suggestions.push({ label: baseLink, value: baseLink });
@@ -2968,18 +585,18 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
     }
     this.filteredSuggestions = matches;
     this.showLinkSuggestions();
-    matches.forEach((s, i) => {
+    matches.forEach((s, i2) => {
       const row = this.suggestionsEl.createDiv({
         cls: "zoommap-link-suggestion-item"
       });
       row.setText(s.label);
-      if (i === 0) {
+      if (i2 === 0) {
         row.classList.add("is-selected");
         this.selectedSuggestionIndex = 0;
       }
       row.addEventListener("mousedown", (ev) => {
         ev.preventDefault();
-        this.applyLinkSuggestion(i);
+        this.applyLinkSuggestion(i2);
       });
     });
   }
@@ -2994,8 +611,8 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
     const rows = this.suggestionsEl.querySelectorAll(
       ".zoommap-link-suggestion-item"
     );
-    rows.forEach((row, i) => {
-      if (i === idx) row.classList.add("is-selected");
+    rows.forEach((row, i2) => {
+      if (i2 === idx) row.classList.add("is-selected");
       else row.classList.remove("is-selected");
     });
     const sel = rows[idx];
@@ -3027,30 +644,30 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
   }
   normalizeZoomRange() {
     let min = this.marker.minZoom;
-    let max = this.marker.maxZoom;
+    let max2 = this.marker.maxZoom;
     if (typeof min !== "number" || !Number.isFinite(min) || min <= 0) {
       min = void 0;
     }
-    if (typeof max !== "number" || !Number.isFinite(max) || max <= 0) {
-      max = void 0;
+    if (typeof max2 !== "number" || !Number.isFinite(max2) || max2 <= 0) {
+      max2 = void 0;
     }
-    if (min === void 0 && max === void 0) {
+    if (min === void 0 && max2 === void 0) {
       delete this.marker.minZoom;
       delete this.marker.maxZoom;
       return;
     }
-    if (min !== void 0 && max !== void 0 && min > max) {
+    if (min !== void 0 && max2 !== void 0 && min > max2) {
       const tmp = min;
-      min = max;
-      max = tmp;
+      min = max2;
+      max2 = tmp;
     }
     if (min !== void 0) this.marker.minZoom = min;
     else delete this.marker.minZoom;
-    if (max !== void 0) this.marker.maxZoom = max;
+    if (max2 !== void 0) this.marker.maxZoom = max2;
     else delete this.marker.maxZoom;
   }
   onOpen() {
-    var _a, _b, _c, _d, _e;
+    var _a2, _b2, _c, _d, _e;
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", {
@@ -3065,21 +682,21 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
         } else {
           const idx = this.normalizeSwapFrameIndex(this.marker, preset);
           contentEl.createEl("div", { text: `Preset: ${preset.name} \u2022 Current frame: ${idx + 1}/${preset.frames.length}` });
-          const overrides = (_b = (_a = this.marker).swapLinks) != null ? _b : _a.swapLinks = {};
-          preset.frames.forEach((fr, i) => {
-            var _a2, _b2;
-            const presetLink = ((_a2 = fr.link) != null ? _a2 : "").trim();
-            const iconDefault = (_b2 = this.plugin.getIconDefaultLink(fr.iconKey)) != null ? _b2 : "";
+          const overrides = (_b2 = (_a2 = this.marker).swapLinks) != null ? _b2 : _a2.swapLinks = {};
+          preset.frames.forEach((fr, i2) => {
+            var _a3, _b3;
+            const presetLink = ((_a3 = fr.link) != null ? _a3 : "").trim();
+            const iconDefault = (_b3 = this.plugin.getIconDefaultLink(fr.iconKey)) != null ? _b3 : "";
             const fallback = presetLink || iconDefault;
             const desc = fallback ? `Default: ${fallback}` : "Default: (none)";
-            new import_obsidian2.Setting(contentEl).setName(`Frame ${i + 1}: ${fr.iconKey}`).setDesc(desc).addText((t) => {
-              var _a3;
+            new import_obsidian2.Setting(contentEl).setName(`Frame ${i2 + 1}: ${fr.iconKey}`).setDesc(desc).addText((t) => {
+              var _a4;
               t.setPlaceholder("Override link (optional)");
-              t.setValue((_a3 = overrides[i]) != null ? _a3 : "");
+              t.setValue((_a4 = overrides[i2]) != null ? _a4 : "");
               t.onChange((v) => {
                 const s = v.trim();
-                if (s) overrides[i] = s;
-                else delete overrides[i];
+                if (s) overrides[i2] = s;
+                else delete overrides[i2];
                 if (Object.keys(overrides).length === 0) {
                   delete this.marker.swapLinks;
                 } else {
@@ -3099,9 +716,9 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
       } else {
         const linkSetting = new import_obsidian2.Setting(contentEl).setName("Link").setDesc("Wiki link (without [[ ]]). Supports note and note#heading.");
         linkSetting.addText((t) => {
-          var _a2;
+          var _a3;
           this.linkInput = t;
-          t.setPlaceholder("Folder/note or note#heading").setValue((_a2 = this.marker.link) != null ? _a2 : "").onChange((v) => {
+          t.setPlaceholder("Folder/note or note#heading").setValue((_a3 = this.marker.link) != null ? _a3 : "").onChange((v) => {
             this.marker.link = v.trim();
             this.updateLinkSuggestions(v);
           });
@@ -3166,10 +783,10 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
         });
       });
       labelPosSetting = new import_obsidian2.Setting(contentEl).setName("Tooltip label position").setDesc("Where to place the always-visible label relative to the pin anchor.").addDropdown((d) => {
-        var _a2;
+        var _a3;
         d.addOption("below", "Below pin");
         d.addOption("above", "Above pin");
-        d.setValue((_a2 = this.marker.tooltipLabelPosition) != null ? _a2 : "below");
+        d.setValue((_a3 = this.marker.tooltipLabelPosition) != null ? _a3 : "below");
         d.onChange((v) => {
           this.marker.tooltipLabelPosition = v === "above" ? "above" : "below";
         });
@@ -3206,10 +823,10 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
       });
       toggleLabelExtras();
       new import_obsidian2.Setting(contentEl).setName("Tooltip").addTextArea((a) => {
-        var _a2;
+        var _a3;
         a.setPlaceholder("Optional tooltip text");
         a.inputEl.rows = 3;
-        a.setValue((_a2 = this.marker.tooltip) != null ? _a2 : "");
+        a.setValue((_a3 = this.marker.tooltip) != null ? _a3 : "");
         a.onChange((v) => {
           this.marker.tooltip = v;
         });
@@ -3241,18 +858,18 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
       });
       if (this.marker.type !== "swap") {
         new import_obsidian2.Setting(contentEl).setName("Icon").setDesc("To set up new icons go to settings.").addDropdown((d) => {
-          var _a2, _b2;
-          const sortedIcons = [...(_a2 = this.plugin.settings.icons) != null ? _a2 : []].sort(
+          var _a3, _b3;
+          const sortedIcons = [...(_a3 = this.plugin.settings.icons) != null ? _a3 : []].sort(
             (a, b) => {
-              var _a3, _b3;
-              return String((_a3 = a.key) != null ? _a3 : "").localeCompare(String((_b3 = b.key) != null ? _b3 : ""), void 0, {
+              var _a4, _b4;
+              return String((_a4 = a.key) != null ? _a4 : "").localeCompare(String((_b4 = b.key) != null ? _b4 : ""), void 0, {
                 sensitivity: "base",
                 numeric: true
               });
             }
           );
           for (const icon of sortedIcons) d.addOption(icon.key, icon.key);
-          d.setValue((_b2 = this.marker.iconKey) != null ? _b2 : this.plugin.settings.defaultIconKey);
+          d.setValue((_b3 = this.marker.iconKey) != null ? _b3 : this.plugin.settings.defaultIconKey);
           d.onChange((v) => {
             this.marker.iconKey = v;
             updatePreview();
@@ -3268,9 +885,9 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
         }
       });
       colorRow.addText((t) => {
-        var _a2;
+        var _a3;
         t.setPlaceholder("#d23c3c");
-        t.setValue((_a2 = this.marker.iconColor) != null ? _a2 : "");
+        t.setValue((_a3 = this.marker.iconColor) != null ? _a3 : "");
         colorTextEl = t.inputEl;
         t.onChange((v) => {
           const c = v.trim();
@@ -3307,9 +924,9 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
       }
     }
     new import_obsidian2.Setting(contentEl).setName("Layer").setDesc("Choose an existing layer or type a new name.").addDropdown((d) => {
-      var _a2, _b2, _c2, _d2, _e2, _f;
+      var _a3, _b3, _c2, _d2, _e2, _f;
       for (const l of this.data.layers) d.addOption(l.name, l.name);
-      const current = (_f = (_e2 = (_c2 = (_a2 = this.data.layers.find((l) => l.id === this.marker.layer)) == null ? void 0 : _a2.name) != null ? _c2 : (_b2 = this.data.layers.find((l) => l.visible && !l.locked)) == null ? void 0 : _b2.name) != null ? _e2 : (_d2 = this.data.layers.find((l) => l.visible)) == null ? void 0 : _d2.name) != null ? _f : this.data.layers[0].name;
+      const current = (_f = (_e2 = (_c2 = (_a3 = this.data.layers.find((l) => l.id === this.marker.layer)) == null ? void 0 : _a3.name) != null ? _c2 : (_b3 = this.data.layers.find((l) => l.visible && !l.locked)) == null ? void 0 : _b3.name) != null ? _e2 : (_d2 = this.data.layers.find((l) => l.visible)) == null ? void 0 : _d2.name) != null ? _f : this.data.layers[0].name;
       d.setValue(current).onChange((v) => {
         const lyr = this.data.layers.find((l) => l.name === v);
         if (lyr) this.marker.layer = lyr.id;
@@ -3321,9 +938,9 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
     );
     if (this.marker.type === "sticker") {
       new import_obsidian2.Setting(contentEl).setName("Size").addText((t) => {
-        var _a2;
+        var _a3;
         t.setPlaceholder("64");
-        t.setValue(String((_a2 = this.marker.stickerSize) != null ? _a2 : 64));
+        t.setValue(String((_a3 = this.marker.stickerSize) != null ? _a3 : 64));
         t.onChange((v) => {
           const n = Number(v);
           if (Number.isFinite(n) && n > 0) {
@@ -3349,16 +966,16 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
     preview.createSpan({ text: "Preview:" });
     const img = preview.createEl("img");
     const resolvePreview = () => {
-      var _a2, _b2, _c2, _d2, _e2, _f;
+      var _a3, _b3, _c2, _d2, _e2, _f;
       if (this.marker.type === "sticker") {
-        let url2 = (_a2 = this.marker.stickerPath) != null ? _a2 : "";
+        let url2 = (_a3 = this.marker.stickerPath) != null ? _a3 : "";
         if (url2 && !url2.startsWith("data:")) {
           const file = this.app.vault.getAbstractFileByPath(url2);
           if (file instanceof import_obsidian2.TFile) {
             url2 = this.app.vault.getResourcePath(file);
           }
         }
-        const size2 = Math.max(1, Math.round((_b2 = this.marker.stickerSize) != null ? _b2 : 64));
+        const size2 = Math.max(1, Math.round((_b3 = this.marker.stickerSize) != null ? _b3 : 64));
         return {
           url: url2,
           size: size2
@@ -3370,7 +987,7 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
           const idx = this.normalizeSwapFrameIndex(this.marker, preset);
           const frame = preset.frames[idx];
           const key = (frame == null ? void 0 : frame.iconKey) || this.plugin.settings.defaultIconKey;
-          const baseIcon2 = (_c2 = this.plugin.settings.icons.find((i) => i.key === key)) != null ? _c2 : this.plugin.builtinIcon();
+          const baseIcon2 = (_c2 = this.plugin.settings.icons.find((i2) => i2.key === key)) != null ? _c2 : this.plugin.builtinIcon();
           const size2 = typeof this.marker.sizeOverride === "number" && Number.isFinite(this.marker.sizeOverride) && this.marker.sizeOverride > 0 ? Math.round(this.marker.sizeOverride) : baseIcon2.size;
           let url2 = baseIcon2.pathOrDataUrl;
           const color2 = (_d2 = this.marker.iconColor) == null ? void 0 : _d2.trim();
@@ -3395,9 +1012,9 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
         }
       }
       const baseIcon = (_e2 = this.plugin.settings.icons.find(
-        (i) => {
-          var _a3;
-          return i.key === ((_a3 = this.marker.iconKey) != null ? _a3 : this.plugin.settings.defaultIconKey);
+        (i2) => {
+          var _a4;
+          return i2.key === ((_a4 = this.marker.iconKey) != null ? _a4 : this.plugin.settings.defaultIconKey);
         }
       )) != null ? _e2 : this.plugin.builtinIcon();
       const size = typeof this.marker.sizeOverride === "number" && Number.isFinite(this.marker.sizeOverride) && this.marker.sizeOverride > 0 ? Math.round(this.marker.sizeOverride) : baseIcon.size;
@@ -3463,10 +1080,10 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
         if (this.marker.tooltipLabelAlways && !this.marker.tooltipLabelPosition) this.marker.tooltipLabelPosition = "below";
         if (!this.marker.tooltipLabelAlways) delete this.marker.tooltipLabelPosition;
         if (typeof this.marker.sizeOverride !== "number" || !Number.isFinite(this.marker.sizeOverride) || this.marker.sizeOverride <= 0) delete this.marker.sizeOverride;
-        const normOffset = (x) => {
-          if (typeof x !== "number" || !Number.isFinite(x)) return void 0;
-          if (Math.abs(x) < 1e-9) return void 0;
-          return x;
+        const normOffset = (x2) => {
+          if (typeof x2 !== "number" || !Number.isFinite(x2)) return void 0;
+          if (Math.abs(x2) < 1e-9) return void 0;
+          return x2;
         };
         const ox = normOffset(this.marker.tooltipLabelOffsetX);
         const oy = normOffset(this.marker.tooltipLabelOffsetY);
@@ -3525,17 +1142,17 @@ var ScaleCalibrateModal = class extends import_obsidian3.Modal {
         this.inputValue = v.trim();
       });
     }).addDropdown((d) => {
-      var _a, _b, _c;
+      var _a2, _b2, _c;
       d.addOption("m", "Meters");
       d.addOption("km", "Kilometers");
       d.addOption("mi", "Miles");
       d.addOption("ft", "Feet");
-      const customUnits = ((_a = this.options.customUnits) != null ? _a : []).filter((u) => !!u && typeof u.id === "string" && u.id.trim().length > 0).slice().sort((a, b) => {
-        var _a2, _b2;
-        return ((_a2 = a.name) != null ? _a2 : a.id).localeCompare((_b2 = b.name) != null ? _b2 : b.id);
+      const customUnits = ((_a2 = this.options.customUnits) != null ? _a2 : []).filter((u) => !!u && typeof u.id === "string" && u.id.trim().length > 0).slice().sort((a, b) => {
+        var _a3, _b3;
+        return ((_a3 = a.name) != null ? _a3 : a.id).localeCompare((_b3 = b.name) != null ? _b3 : b.id);
       });
       for (const u of customUnits) {
-        const base = ((_b = u.name) != null ? _b : "").trim() || "Custom unit";
+        const base = ((_b2 = u.name) != null ? _b2 : "").trim() || "Custom unit";
         const abbr = ((_c = u.abbreviation) != null ? _c : "").trim();
         const label = abbr ? `${base} (${abbr})` : base;
         d.addOption(`custom:${u.id}`, label);
@@ -3750,8 +1367,8 @@ var MarkdownFileSuggestModal = class extends import_obsidian5.FuzzySuggestModal 
     this.appRef = app;
     this.onChoose = onChoose;
     this.files = this.appRef.vault.getFiles().filter((f) => {
-      var _a;
-      return ((_a = f.extension) == null ? void 0 : _a.toLowerCase()) === "md";
+      var _a2;
+      return ((_a2 = f.extension) == null ? void 0 : _a2.toLowerCase()) === "md";
     }).sort((a, b) => a.path.localeCompare(b.path));
     this.setPlaceholder("Choose note\u2026");
   }
@@ -3769,14 +1386,14 @@ var MarkdownFileSuggestModal = class extends import_obsidian5.FuzzySuggestModal 
 // src/drawingEditorModal.ts
 var DrawingEditorModal = class extends import_obsidian6.Modal {
   constructor(app, drawing, drawLayers, onResult) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     super(app);
     this.allLinkSuggestions = [];
     this.original = drawing;
     this.drawLayers = Array.isArray(drawLayers) ? drawLayers.map((l) => ({ id: l.id, name: l.name })) : [];
     this.working = JSON.parse(JSON.stringify(drawing));
     this.onResult = onResult;
-    (_b = (_a = this.working).style) != null ? _b : _a.style = {
+    (_b2 = (_a2 = this.working).style) != null ? _b2 : _a2.style = {
       strokeColor: "#ff0000",
       strokeWidth: 2
     };
@@ -3815,7 +1432,7 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
     }
   }
   onOpen() {
-    var _a, _b, _c, _d;
+    var _a2, _b2, _c, _d;
     const { contentEl } = this;
     contentEl.empty();
     const canBeRegion = this.working.kind !== "polyline";
@@ -3825,9 +1442,9 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
     const style = this.working.style;
     if (!isPolyline) {
       new import_obsidian6.Setting(contentEl).setName("Label").addText((t) => {
-        var _a2;
+        var _a3;
         t.setPlaceholder("Label");
-        t.setValue((_a2 = style.label) != null ? _a2 : "");
+        t.setValue((_a3 = style.label) != null ? _a3 : "");
         t.inputEl.classList.add("zoommap-drawing-editor__label-input");
         t.onChange((v) => {
           style.label = v.trim() || void 0;
@@ -3865,12 +1482,12 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
       type: "text"
     });
     strokeColorText.classList.add("zoommap-drawing-editor__color-text");
-    strokeColorText.value = (_a = style.strokeColor) != null ? _a : "#ff0000";
+    strokeColorText.value = (_a2 = style.strokeColor) != null ? _a2 : "#ff0000";
     const strokeColorPicker = strokeColorSetting.controlEl.createEl("input", {
       type: "color"
     });
     strokeColorPicker.classList.add("zoommap-drawing-editor__color-picker");
-    strokeColorPicker.value = this.normalizeHex((_b = style.strokeColor) != null ? _b : "#ff0000");
+    strokeColorPicker.value = this.normalizeHex((_b2 = style.strokeColor) != null ? _b2 : "#ff0000");
     strokeColorText.oninput = () => {
       const val = strokeColorText.value.trim() || "#ff0000";
       style.strokeColor = val;
@@ -3884,10 +1501,10 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
       style.strokeColor = hex;
     };
     new import_obsidian6.Setting(contentEl).setName("Width").addText((t) => {
-      var _a2;
+      var _a3;
       t.inputEl.type = "number";
       t.inputEl.classList.add("zoommap-drawing-editor__num-input");
-      t.setValue(String((_a2 = style.strokeWidth) != null ? _a2 : 2));
+      t.setValue(String((_a3 = style.strokeWidth) != null ? _a3 : 2));
       t.onChange((v) => {
         const n = Number(v);
         if (Number.isFinite(n) && n > 0) {
@@ -3952,13 +1569,13 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
     fillHeading.textContent = "Fill";
     const fillPatternSetting = new import_obsidian6.Setting(contentEl).setName("Pattern");
     fillPatternSetting.addDropdown((dd) => {
-      var _a2;
+      var _a3;
       dd.addOption("none", "None");
       dd.addOption("solid", "Solid");
       dd.addOption("striped", "Striped");
       dd.addOption("cross", "Cross");
       dd.addOption("wavy", "Wavy");
-      const current = (_a2 = style.fillPattern) != null ? _a2 : style.fillColor ? "solid" : "none";
+      const current = (_a3 = style.fillPattern) != null ? _a3 : style.fillColor ? "solid" : "none";
       dd.setValue(current);
       dd.onChange((v) => {
         const kind = v;
@@ -4008,11 +1625,11 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
       });
     });
     new import_obsidian6.Setting(contentEl).setName("Spacing").addText((t) => {
-      var _a2;
+      var _a3;
       t.inputEl.type = "number";
       t.inputEl.classList.add("zoommap-drawing-editor__num-input");
       t.setPlaceholder("8");
-      t.setValue(String((_a2 = style.fillPatternSpacing) != null ? _a2 : 8));
+      t.setValue(String((_a3 = style.fillPatternSpacing) != null ? _a3 : 8));
       t.onChange((v) => {
         const n = Number(v);
         if (!Number.isFinite(n) || n <= 0) {
@@ -4023,11 +1640,11 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
       });
     });
     new import_obsidian6.Setting(contentEl).setName("Angle").addText((t) => {
-      var _a2;
+      var _a3;
       t.inputEl.type = "number";
       t.inputEl.classList.add("zoommap-drawing-editor__num-input");
       t.setPlaceholder("45");
-      t.setValue(String((_a2 = style.fillPatternAngle) != null ? _a2 : 45));
+      t.setValue(String((_a3 = style.fillPatternAngle) != null ? _a3 : 45));
       t.onChange((v) => {
         const n = Number(v);
         if (!Number.isFinite(n)) {
@@ -4038,11 +1655,11 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
       });
     });
     new import_obsidian6.Setting(contentEl).setName("Line width").addText((t) => {
-      var _a2;
+      var _a3;
       t.inputEl.type = "number";
       t.inputEl.classList.add("zoommap-drawing-editor__num-input");
       t.setPlaceholder("1");
-      t.setValue(String((_a2 = style.fillPatternStrokeWidth) != null ? _a2 : 1));
+      t.setValue(String((_a3 = style.fillPatternStrokeWidth) != null ? _a3 : 1));
       t.onChange((v) => {
         const n = Number(v);
         if (!Number.isFinite(n) || n <= 0) {
@@ -4074,9 +1691,9 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
       regionHeading.textContent = "Region interaction";
       let regionLinkInput = null;
       new import_obsidian6.Setting(contentEl).setName("Region link").setDesc("Optional wiki link that opens when the region is clicked.").addText((t) => {
-        var _a2;
+        var _a3;
         t.setPlaceholder("Note or note#heading");
-        t.setValue((_a2 = style.regionLink) != null ? _a2 : "");
+        t.setValue((_a3 = style.regionLink) != null ? _a3 : "");
         regionLinkInput = t.inputEl;
         t.onChange((v) => {
           style.regionLink = v.trim() || void 0;
@@ -4084,8 +1701,8 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
         this.attachLinkAutocomplete(
           t.inputEl,
           () => {
-            var _a3;
-            return (_a3 = style.regionLink) != null ? _a3 : "";
+            var _a4;
+            return (_a4 = style.regionLink) != null ? _a4 : "";
           },
           (val) => {
             style.regionLink = val.trim() || void 0;
@@ -4095,9 +1712,9 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
       }).addButton((b) => {
         b.setButtonText("Pick\u2026").onClick(() => {
           new MarkdownFileSuggestModal(this.app, (file) => {
-            var _a2;
+            var _a3;
             const active = this.app.workspace.getActiveFile();
-            const fromPath = (_a2 = active == null ? void 0 : active.path) != null ? _a2 : file.path;
+            const fromPath = (_a3 = active == null ? void 0 : active.path) != null ? _a3 : file.path;
             const link = this.app.metadataCache.fileToLinktext(file, fromPath);
             style.regionLink = link;
             if (regionLinkInput) regionLinkInput.value = link;
@@ -4105,10 +1722,10 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
         });
       });
       new import_obsidian6.Setting(contentEl).setName("Region tooltip").setDesc("Optional tooltip shown when hovering the region.").addTextArea((a) => {
-        var _a2;
+        var _a3;
         a.inputEl.rows = 3;
         a.setPlaceholder("Region tooltip");
-        a.setValue((_a2 = style.regionTooltip) != null ? _a2 : "");
+        a.setValue((_a3 = style.regionTooltip) != null ? _a3 : "");
         a.onChange((v) => {
           style.regionTooltip = v.trim() || void 0;
         });
@@ -4162,14 +1779,14 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
     return v;
   }
   buildLinkSuggestions() {
-    var _a, _b, _c, _d;
+    var _a2, _b2, _c, _d;
     const files = this.app.vault.getFiles().filter((f) => {
-      var _a2;
-      return ((_a2 = f.extension) == null ? void 0 : _a2.toLowerCase()) === "md";
+      var _a3;
+      return ((_a3 = f.extension) == null ? void 0 : _a3.toLowerCase()) === "md";
     });
     const suggestions = [];
     const active = this.app.workspace.getActiveFile();
-    const fromPath = (_c = (_b = active == null ? void 0 : active.path) != null ? _b : (_a = files[0]) == null ? void 0 : _a.path) != null ? _c : "";
+    const fromPath = (_c = (_b2 = active == null ? void 0 : active.path) != null ? _b2 : (_a2 = files[0]) == null ? void 0 : _a2.path) != null ? _c : "";
     for (const file of files) {
       const base = this.app.metadataCache.fileToLinktext(file, fromPath);
       suggestions.push({ label: base, value: base });
@@ -4232,19 +1849,19 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
   renderLayerSetting(container) {
     if (!this.drawLayers.length) return;
     new import_obsidian6.Setting(container).setName("Draw layer").setDesc("Choose the draw layer for this drawing.").addDropdown((dd) => {
-      var _a, _b;
+      var _a2, _b2;
       for (const layer of this.drawLayers) {
         dd.addOption(layer.id, layer.name || layer.id);
       }
-      const fallback = (_b = (_a = this.drawLayers[0]) == null ? void 0 : _a.id) != null ? _b : this.working.layerId;
+      const fallback = (_b2 = (_a2 = this.drawLayers[0]) == null ? void 0 : _a2.id) != null ? _b2 : this.working.layerId;
       dd.setValue(this.working.layerId || fallback);
       dd.onChange((v) => {
         this.working.layerId = v;
       });
     });
   }
-  clamp(v, min, max) {
-    return Math.min(max, Math.max(min, v));
+  clamp(v, min, max2) {
+    return Math.min(max2, Math.max(min, v));
   }
   toPercent(value, fallback) {
     if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -4253,7 +1870,7 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
     return String(Math.round(value * 100));
   }
   normalizeStyle(drawing) {
-    var _a, _b;
+    var _a2, _b2;
     const style = drawing.style;
     if (!style.strokeColor) style.strokeColor = "#ff0000";
     if (!Number.isFinite(style.strokeWidth) || style.strokeWidth <= 0) {
@@ -4280,7 +1897,7 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
       delete style.regionHoverPreview;
       return;
     }
-    const pattern = (_a = style.fillPattern) != null ? _a : style.fillColor ? "solid" : "none";
+    const pattern = (_a2 = style.fillPattern) != null ? _a2 : style.fillColor ? "solid" : "none";
     style.fillPattern = pattern;
     if (style.regionHoverPreview !== false) {
       style.regionHoverPreview = true;
@@ -4306,7 +1923,7 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
         style.fillPatternStrokeWidth = 1;
       }
       if (!Number.isFinite(style.fillPatternOpacity)) {
-        style.fillPatternOpacity = (_b = style.fillOpacity) != null ? _b : 0.15;
+        style.fillPatternOpacity = (_b2 = style.fillOpacity) != null ? _b2 : 0.15;
       }
       style.fillPatternOpacity = this.clamp(style.fillPatternOpacity, 0, 1);
     }
@@ -4322,8 +1939,8 @@ var ImageFileSuggestModal = class extends import_obsidian7.FuzzySuggestModal {
     this.onChoose = onChoose;
     const exts = /* @__PURE__ */ new Set(["png", "jpg", "jpeg", "gif", "svg", "webp"]);
     this.files = this.appRef.vault.getFiles().filter((f) => {
-      var _a;
-      const m = (_a = f.extension) == null ? void 0 : _a.toLowerCase();
+      var _a2;
+      const m = (_a2 = f.extension) == null ? void 0 : _a2.toLowerCase();
       return exts.has(m);
     });
     this.setPlaceholder("Choose image file\u2026");
@@ -4378,12 +1995,12 @@ var NamePromptModal = class extends import_obsidian8.Modal {
 var import_obsidian9 = require("obsidian");
 var RenameLayerModal = class extends import_obsidian9.Modal {
   constructor(app, layer, onDone) {
-    var _a;
+    var _a2;
     super(app);
     this.value = "";
     this.layer = layer;
     this.onDone = onDone;
-    this.value = (_a = layer.name) != null ? _a : "";
+    this.value = (_a2 = layer.name) != null ? _a2 : "";
   }
   onOpen() {
     const { contentEl } = this;
@@ -4409,7 +2026,7 @@ var RenameLayerModal = class extends import_obsidian9.Modal {
 };
 var DeleteLayerModal = class extends import_obsidian9.Modal {
   constructor(app, layer, targets, hasMarkers, onDone) {
-    var _a, _b;
+    var _a2, _b2;
     super(app);
     this.mode = "delete-markers";
     this.targetId = "";
@@ -4417,7 +2034,7 @@ var DeleteLayerModal = class extends import_obsidian9.Modal {
     this.targets = targets;
     this.hasMarkers = hasMarkers;
     this.onDone = onDone;
-    this.targetId = (_b = (_a = targets[0]) == null ? void 0 : _a.id) != null ? _b : "";
+    this.targetId = (_b2 = (_a2 = targets[0]) == null ? void 0 : _a2.id) != null ? _b2 : "";
   }
   onOpen() {
     const { contentEl } = this;
@@ -4561,7 +2178,7 @@ var PinSizeEditorModal = class extends import_obsidian10.Modal {
 var import_obsidian11 = require("obsidian");
 var ViewEditorModal = class extends import_obsidian11.Modal {
   constructor(app, initial, onResult, opts) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j;
     super(app);
     this.markersInputEl = null;
     this.cfg = JSON.parse(JSON.stringify(initial));
@@ -4570,7 +2187,7 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
     if (!this.cfg.imageBases || this.cfg.imageBases.length === 0) {
       this.cfg.imageBases = [{ path: "", name: "" }];
     }
-    (_b = (_a = this.cfg).overlays) != null ? _b : _a.overlays = [];
+    (_b2 = (_a2 = this.cfg).overlays) != null ? _b2 : _a2.overlays = [];
     (_d = (_c = this.cfg).markerLayers) != null ? _d : _c.markerLayers = ["Default"];
     (_e = this.cfg).width || (_e.width = "100%");
     (_f = this.cfg).height || (_f.height = "480px");
@@ -4608,14 +2225,14 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
     const renderBases = () => {
       basesWrap.empty();
       this.cfg.imageBases.forEach((b, idx) => {
-        var _a, _b;
+        var _a2, _b2;
         const row = basesWrap.createDiv({ cls: "zoommap-view-editor-row" });
         const pathInput = row.createEl("input", {
           type: "text"
         });
         pathInput.addClass("zoommap-view-editor-input", "zoommap-view-editor-input-path");
         pathInput.placeholder = idx === 0 ? "Path to base image (required)" : "Path to additional base image";
-        pathInput.value = (_a = b.path) != null ? _a : "";
+        pathInput.value = (_a2 = b.path) != null ? _a2 : "";
         pathInput.oninput = () => {
           this.cfg.imageBases[idx].path = pathInput.value.trim();
           this.autoFillMarkersPathFromFirstBase();
@@ -4632,7 +2249,7 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
         const nameInput = row.createEl("input", { type: "text" });
         nameInput.addClass("zoommap-view-editor-input", "zoommap-view-editor-input-name");
         nameInput.placeholder = "Optional display name";
-        nameInput.value = (_b = b.name) != null ? _b : "";
+        nameInput.value = (_b2 = b.name) != null ? _b2 : "";
         nameInput.oninput = () => {
           this.cfg.imageBases[idx].name = nameInput.value.trim() || void 0;
         };
@@ -4661,12 +2278,12 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
     const renderOverlays = () => {
       overlaysWrap.empty();
       this.cfg.overlays.forEach((o, idx) => {
-        var _a, _b;
+        var _a2, _b2;
         const row = overlaysWrap.createDiv({ cls: "zoommap-view-editor-row" });
         const pathInput = row.createEl("input", { type: "text" });
         pathInput.addClass("zoommap-view-editor-input", "zoommap-view-editor-input-path");
         pathInput.placeholder = "Path to overlay image";
-        pathInput.value = (_a = o.path) != null ? _a : "";
+        pathInput.value = (_a2 = o.path) != null ? _a2 : "";
         pathInput.oninput = () => {
           this.cfg.overlays[idx].path = pathInput.value.trim();
         };
@@ -4681,7 +2298,7 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
         const nameInput = row.createEl("input", { type: "text" });
         nameInput.addClass("zoommap-view-editor-input", "zoommap-view-editor-input-name");
         nameInput.placeholder = "Optional name";
-        nameInput.value = (_b = o.name) != null ? _b : "";
+        nameInput.value = (_b2 = o.name) != null ? _b2 : "";
         nameInput.oninput = () => {
           this.cfg.overlays[idx].name = nameInput.value.trim() || void 0;
         };
@@ -4709,18 +2326,18 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
     renderOverlays();
     contentEl.createEl("h3", { text: "Marker JSON" });
     new import_obsidian11.Setting(contentEl).setClass("zoommap-view-editor-row").setName("Markers").setDesc("Optional. If empty, <firstBase>.markers.json is used.").addText((t) => {
-      var _a;
+      var _a2;
       t.setPlaceholder("Path to markers.json");
-      t.setValue((_a = this.cfg.markersPath) != null ? _a : "");
+      t.setValue((_a2 = this.cfg.markersPath) != null ? _a2 : "");
       this.markersInputEl = t.inputEl;
       t.onChange((v) => {
         this.cfg.markersPath = v.trim();
       });
     }).addButton(
       (b) => b.setButtonText("Use first base").onClick(() => {
-        var _a;
+        var _a2;
         this.autoFillMarkersPathFromFirstBase(true);
-        if (this.markersInputEl) this.markersInputEl.value = (_a = this.cfg.markersPath) != null ? _a : "";
+        if (this.markersInputEl) this.markersInputEl.value = (_a2 = this.cfg.markersPath) != null ? _a2 : "";
       })
     );
     contentEl.createEl("h3", { text: "Marker layers (names)" });
@@ -4758,10 +2375,10 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
     renderLayers();
     contentEl.createEl("h3", { text: "View & layout" });
     new import_obsidian11.Setting(contentEl).setClass("zoommap-view-editor-row").setName("Render mode").setDesc("Prefer canvas for larger SVG maps.").addDropdown((d) => {
-      var _a;
+      var _a2;
       d.addOption("dom", "DOM");
       d.addOption("canvas", "Canvas");
-      d.setValue((_a = this.cfg.renderMode) != null ? _a : "dom");
+      d.setValue((_a2 = this.cfg.renderMode) != null ? _a2 : "dom");
       d.onChange((v) => {
         this.cfg.renderMode = v;
       });
@@ -4805,9 +2422,9 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
       });
     });
     widthSetting.addText((t) => {
-      var _a;
+      var _a2;
       t.setPlaceholder("100% or 640px");
-      t.setValue((_a = this.cfg.width) != null ? _a : "");
+      t.setValue((_a2 = this.cfg.width) != null ? _a2 : "");
       t.inputEl.classList.add("zoommap-view-editor-input--short");
       t.onChange((v) => {
         this.cfg.width = v.trim();
@@ -4828,9 +2445,9 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
       });
     });
     heightSetting.addText((t) => {
-      var _a;
+      var _a2;
       t.setPlaceholder("480px");
-      t.setValue((_a = this.cfg.height) != null ? _a : "");
+      t.setValue((_a2 = this.cfg.height) != null ? _a2 : "");
       t.inputEl.classList.add("zoommap-view-editor-input--short");
       t.onChange((v) => {
         this.cfg.height = v.trim();
@@ -4852,32 +2469,32 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
       });
     });
     handleSetting = new import_obsidian11.Setting(contentEl).setClass("zoommap-view-editor-row").setName("Resize handle").addDropdown((d) => {
-      var _a;
+      var _a2;
       d.addOption("native", "Native");
       d.addOption("left", "Left");
       d.addOption("right", "Right");
       d.addOption("both", "Both");
-      d.setValue((_a = this.cfg.resizeHandle) != null ? _a : "native");
+      d.setValue((_a2 = this.cfg.resizeHandle) != null ? _a2 : "native");
       d.onChange((v) => {
         this.cfg.resizeHandle = v;
       });
     });
     handleSetting.settingEl.toggle(!!this.cfg.resizable);
     new import_obsidian11.Setting(contentEl).setClass("zoommap-view-editor-row").setName("Align").addDropdown((d) => {
-      var _a;
+      var _a2;
       d.addOption("", "(none)");
       d.addOption("left", "Left");
       d.addOption("center", "Center");
       d.addOption("right", "Right");
-      d.setValue((_a = this.cfg.align) != null ? _a : "");
+      d.setValue((_a2 = this.cfg.align) != null ? _a2 : "");
       d.onChange((v) => {
         this.cfg.align = v || void 0;
       });
     });
     new import_obsidian11.Setting(contentEl).setClass("zoommap-view-editor-row").setName("ID = optional").setDesc("Stable identifier if you store markers inline in the note.").addText((t) => {
-      var _a;
+      var _a2;
       t.setPlaceholder("Map-world-1");
-      t.setValue((_a = this.cfg.id) != null ? _a : "");
+      t.setValue((_a2 = this.cfg.id) != null ? _a2 : "");
       t.onChange((v) => {
         const val = v.trim();
         this.cfg.id = val.length ? val : void 0;
@@ -4888,9 +2505,9 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
     const insets = this.cfg.viewportFrameInsets;
     const frameSetting = new import_obsidian11.Setting(contentEl).setClass("zoommap-view-editor-row").setName("Frame image (optional)").setDesc("Drawn above the map. Supports overhang.");
     frameSetting.addText((t) => {
-      var _a;
+      var _a2;
       t.setPlaceholder("Path to frame image.");
-      t.setValue((_a = this.cfg.viewportFrame) != null ? _a : "");
+      t.setValue((_a2 = this.cfg.viewportFrame) != null ? _a2 : "");
       frameInputEl = t.inputEl;
       t.onChange((v) => {
         const s = v.trim();
@@ -4932,11 +2549,11 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
     });
     const insetRow = (label, key) => {
       new import_obsidian11.Setting(contentEl).setClass("zoommap-view-editor-row").setName(`Inset ${label}`).addText((t) => {
-        var _a;
+        var _a2;
         t.inputEl.type = "number";
         t.inputEl.classList.add("zoommap-view-editor-input--short");
         t.setPlaceholder("0");
-        t.setValue(String((_a = insets[key]) != null ? _a : 0));
+        t.setValue(String((_a2 = insets[key]) != null ? _a2 : 0));
         t.onChange((v) => {
           const n = Number(String(v).replace(",", "."));
           if (!Number.isFinite(n) || n < 0) return;
@@ -4952,8 +2569,8 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
     const saveBtn = footer.createEl("button", { text: "Save" });
     const cancelBtn = footer.createEl("button", { text: "Cancel" });
     saveBtn.onclick = () => {
-      var _a, _b, _c;
-      const first = (_b = (_a = this.cfg.imageBases[0]) == null ? void 0 : _a.path) == null ? void 0 : _b.trim();
+      var _a2, _b2, _c;
+      const first = (_b2 = (_a2 = this.cfg.imageBases[0]) == null ? void 0 : _a2.path) == null ? void 0 : _b2.trim();
       if (!first) {
         new import_obsidian11.Notice("Please select at least one base image.", 2500);
         return;
@@ -4986,8 +2603,8 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
     this.cfg.maxZoom = maxZoom;
   }
   autoFillMarkersPathFromFirstBase(force = false) {
-    var _a, _b;
-    const first = (_b = (_a = this.cfg.imageBases[0]) == null ? void 0 : _a.path) == null ? void 0 : _b.trim();
+    var _a2, _b2;
+    const first = (_b2 = (_a2 = this.cfg.imageBases[0]) == null ? void 0 : _a2.path) == null ? void 0 : _b2.trim();
     if (!first) return;
     if (!force && this.cfg.markersPath && this.cfg.markersPath.trim().length > 0) {
       return;
@@ -5000,20 +2617,20 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
 
 // src/collectionsModals.ts
 var import_obsidian12 = require("obsidian");
-function deepClone(x) {
-  if (typeof structuredClone === "function") return structuredClone(x);
-  const json = JSON.stringify(x);
+function deepClone(x2) {
+  if (typeof structuredClone === "function") return structuredClone(x2);
+  const json = JSON.stringify(x2);
   return JSON.parse(json);
 }
 var CollectionEditorModal = class extends import_obsidian12.Modal {
   constructor(app, plugin, collection, onDone) {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h;
     super(app);
     this.plugin = plugin;
     this.original = collection;
     this.working = deepClone(collection);
-    this.working.bindings = (_a = this.working.bindings) != null ? _a : { basePaths: [] };
-    this.working.bindings.basePaths = (_b = this.working.bindings.basePaths) != null ? _b : [];
+    this.working.bindings = (_a2 = this.working.bindings) != null ? _a2 : { basePaths: [] };
+    this.working.bindings.basePaths = (_b2 = this.working.bindings.basePaths) != null ? _b2 : [];
     this.working.include = (_c = this.working.include) != null ? _c : {
       pinKeys: [],
       favorites: [],
@@ -5034,8 +2651,8 @@ var CollectionEditorModal = class extends import_obsidian12.Modal {
     contentEl.empty();
     contentEl.createEl("h2", { text: "Edit collection" });
     new import_obsidian12.Setting(contentEl).setName("Name").addText((t) => {
-      var _a;
-      t.setValue((_a = this.working.name) != null ? _a : "");
+      var _a2;
+      t.setValue((_a2 = this.working.name) != null ? _a2 : "");
       t.onChange((v) => {
         this.working.name = v.trim();
       });
@@ -5075,16 +2692,16 @@ var CollectionEditorModal = class extends import_obsidian12.Modal {
     contentEl.createEl("h3", { text: "Pins (from icon library)" });
     const pinWrap = contentEl.createDiv();
     const renderPins = () => {
-      var _a, _b;
+      var _a2, _b2;
       pinWrap.empty();
       pinWrap.createDiv({
         cls: "zoommap-collection-pin-hint",
         text: "Select pins from the icon library:"
       });
-      const selected = new Set((_a = this.working.include.pinKeys) != null ? _a : []);
-      const lib = ((_b = this.plugin.settings.icons) != null ? _b : []).filter((ico) => ico.inCollections !== false || selected.has(ico.key)).sort((a, b) => {
-        var _a2, _b2;
-        return String((_a2 = a.key) != null ? _a2 : "").localeCompare(String((_b2 = b.key) != null ? _b2 : ""), void 0, { sensitivity: "base", numeric: true });
+      const selected = new Set((_a2 = this.working.include.pinKeys) != null ? _a2 : []);
+      const lib = ((_b2 = this.plugin.settings.icons) != null ? _b2 : []).filter((ico) => ico.inCollections !== false || selected.has(ico.key)).sort((a, b) => {
+        var _a3, _b3;
+        return String((_a3 = a.key) != null ? _a3 : "").localeCompare(String((_b3 = b.key) != null ? _b3 : ""), void 0, { sensitivity: "base", numeric: true });
       });
       if (lib.length === 0) {
         const none = pinWrap.createEl("div", {
@@ -5094,7 +2711,7 @@ var CollectionEditorModal = class extends import_obsidian12.Modal {
       } else {
         const list = pinWrap.createDiv({ cls: "zoommap-collection-pin-grid" });
         lib.forEach((ico) => {
-          var _a2;
+          var _a3;
           const cell = list.createDiv({ cls: "zoommap-collection-pin-cell" });
           const cb = cell.createEl("input", { type: "checkbox" });
           cb.checked = this.working.include.pinKeys.includes(ico.key);
@@ -5103,13 +2720,13 @@ var CollectionEditorModal = class extends import_obsidian12.Modal {
             if (cb.checked) {
               if (!arr.includes(ico.key)) arr.push(ico.key);
             } else {
-              const i = arr.indexOf(ico.key);
-              if (i >= 0) arr.splice(i, 1);
+              const i2 = arr.indexOf(ico.key);
+              if (i2 >= 0) arr.splice(i2, 1);
             }
           };
           const img = cell.createEl("img");
           img.addClass("zoommap-collection-pin-icon");
-          const src = (_a2 = ico.pathOrDataUrl) != null ? _a2 : "";
+          const src = (_a3 = ico.pathOrDataUrl) != null ? _a3 : "";
           if (typeof src === "string") {
             if (src.startsWith("data:")) {
               img.src = src;
@@ -5138,10 +2755,10 @@ var CollectionEditorModal = class extends import_obsidian12.Modal {
         none.addClass("zoommap-muted");
       }
       list.forEach((p, idx) => {
-        var _a, _b, _c, _d, _e;
+        var _a2, _b2, _c, _d, _e;
         const row = favWrap.createDiv({ cls: "zoommap-collection-fav-row" });
         const name = row.createEl("input", { type: "text" });
-        name.value = (_a = p.name) != null ? _a : "";
+        name.value = (_a2 = p.name) != null ? _a2 : "";
         name.oninput = () => {
           p.name = name.value.trim();
         };
@@ -5154,12 +2771,12 @@ var CollectionEditorModal = class extends import_obsidian12.Modal {
         };
         addOpt("", "(default)");
         {
-          const pool = ((_b = this.plugin.settings.icons) != null ? _b : []).filter((ico) => {
-            var _a2;
-            return ico.inCollections !== false || ico.key === ((_a2 = p.iconKey) != null ? _a2 : "");
+          const pool = ((_b2 = this.plugin.settings.icons) != null ? _b2 : []).filter((ico) => {
+            var _a3;
+            return ico.inCollections !== false || ico.key === ((_a3 = p.iconKey) != null ? _a3 : "");
           }).sort((a, b) => {
-            var _a2, _b2;
-            return String((_a2 = a.key) != null ? _a2 : "").localeCompare(String((_b2 = b.key) != null ? _b2 : ""), void 0, { sensitivity: "base", numeric: true });
+            var _a3, _b3;
+            return String((_a3 = a.key) != null ? _a3 : "").localeCompare(String((_b3 = b.key) != null ? _b3 : ""), void 0, { sensitivity: "base", numeric: true });
           });
           pool.forEach((ico) => addOpt(ico.key, ico.key));
         }
@@ -5213,18 +2830,18 @@ var CollectionEditorModal = class extends import_obsidian12.Modal {
         none.addClass("zoommap-muted");
       }
       list.forEach((s, idx) => {
-        var _a, _b, _c, _d;
+        var _a2, _b2, _c, _d;
         const row = stickerWrap.createDiv({
           cls: "zoommap-collection-sticker-row"
         });
         const name = row.createEl("input", { type: "text" });
-        name.value = (_a = s.name) != null ? _a : "";
+        name.value = (_a2 = s.name) != null ? _a2 : "";
         name.oninput = () => {
           s.name = name.value.trim();
         };
         const path = row.createEl("input", { type: "text" });
         path.placeholder = "Image path or data URL";
-        path.value = (_b = s.imagePath) != null ? _b : "";
+        path.value = (_b2 = s.imagePath) != null ? _b2 : "";
         path.oninput = () => {
           s.imagePath = path.value.trim();
         };
@@ -5269,9 +2886,9 @@ var CollectionEditorModal = class extends import_obsidian12.Modal {
     contentEl.createEl("h3", { text: "Swap pins" });
     const swapWrap = contentEl.createDiv();
     const renderSwaps = () => {
-      var _a, _b;
+      var _a2, _b2;
       swapWrap.empty();
-      const swaps = (_b = (_a = this.working.include).swapPins) != null ? _b : _a.swapPins = [];
+      const swaps = (_b2 = (_a2 = this.working.include).swapPins) != null ? _b2 : _a2.swapPins = [];
       if (swaps.length === 0) {
         const none = swapWrap.createEl("div", {
           text: "No swap pins in this collection."
@@ -5279,12 +2896,12 @@ var CollectionEditorModal = class extends import_obsidian12.Modal {
         none.addClass("zoommap-muted");
       }
       swaps.forEach((sp, idx) => {
-        var _a2;
+        var _a3;
         const row = swapWrap.createDiv({
           cls: "zoommap-collection-sticker-row"
         });
         const name = row.createEl("input", { type: "text" });
-        name.value = (_a2 = sp.name) != null ? _a2 : "";
+        name.value = (_a3 = sp.name) != null ? _a3 : "";
         name.oninput = () => {
           sp.name = name.value.trim();
         };
@@ -5314,17 +2931,17 @@ var CollectionEditorModal = class extends import_obsidian12.Modal {
     contentEl.createEl("h3", { text: "Party pins" });
     const pingWrap = contentEl.createDiv();
     const renderPings = () => {
-      var _a, _b;
+      var _a2, _b2;
       pingWrap.empty();
-      const pings = (_b = (_a = this.working.include).pingPins) != null ? _b : _a.pingPins = [];
+      const pings = (_b2 = (_a2 = this.working.include).pingPins) != null ? _b2 : _a2.pingPins = [];
       if (pings.length === 0) {
         pingWrap.createEl("div", { text: "No party pins in this collection." }).addClass("zoommap-muted");
       }
       pings.forEach((pp, idx) => {
-        var _a2;
+        var _a3;
         const row = pingWrap.createDiv({ cls: "zoommap-collection-sticker-row" });
         const name = row.createEl("input", { type: "text" });
-        name.value = (_a2 = pp.name) != null ? _a2 : "";
+        name.value = (_a3 = pp.name) != null ? _a3 : "";
         name.oninput = () => {
           pp.name = name.value.trim();
         };
@@ -5343,7 +2960,7 @@ var CollectionEditorModal = class extends import_obsidian12.Modal {
       });
       const addBtn = pingWrap.createEl("button", { text: "Add party pin" });
       addBtn.onclick = () => {
-        var _a2, _b2;
+        var _a3, _b3;
         const id = `ping-${Math.random().toString(36).slice(2, 8)}`;
         const pp = {
           id,
@@ -5353,7 +2970,7 @@ var CollectionEditorModal = class extends import_obsidian12.Modal {
           distances: [2, 5, 10],
           unit: "km",
           customUnitId: void 0,
-          travelPackId: (_b2 = ((_a2 = this.plugin.settings.travelRulesPacks) != null ? _a2 : [])[0]) == null ? void 0 : _b2.id,
+          travelPackId: (_b3 = ((_a3 = this.plugin.settings.travelRulesPacks) != null ? _a3 : [])[0]) == null ? void 0 : _b3.id,
           noteFolder: "ZoomMap/Pings",
           filterTags: [],
           filterProps: {},
@@ -5428,16 +3045,16 @@ var SwapFramesEditorModal = class extends import_obsidian12.Modal {
     contentEl.createEl("h2", { text: "Swap pin" });
     this.buildLinkSuggestions();
     new import_obsidian12.Setting(contentEl).setName("Name").addText((t) => {
-      var _a;
-      t.setValue((_a = this.working.name) != null ? _a : "");
+      var _a2;
+      t.setValue((_a2 = this.working.name) != null ? _a2 : "");
       t.onChange((v) => {
         this.working.name = v.trim() || this.working.name;
       });
     });
     new import_obsidian12.Setting(contentEl).setName("Marker layer name (optional)").setDesc("If set: newly placed swap pins will be created in this marker layer (created if missing).").addText((t) => {
-      var _a;
+      var _a2;
       t.setPlaceholder("Layer");
-      t.setValue((_a = this.working.layerName) != null ? _a : "");
+      t.setValue((_a2 = this.working.layerName) != null ? _a2 : "");
       t.onChange((v) => {
         this.working.layerName = v.trim() || void 0;
       });
@@ -5459,22 +3076,22 @@ var SwapFramesEditorModal = class extends import_obsidian12.Modal {
     });
     const list = contentEl.createDiv();
     const render = () => {
-      var _a, _b;
+      var _a2, _b2;
       list.empty();
-      const frames = (_b = (_a = this.working).frames) != null ? _b : _a.frames = [];
+      const frames = (_b2 = (_a2 = this.working).frames) != null ? _b2 : _a2.frames = [];
       if (frames.length === 0) {
         const none = list.createEl("div", { text: "No frames yet." });
         none.addClass("zoommap-muted");
       }
       frames.forEach((fr, idx) => {
-        var _a2, _b2;
+        var _a3, _b3;
         const row = list.createDiv({
           cls: "zoommap-collection-sticker-row"
         });
         const iconSel = row.createEl("select");
-        const icons = ((_a2 = this.plugin.settings.icons) != null ? _a2 : []).filter((ico) => ico.inCollections !== false || ico.key === fr.iconKey).sort((a, b) => {
-          var _a3, _b3;
-          return String((_a3 = a.key) != null ? _a3 : "").localeCompare(String((_b3 = b.key) != null ? _b3 : ""), void 0, { sensitivity: "base", numeric: true });
+        const icons = ((_a3 = this.plugin.settings.icons) != null ? _a3 : []).filter((ico) => ico.inCollections !== false || ico.key === fr.iconKey).sort((a, b) => {
+          var _a4, _b4;
+          return String((_a4 = a.key) != null ? _a4 : "").localeCompare(String((_b4 = b.key) != null ? _b4 : ""), void 0, { sensitivity: "base", numeric: true });
         });
         icons.forEach((ico) => {
           const opt = iconSel.ownerDocument.createElement("option");
@@ -5488,15 +3105,15 @@ var SwapFramesEditorModal = class extends import_obsidian12.Modal {
         };
         const link = row.createEl("input", { type: "text" });
         link.placeholder = "Optional link";
-        link.value = (_b2 = fr.link) != null ? _b2 : "";
+        link.value = (_b3 = fr.link) != null ? _b3 : "";
         link.oninput = () => {
           fr.link = link.value.trim() || void 0;
         };
         this.attachLinkAutocomplete(
           link,
           () => {
-            var _a3;
-            return (_a3 = fr.link) != null ? _a3 : "";
+            var _a4;
+            return (_a4 = fr.link) != null ? _a4 : "";
           },
           (val) => {
             fr.link = val.trim() || void 0;
@@ -5511,8 +3128,8 @@ var SwapFramesEditorModal = class extends import_obsidian12.Modal {
       });
       const add = list.createEl("button", { text: "Add frame" });
       add.onclick = () => {
-        var _a2, _b2, _c;
-        const firstKey = (_c = (_b2 = (_a2 = this.plugin.settings.icons) == null ? void 0 : _a2[0]) == null ? void 0 : _b2.key) != null ? _c : "";
+        var _a3, _b3, _c;
+        const firstKey = (_c = (_b3 = (_a3 = this.plugin.settings.icons) == null ? void 0 : _a3[0]) == null ? void 0 : _b3.key) != null ? _c : "";
         const frame = { iconKey: firstKey };
         frames.push(frame);
         render();
@@ -5532,14 +3149,14 @@ var SwapFramesEditorModal = class extends import_obsidian12.Modal {
     this.contentEl.empty();
   }
   buildLinkSuggestions() {
-    var _a, _b, _c, _d;
+    var _a2, _b2, _c, _d;
     const files = this.app.vault.getFiles().filter((f) => {
-      var _a2;
-      return ((_a2 = f.extension) == null ? void 0 : _a2.toLowerCase()) === "md";
+      var _a3;
+      return ((_a3 = f.extension) == null ? void 0 : _a3.toLowerCase()) === "md";
     });
     const suggestions = [];
     const active = this.app.workspace.getActiveFile();
-    const fromPath = (_c = (_b = active == null ? void 0 : active.path) != null ? _b : (_a = files[0]) == null ? void 0 : _a.path) != null ? _c : "";
+    const fromPath = (_c = (_b2 = active == null ? void 0 : active.path) != null ? _b2 : (_a2 = files[0]) == null ? void 0 : _a2.path) != null ? _c : "";
     for (const file of files) {
       const base = this.app.metadataCache.fileToLinktext(file, fromPath);
       suggestions.push({ label: base, value: base });
@@ -5601,48 +3218,48 @@ var SwapFramesEditorModal = class extends import_obsidian12.Modal {
 };
 var PingPresetEditorModal = class extends import_obsidian12.Modal {
   constructor(app, plugin, preset, onSave) {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h;
     super(app);
     this.plugin = plugin;
     this.working = deepClone(preset);
     this.onSave = onSave;
-    (_b = (_a = this.working).relatedLookup) != null ? _b : _a.relatedLookup = "tags";
+    (_b2 = (_a2 = this.working).relatedLookup) != null ? _b2 : _a2.relatedLookup = "tags";
     (_d = (_c = this.working).searchLayersMode) != null ? _d : _c.searchLayersMode = "all";
     (_f = (_e = this.working).searchLayerNames) != null ? _f : _e.searchLayerNames = [];
     (_h = (_g = this.working).sections) != null ? _h : _g.sections = {};
   }
   onOpen() {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", { text: "Party preset" });
     new import_obsidian12.Setting(contentEl).setName("Name").addText((t) => {
-      var _a2;
-      t.setValue((_a2 = this.working.name) != null ? _a2 : "");
+      var _a3;
+      t.setValue((_a3 = this.working.name) != null ? _a3 : "");
       t.onChange((v) => {
         this.working.name = v.trim();
       });
     });
     new import_obsidian12.Setting(contentEl).setName("Icon").addDropdown((d) => {
-      var _a2, _b2;
+      var _a3, _b3;
       d.addOption("", "(default)");
       {
-        const pool = ((_a2 = this.plugin.settings.icons) != null ? _a2 : []).filter((ico) => {
-          var _a3;
-          return ico.inCollections !== false || ico.key === ((_a3 = this.working.iconKey) != null ? _a3 : "");
+        const pool = ((_a3 = this.plugin.settings.icons) != null ? _a3 : []).filter((ico) => {
+          var _a4;
+          return ico.inCollections !== false || ico.key === ((_a4 = this.working.iconKey) != null ? _a4 : "");
         }).sort((a, b) => {
-          var _a3, _b3;
-          return String((_a3 = a.key) != null ? _a3 : "").localeCompare(String((_b3 = b.key) != null ? _b3 : ""), void 0, { sensitivity: "base", numeric: true });
+          var _a4, _b4;
+          return String((_a4 = a.key) != null ? _a4 : "").localeCompare(String((_b4 = b.key) != null ? _b4 : ""), void 0, { sensitivity: "base", numeric: true });
         });
         for (const ico of pool) d.addOption(ico.key, ico.key);
       }
-      d.setValue((_b2 = this.working.iconKey) != null ? _b2 : "");
+      d.setValue((_b3 = this.working.iconKey) != null ? _b3 : "");
       d.onChange((v) => {
         this.working.iconKey = v || void 0;
       });
     });
     contentEl.createEl("h3", { text: "Generated sections" });
-    const sec = (_b = (_a = this.working).sections) != null ? _b : _a.sections = {};
+    const sec = (_b2 = (_a2 = this.working).sections) != null ? _b2 : _a2.sections = {};
     new import_obsidian12.Setting(contentEl).setName("Base table (embedded base)").addToggle((tg) => {
       tg.setValue(sec.bases !== false).onChange((on) => {
         sec.bases = on ? true : false;
@@ -5669,11 +3286,11 @@ var PingPresetEditorModal = class extends import_obsidian12.Modal {
       });
     });
     new import_obsidian12.Setting(contentEl).setName("Related notes lookup").setDesc("Expands the search starting from the in-range linked notes.").addDropdown((d) => {
-      var _a2;
+      var _a3;
       d.addOption("off", "Off");
       d.addOption("backlinks", "Backlinks (notes linking to the in-range note)");
       d.addOption("tags", "Tags (notes with matching tags)");
-      d.setValue((_a2 = this.working.relatedLookup) != null ? _a2 : "tags");
+      d.setValue((_a3 = this.working.relatedLookup) != null ? _a3 : "tags");
       d.onChange((v) => {
         if (v === "off" || v === "tags" || v === "backlinks") {
           this.working.relatedLookup = v;
@@ -5684,16 +3301,16 @@ var PingPresetEditorModal = class extends import_obsidian12.Modal {
     });
     let customLayersSetting = null;
     const renderCustomLayersSetting = () => {
-      var _a2;
+      var _a3;
       if (!customLayersSetting) return;
-      customLayersSetting.settingEl.toggle(((_a2 = this.working.searchLayersMode) != null ? _a2 : "all") === "custom");
+      customLayersSetting.settingEl.toggle(((_a3 = this.working.searchLayersMode) != null ? _a3 : "all") === "custom");
     };
     new import_obsidian12.Setting(contentEl).setName("Search markers in layers").setDesc("Limits which marker layers are considered when scanning for in-range markers. Custom uses layer *names* (comma separated).").addDropdown((d) => {
-      var _a2;
+      var _a3;
       d.addOption("all", "All layers");
       d.addOption("self", "Only the party pin's layer");
       d.addOption("custom", "Custom list");
-      d.setValue((_a2 = this.working.searchLayersMode) != null ? _a2 : "all");
+      d.setValue((_a3 = this.working.searchLayersMode) != null ? _a3 : "all");
       d.onChange((v) => {
         if (v === "all" || v === "self" || v === "custom") {
           this.working.searchLayersMode = v;
@@ -5704,9 +3321,9 @@ var PingPresetEditorModal = class extends import_obsidian12.Modal {
       });
     });
     customLayersSetting = new import_obsidian12.Setting(contentEl).setName("Layer names (comma separated)").setDesc('Example: "npc, shops, quests". If empty, all layers are searched.').addText((t) => {
-      var _a2;
+      var _a3;
       t.setPlaceholder("Npc, shops");
-      t.setValue(((_a2 = this.working.searchLayerNames) != null ? _a2 : []).join(", "));
+      t.setValue(((_a3 = this.working.searchLayerNames) != null ? _a3 : []).join(", "));
       t.onChange((v) => {
         const arr = v.split(",").map((s) => s.trim()).filter(Boolean);
         this.working.searchLayerNames = arr;
@@ -5714,9 +3331,9 @@ var PingPresetEditorModal = class extends import_obsidian12.Modal {
     });
     renderCustomLayersSetting();
     new import_obsidian12.Setting(contentEl).setName("Layer name (optional)").addText((t) => {
-      var _a2;
+      var _a3;
       t.setPlaceholder("Pings");
-      t.setValue((_a2 = this.working.layerName) != null ? _a2 : "");
+      t.setValue((_a3 = this.working.layerName) != null ? _a3 : "");
       t.onChange((v) => {
         this.working.layerName = v.trim() || void 0;
       });
@@ -5728,10 +3345,10 @@ var PingPresetEditorModal = class extends import_obsidian12.Modal {
     });
     const packs = (_c = this.plugin.settings.travelRulesPacks) != null ? _c : [];
     new import_obsidian12.Setting(contentEl).setName("Travel pack").setDesc("Used to select custom units for party radius.").addDropdown((d) => {
-      var _a2;
+      var _a3;
       d.addOption("", "(none)");
       for (const p of packs) d.addOption(p.id, p.name || p.id);
-      d.setValue((_a2 = this.working.travelPackId) != null ? _a2 : "");
+      d.setValue((_a3 = this.working.travelPackId) != null ? _a3 : "");
       d.onChange((v) => {
         this.working.travelPackId = v || void 0;
         this.renderUnitSetting();
@@ -5740,52 +3357,52 @@ var PingPresetEditorModal = class extends import_obsidian12.Modal {
     contentEl.createEl("div", { text: "" });
     this.renderUnitSetting();
     new import_obsidian12.Setting(contentEl).setName("Distances (comma separated)").setDesc("Example: 2, 5, 10").addText((t) => {
-      var _a2;
-      t.setValue(((_a2 = this.working.distances) != null ? _a2 : []).join(", "));
+      var _a3;
+      t.setValue(((_a3 = this.working.distances) != null ? _a3 : []).join(", "));
       t.onChange((v) => {
         const nums = v.split(",").map((s) => Number(s.trim().replace(",", "."))).filter((n) => Number.isFinite(n) && n > 0);
         this.working.distances = nums.length ? nums : [2, 5, 10];
       });
     });
     new import_obsidian12.Setting(contentEl).setName("Party note folder").setDesc("Vault folder where party pin notes are created.").addText((t) => {
-      var _a2;
+      var _a3;
       t.setPlaceholder("Zoommap/pings");
-      t.setValue((_a2 = this.working.noteFolder) != null ? _a2 : "");
+      t.setValue((_a3 = this.working.noteFolder) != null ? _a3 : "");
       t.onChange((v) => {
         this.working.noteFolder = v.trim() || void 0;
       });
     });
     new import_obsidian12.Setting(contentEl).setName("Filter tags (optional, comma separated)").setDesc("These tags are applied as or filter in the embedded bases view.").addText((t) => {
-      var _a2;
+      var _a3;
       t.setPlaceholder("Npc, shop, questgiver");
-      t.setValue(((_a2 = this.working.filterTags) != null ? _a2 : []).join(", "));
+      t.setValue(((_a3 = this.working.filterTags) != null ? _a3 : []).join(", "));
       t.onChange((v) => {
         const tags = v.split(",").map((s) => s.trim().replace(/^#/, "")).filter(Boolean);
         this.working.filterTags = tags;
       });
     });
     new import_obsidian12.Setting(contentEl).setName("Filter properties (optional)").setDesc("One line per key=value, multiple values with | or ,").addTextArea((a) => {
-      var _a2;
-      const props = (_a2 = this.working.filterProps) != null ? _a2 : {};
+      var _a3;
+      const props = (_a3 = this.working.filterProps) != null ? _a3 : {};
       a.setValue(
         Object.entries(props).map(([k, v]) => {
-          var _a3;
+          var _a4;
           const vals = Array.isArray(v) ? v : [String(v != null ? v : "")];
           const cleaned = vals.map((s) => String(s).trim()).filter(Boolean);
-          return cleaned.length > 1 ? `${k}=${cleaned.join(" | ")}` : `${k}=${(_a3 = cleaned[0]) != null ? _a3 : ""}`;
-        }).filter((ln) => ln.trim().length > 0).join("\n")
+          return cleaned.length > 1 ? `${k}=${cleaned.join(" | ")}` : `${k}=${(_a4 = cleaned[0]) != null ? _a4 : ""}`;
+        }).filter((ln2) => ln2.trim().length > 0).join("\n")
       );
       a.onChange((v) => {
         const next = {};
         for (const line of v.split("\n")) {
           const s = line.trim();
           if (!s) continue;
-          const i = s.indexOf("=");
-          if (i < 1) continue;
-          const k = s.slice(0, i).trim();
-          const raw = s.slice(i + 1).trim();
+          const i2 = s.indexOf("=");
+          if (i2 < 1) continue;
+          const k = s.slice(0, i2).trim();
+          const raw = s.slice(i2 + 1).trim();
           if (!k || !raw) continue;
-          const vals = raw.split(/[|,]/g).map((x) => x.trim()).filter(Boolean);
+          const vals = raw.split(/[|,]/g).map((x2) => x2.trim()).filter(Boolean);
           if (vals.length === 1) next[k] = vals[0];
           else if (vals.length > 1) next[k] = vals;
         }
@@ -5800,19 +3417,19 @@ var PingPresetEditorModal = class extends import_obsidian12.Modal {
     footer.createEl("button", { text: "Cancel" }).onclick = () => this.close();
   }
   renderUnitSetting() {
-    var _a, _b;
+    var _a2, _b2;
     const { contentEl } = this;
     const existing = contentEl.querySelector(".zm-ping-unit-setting");
     existing == null ? void 0 : existing.remove();
     const wrap = contentEl.createDiv({ cls: "zm-ping-unit-setting" });
-    const pack = ((_a = this.plugin.settings.travelRulesPacks) != null ? _a : []).find((p) => p.id === this.working.travelPackId);
-    const customs = ((_b = pack == null ? void 0 : pack.customUnits) != null ? _b : []).slice().sort((a, b) => {
-      var _a2, _b2;
-      return ((_a2 = a.name) != null ? _a2 : a.id).localeCompare((_b2 = b.name) != null ? _b2 : b.id);
+    const pack = ((_a2 = this.plugin.settings.travelRulesPacks) != null ? _a2 : []).find((p) => p.id === this.working.travelPackId);
+    const customs = ((_b2 = pack == null ? void 0 : pack.customUnits) != null ? _b2 : []).slice().sort((a, b) => {
+      var _a3, _b3;
+      return ((_a3 = a.name) != null ? _a3 : a.id).localeCompare((_b3 = b.name) != null ? _b3 : b.id);
     });
     const setting = new import_obsidian12.Setting(wrap).setName("Unit");
     setting.addDropdown((d) => {
-      var _a2;
+      var _a3;
       d.addOption("m", "M");
       d.addOption("km", "Km");
       d.addOption("mi", "Mi");
@@ -5821,7 +3438,7 @@ var PingPresetEditorModal = class extends import_obsidian12.Modal {
         const label = cu.abbreviation ? `${cu.name} (${cu.abbreviation})` : cu.name;
         d.addOption(`custom:${cu.id}`, label);
       }
-      const cur = this.working.unit === "custom" ? `custom:${(_a2 = this.working.customUnitId) != null ? _a2 : ""}` : this.working.unit;
+      const cur = this.working.unit === "custom" ? `custom:${(_a3 = this.working.customUnitId) != null ? _a3 : ""}` : this.working.unit;
       const has = Array.from(d.selectEl.options).some((o) => o.value === cur);
       d.setValue(has ? cur : "km");
       d.onChange((v) => {
@@ -5844,18 +3461,18 @@ var PingPresetEditorModal = class extends import_obsidian12.Modal {
 // src/svgRasterExportModal.ts
 var import_obsidian13 = require("obsidian");
 function fileStem(path) {
-  var _a;
-  const name = (_a = path.split("/").pop()) != null ? _a : path;
+  var _a2;
+  const name = (_a2 = path.split("/").pop()) != null ? _a2 : path;
   const dot = name.lastIndexOf(".");
   return dot >= 0 ? name.slice(0, dot) : name;
 }
 function folderOf(path) {
-  const i = path.lastIndexOf("/");
-  return i >= 0 ? path.slice(0, i) : "";
+  const i2 = path.lastIndexOf("/");
+  return i2 >= 0 ? path.slice(0, i2) : "";
 }
 var SvgRasterExportModal = class extends import_obsidian13.Modal {
   constructor(app, opts, onDone) {
-    var _a;
+    var _a2;
     super(app);
     this.quality = 0.92;
     this.outPath = "";
@@ -5864,7 +3481,7 @@ var SvgRasterExportModal = class extends import_obsidian13.Modal {
     this.suppressAutoDefaults = false;
     this.opts = opts;
     this.onDone = onDone;
-    this.longEdge = (_a = opts.defaultLongEdge) != null ? _a : 8192;
+    this.longEdge = (_a2 = opts.defaultLongEdge) != null ? _a2 : 8192;
     this.quality = typeof opts.defaultQuality === "number" ? opts.defaultQuality : 0.92;
     const dir = folderOf(opts.svgPath);
     const stem = fileStem(opts.svgPath);
@@ -5950,9 +3567,9 @@ var SvgRasterExportModal = class extends import_obsidian13.Modal {
 
 // src/swapLinksEditorModal.ts
 var import_obsidian14 = require("obsidian");
-function deepClone2(x) {
-  if (typeof structuredClone === "function") return structuredClone(x);
-  return JSON.parse(JSON.stringify(x));
+function deepClone2(x2) {
+  if (typeof structuredClone === "function") return structuredClone(x2);
+  return JSON.parse(JSON.stringify(x2));
 }
 function normalizeFrameIndex(rawIndex, count) {
   const n = Math.max(1, count);
@@ -5960,7 +3577,7 @@ function normalizeFrameIndex(rawIndex, count) {
 }
 var SwapLinksEditorModal = class extends import_obsidian14.Modal {
   constructor(app, plugin, marker, preset, onDone) {
-    var _a;
+    var _a2;
     super(app);
     this.workingLinks = {};
     this.allSuggestions = [];
@@ -5969,10 +3586,10 @@ var SwapLinksEditorModal = class extends import_obsidian14.Modal {
     this.marker = marker;
     this.preset = preset;
     this.onDone = onDone;
-    this.workingLinks = deepClone2((_a = marker.swapLinks) != null ? _a : {});
+    this.workingLinks = deepClone2((_a2 = marker.swapLinks) != null ? _a2 : {});
   }
   onOpen() {
-    var _a, _b;
+    var _a2, _b2;
     const { contentEl } = this;
     contentEl.empty();
     this.inputs.clear();
@@ -5985,31 +3602,31 @@ var SwapLinksEditorModal = class extends import_obsidian14.Modal {
     contentEl.createEl("div", {
       text: "Leave a field empty to fall back to the preset link (or the icon default link)."
     }).addClass("zoommap-muted");
-    for (let i = 0; i < this.preset.frames.length; i += 1) {
-      const fr = this.preset.frames[i];
-      const presetLink = ((_a = fr.link) != null ? _a : "").trim();
-      const iconDefault = (_b = this.plugin.getIconDefaultLink(fr.iconKey)) != null ? _b : "";
+    for (let i2 = 0; i2 < this.preset.frames.length; i2 += 1) {
+      const fr = this.preset.frames[i2];
+      const presetLink = ((_a2 = fr.link) != null ? _a2 : "").trim();
+      const iconDefault = (_b2 = this.plugin.getIconDefaultLink(fr.iconKey)) != null ? _b2 : "";
       const fallback = presetLink || iconDefault;
       const desc = fallback ? `Default: ${fallback}` : "Default: (none)";
-      const row = new import_obsidian14.Setting(contentEl).setName(`Frame ${i + 1}: ${fr.iconKey}`).setDesc(desc);
+      const row = new import_obsidian14.Setting(contentEl).setName(`Frame ${i2 + 1}: ${fr.iconKey}`).setDesc(desc);
       const iconImg = row.controlEl.createEl("img", { cls: "zoommap-settings__icon-preview" });
       iconImg.src = this.resolveIconUrl(fr.iconKey);
       row.addText((t) => {
-        var _a2;
+        var _a3;
         t.setPlaceholder("Override link (optional)");
-        t.setValue((_a2 = this.workingLinks[i]) != null ? _a2 : "");
+        t.setValue((_a3 = this.workingLinks[i2]) != null ? _a3 : "");
         const input = t.inputEl;
-        this.inputs.set(i, input);
+        this.inputs.set(i2, input);
         this.attachLinkAutocomplete(
           input,
           () => input.value,
           (val) => {
             input.value = val;
-            this.setOverride(i, val);
+            this.setOverride(i2, val);
           }
         );
         t.onChange((v) => {
-          this.setOverride(i, v);
+          this.setOverride(i2, v);
         });
       });
     }
@@ -6056,8 +3673,8 @@ var SwapLinksEditorModal = class extends import_obsidian14.Modal {
     return out;
   }
   resolveIconUrl(iconKey) {
-    var _a, _b, _c;
-    const icon = (_b = ((_a = this.plugin.settings.icons) != null ? _a : []).find((i) => i.key === iconKey)) != null ? _b : this.plugin.builtinIcon();
+    var _a2, _b2, _c;
+    const icon = (_b2 = ((_a2 = this.plugin.settings.icons) != null ? _a2 : []).find((i2) => i2.key === iconKey)) != null ? _b2 : this.plugin.builtinIcon();
     let src = (_c = icon.pathOrDataUrl) != null ? _c : "";
     if (typeof src !== "string") return "";
     if (src.startsWith("data:")) return src;
@@ -6066,14 +3683,14 @@ var SwapLinksEditorModal = class extends import_obsidian14.Modal {
     return src;
   }
   buildLinkSuggestions() {
-    var _a, _b, _c, _d;
+    var _a2, _b2, _c, _d;
     const files = this.app.vault.getFiles().filter((f) => {
-      var _a2;
-      return ((_a2 = f.extension) == null ? void 0 : _a2.toLowerCase()) === "md";
+      var _a3;
+      return ((_a3 = f.extension) == null ? void 0 : _a3.toLowerCase()) === "md";
     });
     const suggestions = [];
     const active = this.app.workspace.getActiveFile();
-    const fromPath = (_c = (_b = active == null ? void 0 : active.path) != null ? _b : (_a = files[0]) == null ? void 0 : _a.path) != null ? _c : "";
+    const fromPath = (_c = (_b2 = active == null ? void 0 : active.path) != null ? _b2 : (_a2 = files[0]) == null ? void 0 : _a2.path) != null ? _c : "";
     for (const file of files) {
       const baseLink = this.app.metadataCache.fileToLinktext(file, fromPath);
       suggestions.push({ label: baseLink, value: baseLink });
@@ -6174,9 +3791,9 @@ var MeasureTerrainModal = class extends import_obsidian15.Modal {
 
 // src/gridEditorModal.ts
 var import_obsidian16 = require("obsidian");
-function deepClone3(x) {
-  if (typeof structuredClone === "function") return structuredClone(x);
-  return JSON.parse(JSON.stringify(x));
+function deepClone3(x2) {
+  if (typeof structuredClone === "function") return structuredClone(x2);
+  return JSON.parse(JSON.stringify(x2));
 }
 function normalizeHex(v) {
   const s = v.trim();
@@ -6191,14 +3808,14 @@ function normalizeHex(v) {
 }
 var GridEditorModal = class extends import_obsidian16.Modal {
   constructor(app, grid, onDone) {
-    var _a, _b;
+    var _a2, _b2;
     super(app);
     this.working = deepClone3(grid);
     this.onDone = onDone;
-    this.working.name = (_a = this.working.name) != null ? _a : "Grid";
+    this.working.name = (_a2 = this.working.name) != null ? _a2 : "Grid";
     this.working.visible = this.working.visible !== false;
     this.working.shape = this.working.shape === "hex" ? "hex" : "square";
-    this.working.color = ((_b = this.working.color) != null ? _b : "").trim() || "#ffffff";
+    this.working.color = ((_b2 = this.working.color) != null ? _b2 : "").trim() || "#ffffff";
     this.working.width = Number.isFinite(this.working.width) && this.working.width > 0 ? this.working.width : 1;
     this.working.opacity = Number.isFinite(this.working.opacity) ? Math.min(1, Math.max(0, this.working.opacity)) : 0.5;
     this.working.spacing = Number.isFinite(this.working.spacing) && this.working.spacing > 1 ? this.working.spacing : 64;
@@ -6211,8 +3828,8 @@ var GridEditorModal = class extends import_obsidian16.Modal {
     contentEl.empty();
     contentEl.createEl("h2", { text: "Grid" });
     new import_obsidian16.Setting(contentEl).setName("Name").addText((t) => {
-      var _a;
-      t.setValue((_a = this.working.name) != null ? _a : "");
+      var _a2;
+      t.setValue((_a2 = this.working.name) != null ? _a2 : "");
       t.onChange((v) => {
         this.working.name = v.trim() || "Grid";
       });
@@ -6223,11 +3840,11 @@ var GridEditorModal = class extends import_obsidian16.Modal {
       });
     });
     new import_obsidian16.Setting(contentEl).setName("Show on").setDesc("Controls whether the grid is visible for gm, player screen, or both.").addDropdown((d) => {
-      var _a;
+      var _a2;
       d.addOption("both", "Gm + player screen");
       d.addOption("gm-only", "Gm only");
       d.addOption("player-only", "Player screen only");
-      d.setValue((_a = this.working.playerScreen) != null ? _a : "both");
+      d.setValue((_a2 = this.working.playerScreen) != null ? _a2 : "both");
       d.onChange((v) => {
         this.working.playerScreen = v === "gm-only" || v === "player-only" ? v : "both";
       });
@@ -6308,9 +3925,9 @@ var GridEditorModal = class extends import_obsidian16.Modal {
     const save = footer.createEl("button", { text: "Save" });
     const cancel = footer.createEl("button", { text: "Cancel" });
     save.onclick = () => {
-      var _a, _b;
-      this.working.name = ((_a = this.working.name) == null ? void 0 : _a.trim()) || "Grid";
-      this.working.color = ((_b = this.working.color) == null ? void 0 : _b.trim()) || "#ffffff";
+      var _a2, _b2;
+      this.working.name = ((_a2 = this.working.name) == null ? void 0 : _a2.trim()) || "Grid";
+      this.working.color = ((_b2 = this.working.color) == null ? void 0 : _b2.trim()) || "#ffffff";
       if (!Number.isFinite(this.working.width) || this.working.width <= 0) this.working.width = 1;
       if (!Number.isFinite(this.working.spacing) || this.working.spacing <= 1) this.working.spacing = 64;
       this.working.opacity = Math.min(1, Math.max(0, this.working.opacity));
@@ -6331,11 +3948,11 @@ var GridEditorModal = class extends import_obsidian16.Modal {
 var import_obsidian17 = require("obsidian");
 var SwitchPinModal = class extends import_obsidian17.Modal {
   constructor(app, plugin, initial, onDone) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     super(app);
     this.plugin = plugin;
-    this.bases = ((_a = initial.bases) != null ? _a : []).filter((b) => !!b && typeof b.path === "string" && b.path.trim().length > 0);
-    const defaultIcon = ((_b = initial.iconKey) != null ? _b : "").trim() || this.plugin.settings.defaultIconKey;
+    this.bases = ((_a2 = initial.bases) != null ? _a2 : []).filter((b) => !!b && typeof b.path === "string" && b.path.trim().length > 0);
+    const defaultIcon = ((_b2 = initial.iconKey) != null ? _b2 : "").trim() || this.plugin.settings.defaultIconKey;
     const rotate = !!initial.rotate;
     this.value = {
       iconKey: defaultIcon,
@@ -6351,11 +3968,11 @@ var SwitchPinModal = class extends import_obsidian17.Modal {
     contentEl.empty();
     contentEl.createEl("h2", { text: "Switch pin" });
     new import_obsidian17.Setting(contentEl).setName("Icon").addDropdown((d) => {
-      var _a;
-      const sorted = [...(_a = this.plugin.settings.icons) != null ? _a : []].sort(
+      var _a2;
+      const sorted = [...(_a2 = this.plugin.settings.icons) != null ? _a2 : []].sort(
         (a, b) => {
-          var _a2, _b;
-          return String((_a2 = a.key) != null ? _a2 : "").localeCompare(String((_b = b.key) != null ? _b : ""), void 0, { sensitivity: "base", numeric: true });
+          var _a3, _b2;
+          return String((_a3 = a.key) != null ? _a3 : "").localeCompare(String((_b2 = b.key) != null ? _b2 : ""), void 0, { sensitivity: "base", numeric: true });
         }
       );
       for (const ico of sorted) {
@@ -6380,10 +3997,10 @@ var SwitchPinModal = class extends import_obsidian17.Modal {
       });
     });
     baseSetting = new import_obsidian17.Setting(contentEl).setName("Switch to base").setDesc("If rotate is disabled, right click switches to this base.").addDropdown((d) => {
-      var _a, _b, _c;
+      var _a2, _b2, _c;
       d.addOption("", "(none)");
       for (const b of this.bases) {
-        const label = ((_a = b.name) != null ? _a : "").trim() || ((_b = b.path.split("/").pop()) != null ? _b : b.path);
+        const label = ((_a2 = b.name) != null ? _a2 : "").trim() || ((_b2 = b.path.split("/").pop()) != null ? _b2 : b.path);
         d.addOption(b.path, label);
       }
       const cur = ((_c = this.value.switchBase) != null ? _c : "").trim();
@@ -6426,9 +4043,9 @@ var SwitchPinModal = class extends import_obsidian17.Modal {
 
 // src/textBoxConfigModal.ts
 var import_obsidian18 = require("obsidian");
-function deepClone4(x) {
-  if (typeof structuredClone === "function") return structuredClone(x);
-  return JSON.parse(JSON.stringify(x));
+function deepClone4(x2) {
+  if (typeof structuredClone === "function") return structuredClone(x2);
+  return JSON.parse(JSON.stringify(x2));
 }
 function normalizeHex2(v) {
   const s = v.trim();
@@ -6447,8 +4064,8 @@ function collectLoadedFontFamilies(doc) {
     const fs = doc.fonts;
     if (fs && typeof fs.forEach === "function") {
       fs.forEach((ff) => {
-        var _a;
-        const fam = String((_a = ff.family) != null ? _a : "").replace(/["']/g, "").trim();
+        var _a2;
+        const fam = String((_a2 = ff.family) != null ? _a2 : "").replace(/["']/g, "").trim();
         if (fam) out.add(fam);
       });
     }
@@ -6476,11 +4093,11 @@ function buildFontOptions(doc) {
 }
 var TextBoxConfigModal = class extends import_obsidian18.Modal {
   constructor(app, box, onDone) {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h;
     super(app);
     this.working = deepClone4(box);
     this.working.style = this.normalizeStyle(this.working.style);
-    (_b = (_a = this.working).autoFlow) != null ? _b : _a.autoFlow = true;
+    (_b2 = (_a2 = this.working).autoFlow) != null ? _b2 : _a2.autoFlow = true;
     (_d = (_c = this.working).allowAngledBaselines) != null ? _d : _c.allowAngledBaselines = false;
     (_f = (_e = this.working).locked) != null ? _f : _e.locked = false;
     if (this.working.mode === "auto") {
@@ -6495,13 +4112,13 @@ var TextBoxConfigModal = class extends import_obsidian18.Modal {
     this.onDone = onDone;
   }
   onOpen() {
-    var _a, _b, _c, _d;
+    var _a2, _b2, _c, _d;
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", { text: "Text box settings" });
     new import_obsidian18.Setting(contentEl).setName("Name").addText((t) => {
-      var _a2;
-      t.setValue((_a2 = this.working.name) != null ? _a2 : "");
+      var _a3;
+      t.setValue((_a3 = this.working.name) != null ? _a3 : "");
       t.onChange((v) => {
         this.working.name = v.trim() || this.working.name;
       });
@@ -6529,7 +4146,7 @@ var TextBoxConfigModal = class extends import_obsidian18.Modal {
     const fontOptions = buildFontOptions(contentEl.ownerDocument);
     const knownValues = new Set(fontOptions.map((o) => o.value));
     const CUSTOM = "__custom__";
-    const currentFamily = (_b = (_a = this.working.style) == null ? void 0 : _a.fontFamily) != null ? _b : "var(--font-text)";
+    const currentFamily = (_b2 = (_a2 = this.working.style) == null ? void 0 : _a2.fontFamily) != null ? _b2 : "var(--font-text)";
     const initialSelect = knownValues.has(currentFamily) ? currentFamily : CUSTOM;
     let customSetting = null;
     let customInputEl = null;
@@ -6558,9 +4175,9 @@ var TextBoxConfigModal = class extends import_obsidian18.Modal {
     });
     customSetting.settingEl.toggle(initialSelect === CUSTOM);
     new import_obsidian18.Setting(contentEl).setName("Font size (px)").addText((t) => {
-      var _a2, _b2;
+      var _a3, _b3;
       t.inputEl.type = "number";
-      t.setValue(String((_b2 = (_a2 = this.working.style) == null ? void 0 : _a2.fontSize) != null ? _b2 : 14));
+      t.setValue(String((_b3 = (_a3 = this.working.style) == null ? void 0 : _a3.fontSize) != null ? _b3 : 14));
       t.onChange((v) => {
         const n = Number(v);
         if (Number.isFinite(n) && n > 1) this.working.style.fontSize = n;
@@ -6572,9 +4189,9 @@ var TextBoxConfigModal = class extends import_obsidian18.Modal {
       attr: { type: "color", style: "margin-left:8px; vertical-align: middle;" }
     });
     colorRow.addText((t) => {
-      var _a2, _b2;
+      var _a3, _b3;
       t.setPlaceholder("#000000");
-      t.setValue((_b2 = (_a2 = this.working.style) == null ? void 0 : _a2.color) != null ? _b2 : "var(--text-normal)");
+      t.setValue((_b3 = (_a3 = this.working.style) == null ? void 0 : _a3.color) != null ? _b3 : "var(--text-normal)");
       colorTextEl = t.inputEl;
       t.onChange((v) => {
         this.working.style.color = v.trim() || "var(--text-normal)";
@@ -6591,24 +4208,24 @@ var TextBoxConfigModal = class extends import_obsidian18.Modal {
       colorTextEl.value = picker.value;
     };
     new import_obsidian18.Setting(contentEl).setName("Font weight").addText((t) => {
-      var _a2, _b2;
+      var _a3, _b3;
       t.setPlaceholder("400");
-      t.setValue((_b2 = (_a2 = this.working.style) == null ? void 0 : _a2.fontWeight) != null ? _b2 : "");
+      t.setValue((_b3 = (_a3 = this.working.style) == null ? void 0 : _a3.fontWeight) != null ? _b3 : "");
       t.onChange((v) => {
         const s = v.trim();
         this.working.style.fontWeight = s || void 0;
       });
     });
     new import_obsidian18.Setting(contentEl).setName("Italic").addToggle((tg) => {
-      var _a2;
-      tg.setValue(!!((_a2 = this.working.style) == null ? void 0 : _a2.italic)).onChange((on) => {
+      var _a3;
+      tg.setValue(!!((_a3 = this.working.style) == null ? void 0 : _a3.italic)).onChange((on) => {
         this.working.style.italic = on ? true : void 0;
       });
     });
     new import_obsidian18.Setting(contentEl).setName("Letter spacing (px)").addText((t) => {
-      var _a2;
+      var _a3;
       t.inputEl.type = "number";
-      const v = (_a2 = this.working.style) == null ? void 0 : _a2.letterSpacing;
+      const v = (_a3 = this.working.style) == null ? void 0 : _a3.letterSpacing;
       t.setPlaceholder("0");
       t.setValue(typeof v === "number" ? String(v) : "");
       t.onChange((raw) => {
@@ -6623,9 +4240,9 @@ var TextBoxConfigModal = class extends import_obsidian18.Modal {
     });
     contentEl.createEl("h3", { text: "Layout" });
     new import_obsidian18.Setting(contentEl).setName("Line height (px)").setDesc("Height of each input line box. Leave empty to auto-calc from font size.").addText((t) => {
-      var _a2;
+      var _a3;
       t.inputEl.type = "number";
-      const v = (_a2 = this.working.style) == null ? void 0 : _a2.lineHeight;
+      const v = (_a3 = this.working.style) == null ? void 0 : _a3.lineHeight;
       t.setPlaceholder("Auto");
       t.setValue(typeof v === "number" ? String(v) : "");
       t.onChange((raw) => {
@@ -6639,19 +4256,19 @@ var TextBoxConfigModal = class extends import_obsidian18.Modal {
       });
     });
     new import_obsidian18.Setting(contentEl).setName("Text padding left / right (px)").addText((t) => {
-      var _a2, _b2;
+      var _a3, _b3;
       t.inputEl.type = "number";
       t.setPlaceholder("0");
-      t.setValue(String((_b2 = (_a2 = this.working.style) == null ? void 0 : _a2.padLeft) != null ? _b2 : 0));
+      t.setValue(String((_b3 = (_a3 = this.working.style) == null ? void 0 : _a3.padLeft) != null ? _b3 : 0));
       t.onChange((v) => {
         const n = Number(v);
         if (Number.isFinite(n) && n >= 0) this.working.style.padLeft = n;
       });
     }).addText((t) => {
-      var _a2, _b2;
+      var _a3, _b3;
       t.inputEl.type = "number";
       t.setPlaceholder("0");
-      t.setValue(String((_b2 = (_a2 = this.working.style) == null ? void 0 : _a2.padRight) != null ? _b2 : 0));
+      t.setValue(String((_b3 = (_a3 = this.working.style) == null ? void 0 : _a3.padRight) != null ? _b3 : 0));
       t.onChange((v) => {
         const n = Number(v);
         if (Number.isFinite(n) && n >= 0) this.working.style.padRight = n;
@@ -6661,43 +4278,43 @@ var TextBoxConfigModal = class extends import_obsidian18.Modal {
     if (canConfigureAuto) {
       contentEl.createEl("h3", { text: "Automatic baselines" });
       new import_obsidian18.Setting(contentEl).setName("Line gap (px)").addText((t) => {
-        var _a2, _b2;
+        var _a3, _b3;
         t.inputEl.type = "number";
-        t.setValue(String((_b2 = (_a2 = this.working.auto) == null ? void 0 : _a2.lineGapPx) != null ? _b2 : 18));
+        t.setValue(String((_b3 = (_a3 = this.working.auto) == null ? void 0 : _a3.lineGapPx) != null ? _b3 : 18));
         t.onChange((v) => {
           const n = Number(String(v).replace(",", "."));
           if (Number.isFinite(n) && n > 1) this.working.auto.lineGapPx = n;
         });
       });
       new import_obsidian18.Setting(contentEl).setName("Box inset left / right (px)").setDesc("Shrinks the usable auto-baseline width inside the text box.").addText((t) => {
-        var _a2, _b2;
+        var _a3, _b3;
         t.inputEl.type = "number";
-        t.setValue(String((_b2 = (_a2 = this.working.auto) == null ? void 0 : _a2.padLeft) != null ? _b2 : 0));
+        t.setValue(String((_b3 = (_a3 = this.working.auto) == null ? void 0 : _a3.padLeft) != null ? _b3 : 0));
         t.onChange((v) => {
           const n = Number(String(v).replace(",", "."));
           if (Number.isFinite(n) && n >= 0) this.working.auto.padLeft = n;
         });
       }).addText((t) => {
-        var _a2, _b2;
+        var _a3, _b3;
         t.inputEl.type = "number";
-        t.setValue(String((_b2 = (_a2 = this.working.auto) == null ? void 0 : _a2.padRight) != null ? _b2 : 0));
+        t.setValue(String((_b3 = (_a3 = this.working.auto) == null ? void 0 : _a3.padRight) != null ? _b3 : 0));
         t.onChange((v) => {
           const n = Number(String(v).replace(",", "."));
           if (Number.isFinite(n) && n >= 0) this.working.auto.padRight = n;
         });
       });
       new import_obsidian18.Setting(contentEl).setName("Box inset top / bottom (px)").setDesc("Shrinks the usable auto-baseline height inside the text box.").addText((t) => {
-        var _a2, _b2;
+        var _a3, _b3;
         t.inputEl.type = "number";
-        t.setValue(String((_b2 = (_a2 = this.working.auto) == null ? void 0 : _a2.padTop) != null ? _b2 : 4));
+        t.setValue(String((_b3 = (_a3 = this.working.auto) == null ? void 0 : _a3.padTop) != null ? _b3 : 4));
         t.onChange((v) => {
           const n = Number(String(v).replace(",", "."));
           if (Number.isFinite(n) && n >= 0) this.working.auto.padTop = n;
         });
       }).addText((t) => {
-        var _a2, _b2;
+        var _a3, _b3;
         t.inputEl.type = "number";
-        t.setValue(String((_b2 = (_a2 = this.working.auto) == null ? void 0 : _a2.padBottom) != null ? _b2 : 4));
+        t.setValue(String((_b3 = (_a3 = this.working.auto) == null ? void 0 : _a3.padBottom) != null ? _b3 : 4));
         t.onChange((v) => {
           const n = Number(String(v).replace(",", "."));
           if (Number.isFinite(n) && n >= 0) this.working.auto.padBottom = n;
@@ -6727,10 +4344,10 @@ var TextBoxConfigModal = class extends import_obsidian18.Modal {
     };
   }
   normalizeStyle(style) {
-    var _a, _b;
+    var _a2, _b2;
     const s = { ...this.defaultStyle(), ...style != null ? style : {} };
-    s.fontFamily = ((_a = s.fontFamily) != null ? _a : "").trim() || "var(--font-text)";
-    s.color = ((_b = s.color) != null ? _b : "").trim() || "var(--text-normal)";
+    s.fontFamily = ((_a2 = s.fontFamily) != null ? _a2 : "").trim() || "var(--font-text)";
+    s.color = ((_b2 = s.color) != null ? _b2 : "").trim() || "var(--text-normal)";
     if (!Number.isFinite(s.fontSize) || s.fontSize <= 1) s.fontSize = 14;
     if (typeof s.lineHeight === "number" && (!Number.isFinite(s.lineHeight) || s.lineHeight <= 1)) {
       delete s.lineHeight;
@@ -6778,9 +4395,9 @@ var SecondScreenLayersModal = class extends import_obsidian19.Modal {
       this.close();
       this.onDone({
         action: "save",
-        markerLayerIds: this.input.markerLayers.filter((x) => x.selected).map((x) => x.id),
-        drawLayerIds: this.input.drawLayers.filter((x) => x.selected).map((x) => x.id),
-        textLayerIds: this.input.textLayers.filter((x) => x.selected).map((x) => x.id),
+        markerLayerIds: this.input.markerLayers.filter((x2) => x2.selected).map((x2) => x2.id),
+        drawLayerIds: this.input.drawLayers.filter((x2) => x2.selected).map((x2) => x2.id),
+        textLayerIds: this.input.textLayers.filter((x2) => x2.selected).map((x2) => x2.id),
         showGrids: this.showGrids
       });
     };
@@ -6815,11 +4432,11 @@ var SecondScreenLayersModal = class extends import_obsidian19.Modal {
       }
     };
     selectAll.onclick = () => {
-      items.forEach((x) => x.selected = true);
+      items.forEach((x2) => x2.selected = true);
       rerender();
     };
     selectNone.onclick = () => {
-      items.forEach((x) => x.selected = false);
+      items.forEach((x2) => x2.selected = false);
       rerender();
     };
     rerender();
@@ -6829,9 +4446,9 @@ var SecondScreenLayersModal = class extends import_obsidian19.Modal {
 // src/dicePinModal.ts
 var import_obsidian20 = require("obsidian");
 var DEFAULT_DICE_SIDES = [4, 6, 8, 10, 12, 20, 100];
-function clampInt(n, min, max) {
+function clampInt(n, min, max2) {
   const v = Math.round(n);
-  return Math.min(max, Math.max(min, v));
+  return Math.min(max2, Math.max(min, v));
 }
 function toFormula(rolls) {
   const parts = (rolls != null ? rolls : []).filter((r) => r && Number.isFinite(r.count) && Number.isFinite(r.sides) && r.count > 0 && r.sides > 0).map((r) => `${Math.round(r.count)}d${Math.round(r.sides)}`);
@@ -6839,18 +4456,18 @@ function toFormula(rolls) {
 }
 var DicePinModal = class extends import_obsidian20.Modal {
   constructor(app, plugin, initial, onDone) {
-    var _a, _b, _c, _d;
+    var _a2, _b2, _c, _d;
     super(app);
     this.plugin = plugin;
     this.onDone = onDone;
-    const icons = (_a = this.plugin.settings.icons) != null ? _a : [];
-    const defaultIconKey = ((_b = initial.iconKey) != null ? _b : "").trim() || this.plugin.settings.defaultIconKey || ((_d = (_c = icons[0]) == null ? void 0 : _c.key) != null ? _d : "pinRed");
+    const icons = (_a2 = this.plugin.settings.icons) != null ? _a2 : [];
+    const defaultIconKey = ((_b2 = initial.iconKey) != null ? _b2 : "").trim() || this.plugin.settings.defaultIconKey || ((_d = (_c = icons[0]) == null ? void 0 : _c.key) != null ? _d : "pinRed");
     const rollsRaw = Array.isArray(initial.rolls) ? initial.rolls : [{ count: 1, sides: 20 }];
     const rolls = rollsRaw.map((r) => {
-      var _a2, _b2;
+      var _a3, _b3;
       return {
-        count: clampInt(Number((_a2 = r.count) != null ? _a2 : 1), 1, 999),
-        sides: clampInt(Number((_b2 = r.sides) != null ? _b2 : 20), 2, 1e3)
+        count: clampInt(Number((_a3 = r.count) != null ? _a3 : 1), 1, 999),
+        sides: clampInt(Number((_b3 = r.sides) != null ? _b3 : 20), 2, 1e3)
       };
     }).filter((r) => r.count > 0 && r.sides > 0);
     this.value = {
@@ -6866,10 +4483,10 @@ var DicePinModal = class extends import_obsidian20.Modal {
     contentEl.empty();
     contentEl.createEl("h2", { text: "Dice pin" });
     new import_obsidian20.Setting(contentEl).setName("Icon").addDropdown((d) => {
-      var _a;
-      const sorted = [...(_a = this.plugin.settings.icons) != null ? _a : []].map((i) => {
-        var _a2;
-        return (_a2 = i == null ? void 0 : i.key) != null ? _a2 : "";
+      var _a2;
+      const sorted = [...(_a2 = this.plugin.settings.icons) != null ? _a2 : []].map((i2) => {
+        var _a3;
+        return (_a3 = i2 == null ? void 0 : i2.key) != null ? _a3 : "";
       }).filter((k) => k.trim().length > 0).sort((a, b) => a.localeCompare(b, void 0, { sensitivity: "base", numeric: true }));
       for (const key of sorted) d.addOption(key, key);
       d.setValue(this.value.iconKey);
@@ -6893,13 +4510,13 @@ var DicePinModal = class extends import_obsidian20.Modal {
     contentEl.createEl("h3", { text: "Dice" });
     const list = contentEl.createDiv({ cls: "zoommap-dice-list" });
     const render = () => {
-      var _a;
+      var _a2;
       list.empty();
-      for (let i = 0; i < this.value.rolls.length; i += 1) {
-        const r = this.value.rolls[i];
+      for (let i2 = 0; i2 < this.value.rolls.length; i2 += 1) {
+        const r = this.value.rolls[i2];
         const row = list.createDiv({ cls: "zoommap-dice-row" });
         const countEl = row.createEl("input", { type: "number" });
-        countEl.value = String((_a = r.count) != null ? _a : 1);
+        countEl.value = String((_a2 = r.count) != null ? _a2 : 1);
         countEl.min = "1";
         countEl.max = "999";
         countEl.oninput = () => {
@@ -6929,7 +4546,7 @@ var DicePinModal = class extends import_obsidian20.Modal {
         };
         const del = row.createEl("button", { text: "Delete" });
         del.onclick = () => {
-          this.value.rolls.splice(i, 1);
+          this.value.rolls.splice(i2, 1);
           if (this.value.rolls.length === 0) this.value.rolls.push({ count: 1, sides: 20 });
           formulaEl.setText(toFormula(this.value.rolls));
           render();
@@ -6947,12 +4564,12 @@ var DicePinModal = class extends import_obsidian20.Modal {
     const save = footer.createEl("button", { text: "Save" });
     const cancel = footer.createEl("button", { text: "Cancel" });
     save.onclick = () => {
-      var _a, _b;
-      const cleaned = ((_a = this.value.rolls) != null ? _a : []).map((r) => {
-        var _a2, _b2;
+      var _a2, _b2;
+      const cleaned = ((_a2 = this.value.rolls) != null ? _a2 : []).map((r) => {
+        var _a3, _b3;
         return {
-          count: clampInt(Number((_a2 = r.count) != null ? _a2 : 1), 1, 999),
-          sides: clampInt(Number((_b2 = r.sides) != null ? _b2 : 20), 2, 1e3)
+          count: clampInt(Number((_a3 = r.count) != null ? _a3 : 1), 1, 999),
+          sides: clampInt(Number((_b3 = r.sides) != null ? _b3 : 20), 2, 1e3)
         };
       }).filter((r) => r.count > 0 && r.sides > 0);
       if (!cleaned.length) cleaned.push({ count: 1, sides: 20 });
@@ -6960,7 +4577,7 @@ var DicePinModal = class extends import_obsidian20.Modal {
       this.onDone({
         action: "save",
         value: {
-          iconKey: ((_b = this.value.iconKey) != null ? _b : "").trim(),
+          iconKey: ((_b2 = this.value.iconKey) != null ? _b2 : "").trim(),
           rolls: cleaned,
           render3d: !!this.value.render3d,
           scaleLikeSticker: !!this.value.scaleLikeSticker,
@@ -6985,8 +4602,8 @@ var PING_RELATED_BEGIN = "<!-- ZOOMMAP-PING-RELATED:BEGIN -->";
 var PING_RELATED_END = "<!-- ZOOMMAP-PING-RELATED:END -->";
 var PING_TRAVEL_BEGIN = "<!-- ZOOMMAP-PING-TRAVEL:BEGIN -->";
 var PING_TRAVEL_END = "<!-- ZOOMMAP-PING-TRAVEL:END -->";
-function clamp(n, min, max) {
-  return Math.min(Math.max(n, min), max);
+function clamp(n, min, max2) {
+  return Math.min(Math.max(n, min), max2);
 }
 function basename(p) {
   const idx = p.lastIndexOf("/");
@@ -7024,14 +4641,14 @@ function stableStringify(value) {
 function stableEqual(a, b) {
   return stableStringify(a) === stableStringify(b);
 }
-function isImageBitmapLike(x) {
-  return typeof x === "object" && x !== null && "close" in x && typeof x.close === "function";
+function isImageBitmapLike(x2) {
+  return typeof x2 === "object" && x2 !== null && "close" in x2 && typeof x2.close === "function";
 }
-function isNodeLike(x) {
-  return typeof x === "object" && x !== null && "nodeType" in x;
+function isNodeLike(x2) {
+  return typeof x2 === "object" && x2 !== null && "nodeType" in x2;
 }
-function isHtmlImageElementLike(x) {
-  return typeof x === "object" && x !== null && x.tagName === "IMG";
+function isHtmlImageElementLike(x2) {
+  return typeof x2 === "object" && x2 !== null && x2.tagName === "IMG";
 }
 function isSvgDataUrl(src) {
   return typeof src === "string" && src.startsWith("data:image/svg+xml");
@@ -7049,7 +4666,7 @@ function localRollDice(rolls) {
     const n = Math.max(1, Math.round(r.count));
     const s = Math.max(2, Math.round(r.sides));
     const vals = [];
-    for (let i = 0; i < n; i += 1) {
+    for (let i2 = 0; i2 < n; i2 += 1) {
       const v = 1 + Math.floor(Math.random() * s);
       vals.push(v);
       total += v;
@@ -7058,57 +4675,57 @@ function localRollDice(rolls) {
   }
   return { total, details: per.join(" + ") };
 }
-function formatDiceApiResult(x) {
-  if (x == null) return "";
-  if (typeof x === "string") return x;
-  if (typeof x === "number" || typeof x === "boolean" || typeof x === "bigint") return String(x);
-  if (x instanceof Error) return x.message || "Error";
+function formatDiceApiResult(x2) {
+  if (x2 == null) return "";
+  if (typeof x2 === "string") return x2;
+  if (typeof x2 === "number" || typeof x2 === "boolean" || typeof x2 === "bigint") return String(x2);
+  if (x2 instanceof Error) return x2.message || "Error";
   try {
-    return JSON.stringify(x);
+    return JSON.stringify(x2);
   } catch (e) {
     return "";
   }
 }
 function splitQuotePrefix(line) {
   const len = line.length;
-  let i = 0;
-  while (i < len && (line[i] === " " || line[i] === "	")) i++;
-  if (i >= len || line[i] !== ">") return { prefix: "", rest: line };
-  while (i < len && line[i] === ">") {
-    i++;
-    if (i < len && (line[i] === " " || line[i] === "	")) i++;
-    let j = i;
+  let i2 = 0;
+  while (i2 < len && (line[i2] === " " || line[i2] === "	")) i2++;
+  if (i2 >= len || line[i2] !== ">") return { prefix: "", rest: line };
+  while (i2 < len && line[i2] === ">") {
+    i2++;
+    if (i2 < len && (line[i2] === " " || line[i2] === "	")) i2++;
+    let j = i2;
     while (j < len && (line[j] === " " || line[j] === "	")) j++;
     if (j < len && line[j] === ">") {
-      i = j;
+      i2 = j;
       continue;
     }
     break;
   }
-  return { prefix: line.slice(0, i), rest: line.slice(i) };
+  return { prefix: line.slice(0, i2), rest: line.slice(i2) };
 }
 function stripQuotePrefix(line) {
   return splitQuotePrefix(line).rest;
 }
 function tintSvgMarkupLocal(svg, color) {
-  var _a;
+  var _a2;
   const c = color.trim();
   if (!c) return svg;
   try {
     const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
     const root = doc.querySelector("svg");
     if (!root) return svg;
-    const inner = (_a = root.querySelector("#zm-inner")) != null ? _a : root;
+    const inner = (_a2 = root.querySelector("#zm-inner")) != null ? _a2 : root;
     const base = root.querySelector("#zm-base");
     const outline = root.querySelector("#zm-outline");
     const shapes = inner.querySelectorAll("path, circle, rect, polygon, polyline, line, ellipse");
     let touched = false;
     shapes.forEach((el) => {
-      var _a2, _b;
+      var _a3, _b2;
       if (base && base.contains(el)) return;
       if (outline && outline.contains(el)) return;
-      const styleFill = (_a2 = el.style) == null ? void 0 : _a2.fill;
-      const styleStroke = (_b = el.style) == null ? void 0 : _b.stroke;
+      const styleFill = (_a3 = el.style) == null ? void 0 : _a3.fill;
+      const styleStroke = (_b2 = el.style) == null ? void 0 : _b2.stroke;
       const fillAttr = el.getAttribute("fill");
       const strokeAttr = el.getAttribute("stroke");
       const hasFill = typeof styleFill === "string" && styleFill && styleFill.toLowerCase() !== "none" || typeof fillAttr === "string" && fillAttr && fillAttr.toLowerCase() !== "none";
@@ -7143,7 +4760,7 @@ function isScaleLikeSticker(m) {
 }
 var MapInstance = class extends import_obsidian21.Component {
   constructor(app, plugin, el, cfg) {
-    var _a, _b;
+    var _a2, _b2;
     super();
     this.drawEditDrawingId = null;
     this.drawEditMode = null;
@@ -7269,13 +4886,13 @@ var MapInstance = class extends import_obsidian21.Component {
       if (e.touches.length <= 0) return;
       const first = e.touches[0];
       const vpRect = this.viewportEl.getBoundingClientRect();
-      const x = first.clientX - vpRect.left;
+      const x2 = first.clientX - vpRect.left;
       const y = first.clientY - vpRect.top;
-      this.touchGestureStartX = x;
+      this.touchGestureStartX = x2;
       this.touchGestureStartY = y;
       this.touchGestureCandidate = true;
       this.touchGestureLocked = false;
-      const nearEdgeX = x <= this.touchGestureEdgeGuardPx || x >= vpRect.width - this.touchGestureEdgeGuardPx;
+      const nearEdgeX = x2 <= this.touchGestureEdgeGuardPx || x2 >= vpRect.width - this.touchGestureEdgeGuardPx;
       if (e.touches.length >= 2 || nearEdgeX) {
         this.touchGestureLocked = true;
         this.touchGestureCandidate = false;
@@ -7297,9 +4914,9 @@ var MapInstance = class extends import_obsidian21.Component {
           this.touchGestureCandidate = false;
         } else {
           const vpRect = this.viewportEl.getBoundingClientRect();
-          const x = first.clientX - vpRect.left;
+          const x2 = first.clientX - vpRect.left;
           const y = first.clientY - vpRect.top;
-          const dx = x - this.touchGestureStartX;
+          const dx = x2 - this.touchGestureStartX;
           const dy = y - this.touchGestureStartY;
           if (Math.hypot(dx, dy) >= this.touchGestureLockThresholdPx) {
             this.touchGestureLocked = true;
@@ -7341,25 +4958,25 @@ var MapInstance = class extends import_obsidian21.Component {
     this.el = el;
     this.cfg = cfg;
     if (this.cfg.storageMode === "note") {
-      const id = (_b = this.cfg.mapId) != null ? _b : `map-${(_a = this.cfg.sectionStart) != null ? _a : 0}`;
+      const id = (_b2 = this.cfg.mapId) != null ? _b2 : `map-${(_a2 = this.cfg.sectionStart) != null ? _a2 : 0}`;
       this.store = new NoteMarkerStore(app, cfg.sourcePath, id, this.cfg.sectionEnd);
     } else {
       this.store = new MarkerStore(app, cfg.sourcePath, cfg.markersPath);
     }
   }
   getSvgRasterMaxScale() {
-    var _a;
-    return (_a = this.plugin.settings.svgRasterMaxScale) != null ? _a : 8;
+    var _a2;
+    return (_a2 = this.plugin.settings.svgRasterMaxScale) != null ? _a2 : 8;
   }
   ensureMarkerLayersByNames(names) {
-    var _a, _b;
+    var _a2, _b2;
     if (!this.data) return;
     const list = (names != null ? names : []).map((s) => (s != null ? s : "").trim()).filter(Boolean);
     if (list.length === 0) return;
-    (_b = (_a = this.data).layers) != null ? _b : _a.layers = [{ id: "default", name: "Default", visible: true, locked: false }];
+    (_b2 = (_a2 = this.data).layers) != null ? _b2 : _a2.layers = [{ id: "default", name: "Default", visible: true, locked: false }];
     const existingByName = new Set(this.data.layers.map((l) => {
-      var _a2;
-      return ((_a2 = l.name) != null ? _a2 : "").trim();
+      var _a3;
+      return ((_a3 = l.name) != null ? _a3 : "").trim();
     }));
     for (const name of list) {
       if (existingByName.has(name)) continue;
@@ -7379,7 +4996,7 @@ var MapInstance = class extends import_obsidian21.Component {
     return typeof val === "object" && val !== null && !Array.isArray(val);
   }
   parseZoommapYamlFromBlock(lines, blk) {
-    const raw = lines.slice(blk.start + 1, blk.end).map((ln) => stripQuotePrefix(ln)).join("\n");
+    const raw = lines.slice(blk.start + 1, blk.end).map((ln2) => stripQuotePrefix(ln2)).join("\n");
     try {
       const parsed = (0, import_obsidian21.parseYaml)(raw);
       return this.isPlainObject(parsed) ? parsed : null;
@@ -7410,14 +5027,14 @@ var MapInstance = class extends import_obsidian21.Component {
   }
   findAllZoommapBlocks(lines) {
     const blocks = [];
-    for (let i = 0; i < lines.length; i++) {
-      const ln = stripQuotePrefix(lines[i]).trimStart().toLowerCase();
-      if (!ln.startsWith("```zoommap")) continue;
-      let j = i + 1;
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const ln2 = stripQuotePrefix(lines[i2]).trimStart().toLowerCase();
+      if (!ln2.startsWith("```zoommap")) continue;
+      let j = i2 + 1;
       while (j < lines.length && !stripQuotePrefix(lines[j]).trimStart().startsWith("```")) j++;
       if (j >= lines.length) break;
-      blocks.push({ start: i, end: j });
-      i = j;
+      blocks.push({ start: i2, end: j });
+      i2 = j;
     }
     return blocks;
   }
@@ -7427,23 +5044,23 @@ var MapInstance = class extends import_obsidian21.Component {
     let foundBlock = false;
     let didChange = false;
     await this.app.vault.process(af, (text) => {
-      var _a, _b;
+      var _a2, _b2;
       const lines = text.split("\n");
       const blk = this.findZoommapBlockForThisMap(lines);
       if (!blk) return text;
       foundBlock = true;
-      const blkPrefix = splitQuotePrefix((_a = lines[blk.start]) != null ? _a : "").prefix;
+      const blkPrefix = splitQuotePrefix((_a2 = lines[blk.start]) != null ? _a2 : "").prefix;
       const content = lines.slice(blk.start + 1, blk.end);
       const keyRe = /^(\s*)markers\s*:\s*(.*)$/i;
       let keyIdx = -1;
       let keyIndent = "";
       let keyPrefix = blkPrefix;
-      for (let i = 0; i < content.length; i++) {
-        const info = splitQuotePrefix(content[i]);
+      for (let i2 = 0; i2 < content.length; i2++) {
+        const info = splitQuotePrefix(content[i2]);
         const m = keyRe.exec(info.rest);
         if (m) {
-          keyIdx = i;
-          keyIndent = (_b = m[1]) != null ? _b : "";
+          keyIdx = i2;
+          keyIndent = (_b2 = m[1]) != null ? _b2 : "";
           keyPrefix = info.prefix || blkPrefix;
           break;
         }
@@ -7492,28 +5109,28 @@ var MapInstance = class extends import_obsidian21.Component {
     await this.ensureFolderForPath(wanted);
     let finalPath = (0, import_obsidian21.normalizePath)(wanted);
     const base = finalPath.slice(0, -".markers.json".length);
-    let i = 1;
+    let i2 = 1;
     while (this.app.vault.getAbstractFileByPath(finalPath)) {
-      finalPath = (0, import_obsidian21.normalizePath)(`${base}-${i}.markers.json`);
-      i++;
+      finalPath = (0, import_obsidian21.normalizePath)(`${base}-${i2}.markers.json`);
+      i2++;
     }
     await this.app.vault.rename(oldAf, finalPath);
     return finalPath;
   }
   readYamlScalarFromBlock(blockLines, key) {
-    var _a;
+    var _a2;
     const re = new RegExp(`^\\s*${key}\\s*:\\s*(.+)\\s*$`, "i");
-    for (const ln of blockLines) {
-      const rest = stripQuotePrefix(ln);
+    for (const ln2 of blockLines) {
+      const rest = stripQuotePrefix(ln2);
       const m = re.exec(rest);
-      if (m) return this.stripYamlScalar((_a = m[1]) != null ? _a : "");
+      if (m) return this.stripYamlScalar((_a2 = m[1]) != null ? _a2 : "");
     }
     return null;
   }
   findZoommapBlockForThisMap(lines) {
-    var _a, _b, _c;
-    const wantId = ((_a = this.cfg.mapId) != null ? _a : "").trim();
-    const wantMarkers = this.cfg.storageMode === "json" ? (0, import_obsidian21.normalizePath)((_b = this.cfg.markersPath) != null ? _b : "") : "";
+    var _a2, _b2, _c;
+    const wantId = ((_a2 = this.cfg.mapId) != null ? _a2 : "").trim();
+    const wantMarkers = this.cfg.storageMode === "json" ? (0, import_obsidian21.normalizePath)((_b2 = this.cfg.markersPath) != null ? _b2 : "") : "";
     const wantImage = (0, import_obsidian21.normalizePath)((_c = this.cfg.imagePath) != null ? _c : "");
     const all = this.findAllZoommapBlocks(lines);
     if (wantId) {
@@ -7558,10 +5175,10 @@ var MapInstance = class extends import_obsidian21.Component {
     return best;
   }
   openViewEditorFromMap() {
-    var _a, _b, _c, _d, _e, _f;
+    var _a2, _b2, _c, _d, _e, _f;
     if (!this.data) return;
     const bases = this.getBasesNormalized();
-    const overlays = (_a = this.data.overlays) != null ? _a : [];
+    const overlays = (_a2 = this.data.overlays) != null ? _a2 : [];
     const rect = this.viewportEl.getBoundingClientRect();
     const curW = Math.round(rect.width || 0);
     const curH = Math.round(rect.height || 0);
@@ -7578,7 +5195,7 @@ var MapInstance = class extends import_obsidian21.Component {
       maxZoom: this.cfg.maxZoom,
       wrap: !!this.cfg.wrap,
       responsive: !!this.cfg.responsive,
-      width: curW > 0 ? `${curW}px` : (_b = this.cfg.width) != null ? _b : "",
+      width: curW > 0 ? `${curW}px` : (_b2 = this.cfg.width) != null ? _b2 : "",
       height: curH > 0 ? `${curH}px` : (_c = this.cfg.height) != null ? _c : "",
       useWidth: !!this.cfg.widthFromYaml,
       useHeight: !!this.cfg.heightFromYaml,
@@ -7586,8 +5203,8 @@ var MapInstance = class extends import_obsidian21.Component {
       resizeHandle: (_d = this.cfg.resizeHandle) != null ? _d : "right",
       align: this.cfg.align,
       markerLayers: this.data.layers.map((l) => {
-        var _a2;
-        return (_a2 = l.name) != null ? _a2 : "Layer";
+        var _a3;
+        return (_a3 = l.name) != null ? _a3 : "Layer";
       }),
       id: this.cfg.mapId,
       viewportFrame: (_e = this.cfg.viewportFrame) != null ? _e : "",
@@ -7693,18 +5310,18 @@ var MapInstance = class extends import_obsidian21.Component {
     this.data.deleted = [entry, ...prev].slice(0, 3);
   }
   getLatestDeleteUndoLabel() {
-    var _a, _b, _c;
-    const label = (_c = (_b = (_a = this.data) == null ? void 0 : _a.deleted) == null ? void 0 : _b[0]) == null ? void 0 : _c.label;
+    var _a2, _b2, _c;
+    const label = (_c = (_b2 = (_a2 = this.data) == null ? void 0 : _a2.deleted) == null ? void 0 : _b2[0]) == null ? void 0 : _c.label;
     return typeof label === "string" && label.trim() ? label : null;
   }
   async ensurePingNoteFileForMarker(ping, preset) {
-    var _a, _b, _c, _d, _e, _f, _g;
-    const notePath = ((_a = ping.pingNotePath) != null ? _a : "").trim();
+    var _a2, _b2, _c, _d, _e, _f, _g;
+    const notePath = ((_a2 = ping.pingNotePath) != null ? _a2 : "").trim();
     if (!notePath) return null;
     const existing = this.app.vault.getAbstractFileByPath(notePath);
     if (existing instanceof import_obsidian21.TFile) return existing;
     await this.ensureFolderForPath(notePath);
-    const radius = (_b = ping.pingRadius) != null ? _b : 0;
+    const radius = (_b2 = ping.pingRadius) != null ? _b2 : 0;
     const unit = (_c = ping.pingRadiusUnit) != null ? _c : "km";
     const customUnitId = ping.pingRadiusCustomUnitId;
     const unitLabel = this.pingUnitLabel(unit, customUnitId);
@@ -7750,8 +5367,8 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     return this.app.vault.create(notePath, md);
   }
   async undoLastDelete() {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z;
-    if (!((_b = (_a = this.data) == null ? void 0 : _a.deleted) == null ? void 0 : _b.length)) return;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z;
+    if (!((_b2 = (_a2 = this.data) == null ? void 0 : _a2.deleted) == null ? void 0 : _b2.length)) return;
     const [entry, ...rest] = this.data.deleted;
     const payload = entry.payload;
     let changed = false;
@@ -7856,23 +5473,23 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     let foundBlock = false;
     let didChange = false;
     await this.app.vault.process(af, (text) => {
-      var _a, _b;
+      var _a2, _b2;
       const lines = text.split("\n");
       const blk = this.findZoommapBlockForThisMap(lines);
       if (!blk) return text;
       foundBlock = true;
-      const blkPrefix = splitQuotePrefix((_a = lines[blk.start]) != null ? _a : "").prefix;
+      const blkPrefix = splitQuotePrefix((_a2 = lines[blk.start]) != null ? _a2 : "").prefix;
       const content = lines.slice(blk.start + 1, blk.end);
       const keyRe = /^(\s*)view\s*:/;
       let keyIdx = -1;
       let keyIndent = "";
       let keyPrefix = blkPrefix;
-      for (let i = 0; i < content.length; i++) {
-        const info = splitQuotePrefix(content[i]);
+      for (let i2 = 0; i2 < content.length; i2++) {
+        const info = splitQuotePrefix(content[i2]);
         const m = keyRe.exec(info.rest);
         if (m) {
-          keyIdx = i;
-          keyIndent = (_b = m[1]) != null ? _b : "";
+          keyIdx = i2;
+          keyIndent = (_b2 = m[1]) != null ? _b2 : "";
           keyPrefix = info.prefix || blkPrefix;
           break;
         }
@@ -7883,13 +5500,13 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
         `${keyPrefix}${keyIndent}  centerX: ${cx.toFixed(6)}`,
         `${keyPrefix}${keyIndent}  centerY: ${cy.toFixed(6)}`
       ];
-      const isNextTopLevelKey = (ln) => {
-        var _a2, _b2;
-        const rest = stripQuotePrefix(ln);
+      const isNextTopLevelKey = (ln2) => {
+        var _a3, _b3;
+        const rest = stripQuotePrefix(ln2);
         const trimmed = rest.trim();
         if (!trimmed) return false;
         if (trimmed.startsWith("#")) return false;
-        const spaces = (_b2 = (_a2 = /^\s*/.exec(rest)) == null ? void 0 : _a2[0].length) != null ? _b2 : 0;
+        const spaces = (_b3 = (_a3 = /^\s*/.exec(rest)) == null ? void 0 : _a3[0].length) != null ? _b3 : 0;
         return spaces <= keyIndent.length && /^[A-Za-z0-9_-]+\s*:/.test(trimmed);
       };
       let newContent;
@@ -7938,33 +5555,33 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     let foundBlock = false;
     let didChange = false;
     await this.app.vault.process(af, (text) => {
-      var _a, _b;
+      var _a2, _b2;
       const lines = text.split("\n");
       const blk = this.findZoommapBlockForThisMap(lines);
       if (!blk) return text;
       foundBlock = true;
-      const blkPrefix = splitQuotePrefix((_a = lines[blk.start]) != null ? _a : "").prefix;
+      const blkPrefix = splitQuotePrefix((_a2 = lines[blk.start]) != null ? _a2 : "").prefix;
       const content = lines.slice(blk.start + 1, blk.end);
       const keyRe = /^(\s*)view\s*:/i;
       let keyIdx = -1;
       let keyIndent = "";
-      for (let i = 0; i < content.length; i++) {
-        const info = splitQuotePrefix(content[i]);
+      for (let i2 = 0; i2 < content.length; i2++) {
+        const info = splitQuotePrefix(content[i2]);
         const m = keyRe.exec(info.rest);
         if (m) {
-          keyIdx = i;
-          keyIndent = (_b = m[1]) != null ? _b : "";
+          keyIdx = i2;
+          keyIndent = (_b2 = m[1]) != null ? _b2 : "";
           break;
         }
       }
       if (keyIdx < 0) return text;
-      const isNextTopLevelKey = (ln) => {
-        var _a2, _b2;
-        const rest = stripQuotePrefix(ln);
+      const isNextTopLevelKey = (ln2) => {
+        var _a3, _b3;
+        const rest = stripQuotePrefix(ln2);
         const trimmed = rest.trim();
         if (!trimmed) return false;
         if (trimmed.startsWith("#")) return false;
-        const spaces = (_b2 = (_a2 = /^\s*/.exec(rest)) == null ? void 0 : _a2[0].length) != null ? _b2 : 0;
+        const spaces = (_b3 = (_a3 = /^\s*/.exec(rest)) == null ? void 0 : _a3[0].length) != null ? _b3 : 0;
         return spaces <= keyIndent.length && /^[A-Za-z0-9_-]+\s*:/.test(trimmed);
       };
       let end = keyIdx + 1;
@@ -7976,7 +5593,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       if (newContent.join("\n") !== content.join("\n")) didChange = true;
       return [
         ...lines.slice(0, blk.start + 1),
-        ...newContent.map((ln) => blkPrefix ? blkPrefix + stripQuotePrefix(ln) : ln),
+        ...newContent.map((ln2) => blkPrefix ? blkPrefix + stripQuotePrefix(ln2) : ln2),
         ...lines.slice(blk.end)
       ].join("\n");
     });
@@ -8000,13 +5617,13 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     let foundBlock = false;
     let didChange = false;
     await this.app.vault.process(af, (text) => {
-      var _a, _b;
+      var _a2, _b2;
       const lines = text.split("\n");
       const blk = this.findZoommapBlockForThisMap(lines);
       if (!blk) return text;
       foundBlock = true;
-      const blkPrefix = splitQuotePrefix((_a = lines[blk.start]) != null ? _a : "").prefix;
-      const existingObj = (_b = this.parseZoommapYamlFromBlock(lines, blk)) != null ? _b : {};
+      const blkPrefix = splitQuotePrefix((_a2 = lines[blk.start]) != null ? _a2 : "").prefix;
+      const existingObj = (_b2 = this.parseZoommapYamlFromBlock(lines, blk)) != null ? _b2 : {};
       const nextYamlStr = buildYaml(cfg);
       let nextObj = {};
       try {
@@ -8043,7 +5660,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       }
       const mergedYamlStr = (0, import_obsidian21.stringifyYaml)(merged).trimEnd();
       const yamlLinesRaw = mergedYamlStr.split("\n");
-      const yamlLines = blkPrefix ? yamlLinesRaw.map((ln) => `${blkPrefix}${ln}`) : yamlLinesRaw;
+      const yamlLines = blkPrefix ? yamlLinesRaw.map((ln2) => `${blkPrefix}${ln2}`) : yamlLinesRaw;
       const before = lines.slice(blk.start + 1, blk.end).join("\n");
       const after = yamlLines.join("\n");
       if (before !== after) didChange = true;
@@ -8071,8 +5688,8 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     new import_obsidian21.Notice("View updated.", 2500);
   }
   getScreenDisplayPlugin() {
-    var _a, _b;
-    const registry = (_b = (_a = this.app.plugins) == null ? void 0 : _a.plugins) != null ? _b : {};
+    var _a2, _b2;
+    const registry = (_b2 = (_a2 = this.app.plugins) == null ? void 0 : _a2.plugins) != null ? _b2 : {};
     const raw = registry["ttrpg-tools-screen"];
     if (!raw || typeof raw.sendNoteByPath !== "function" || typeof raw.sendMarkdownWithFog !== "function") return null;
     return {
@@ -8088,21 +5705,21 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     return this.cfg.screenRole === "controller";
   }
   getRevealedMarkerIdSet() {
-    var _a, _b;
-    const ids = (_b = (_a = this.data) == null ? void 0 : _a.secondScreen) == null ? void 0 : _b.revealedMarkerIds;
+    var _a2, _b2;
+    const ids = (_b2 = (_a2 = this.data) == null ? void 0 : _a2.secondScreen) == null ? void 0 : _b2.revealedMarkerIds;
     return new Set(Array.isArray(ids) ? ids : []);
   }
   secondScreenFeatureEnabled() {
     return !!this.plugin.settings.enableSecondScreen;
   }
   ensureSecondScreenConfig() {
-    var _a, _b;
+    var _a2, _b2;
     if (!this.data) throw new Error("Map data not loaded.");
-    (_b = (_a = this.data).secondScreen) != null ? _b : _a.secondScreen = {};
+    (_b2 = (_a2 = this.data).secondScreen) != null ? _b2 : _a2.secondScreen = {};
     return this.data.secondScreen;
   }
   getSecondScreenSelectedIds() {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (!this.data) {
       return {
         markerLayerIds: /* @__PURE__ */ new Set(),
@@ -8111,42 +5728,42 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       };
     }
     const sec = this.ensureSecondScreenConfig();
-    const markerLayerIds = Array.isArray(sec.markerLayerIds) ? new Set(sec.markerLayerIds) : new Set(((_a = this.data.layers) != null ? _a : []).map((l) => l.id));
-    const drawLayerIds = Array.isArray(sec.drawLayerIds) ? new Set(sec.drawLayerIds) : new Set(((_b = this.data.drawLayers) != null ? _b : []).map((l) => l.id));
+    const markerLayerIds = Array.isArray(sec.markerLayerIds) ? new Set(sec.markerLayerIds) : new Set(((_a2 = this.data.layers) != null ? _a2 : []).map((l) => l.id));
+    const drawLayerIds = Array.isArray(sec.drawLayerIds) ? new Set(sec.drawLayerIds) : new Set(((_b2 = this.data.drawLayers) != null ? _b2 : []).map((l) => l.id));
     const textLayerIds = Array.isArray(sec.textLayerIds) ? new Set(sec.textLayerIds) : new Set(((_c = this.data.textLayers) != null ? _c : []).map((l) => l.id));
     return { markerLayerIds, drawLayerIds, textLayerIds };
   }
   openSecondScreenLayersModal() {
-    var _a, _b, _c, _d, _e, _f;
+    var _a2, _b2, _c, _d, _e, _f;
     if (!this.data) return;
     const sec = this.ensureSecondScreenConfig();
-    const markerSelected = Array.isArray(sec.markerLayerIds) ? new Set(sec.markerLayerIds) : new Set(((_a = this.data.layers) != null ? _a : []).map((l) => l.id));
-    const drawSelected = Array.isArray(sec.drawLayerIds) ? new Set(sec.drawLayerIds) : new Set(((_b = this.data.drawLayers) != null ? _b : []).map((l) => l.id));
+    const markerSelected = Array.isArray(sec.markerLayerIds) ? new Set(sec.markerLayerIds) : new Set(((_a2 = this.data.layers) != null ? _a2 : []).map((l) => l.id));
+    const drawSelected = Array.isArray(sec.drawLayerIds) ? new Set(sec.drawLayerIds) : new Set(((_b2 = this.data.drawLayers) != null ? _b2 : []).map((l) => l.id));
     const textSelected = Array.isArray(sec.textLayerIds) ? new Set(sec.textLayerIds) : new Set(((_c = this.data.textLayers) != null ? _c : []).map((l) => l.id));
     new SecondScreenLayersModal(
       this.app,
       {
         markerLayers: ((_d = this.data.layers) != null ? _d : []).map((l) => {
-          var _a2;
+          var _a3;
           return {
             id: l.id,
-            name: (_a2 = l.name) != null ? _a2 : "Layer",
+            name: (_a3 = l.name) != null ? _a3 : "Layer",
             selected: markerSelected.has(l.id)
           };
         }),
         drawLayers: ((_e = this.data.drawLayers) != null ? _e : []).map((l) => {
-          var _a2;
+          var _a3;
           return {
             id: l.id,
-            name: (_a2 = l.name) != null ? _a2 : "Draw layer",
+            name: (_a3 = l.name) != null ? _a3 : "Draw layer",
             selected: drawSelected.has(l.id)
           };
         }),
         textLayers: ((_f = this.data.textLayers) != null ? _f : []).map((l) => {
-          var _a2;
+          var _a3;
           return {
             id: l.id,
-            name: (_a2 = l.name) != null ? _a2 : "Text layer",
+            name: (_a3 = l.name) != null ? _a3 : "Text layer",
             selected: textSelected.has(l.id)
           };
         }),
@@ -8175,10 +5792,10 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     }
   }
   mergeSecondScreenSnapshotWithExisting(snapshot, existing) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
     if (!existing) {
-      (_a = snapshot.secondScreen) != null ? _a : snapshot.secondScreen = {};
-      (_c = (_b = snapshot.secondScreen).revealedMarkerIds) != null ? _c : _b.revealedMarkerIds = [];
+      (_a2 = snapshot.secondScreen) != null ? _a2 : snapshot.secondScreen = {};
+      (_c = (_b2 = snapshot.secondScreen).revealedMarkerIds) != null ? _c : _b2.revealedMarkerIds = [];
       return snapshot;
     }
     const existingSecond = (_d = existing.secondScreen) != null ? _d : {};
@@ -8223,19 +5840,19 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     return snapshot;
   }
   async buildSecondScreenSnapshot(playerMarkersPath, notePath) {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a2, _b2, _c, _d, _e, _f, _g;
     if (!this.data) throw new Error("Map data not loaded.");
     const snapshot = JSON.parse(
       JSON.stringify(sanitizeMarkerFileDataForSave(this.data))
     );
     const sec = this.ensureSecondScreenConfig();
     const { markerLayerIds, drawLayerIds, textLayerIds } = this.getSecondScreenSelectedIds();
-    snapshot.layers = ((_a = snapshot.layers) != null ? _a : []).map((l) => ({
+    snapshot.layers = ((_a2 = snapshot.layers) != null ? _a2 : []).map((l) => ({
       ...l,
       visible: markerLayerIds.has(l.id),
       locked: false
     }));
-    snapshot.markers = ((_b = snapshot.markers) != null ? _b : []).filter((m) => markerLayerIds.has(m.layer));
+    snapshot.markers = ((_b2 = snapshot.markers) != null ? _b2 : []).filter((m) => markerLayerIds.has(m.layer));
     snapshot.drawLayers = ((_c = snapshot.drawLayers) != null ? _c : []).map((l) => ({
       ...l,
       visible: drawLayerIds.has(l.id),
@@ -8290,7 +5907,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     return w / h;
   }
   buildSecondScreenNoteContent(markersPath, role) {
-    var _a;
+    var _a2;
     const view = this.getCurrentViewForSecondScreen();
     const viewRect = this.getCurrentViewRectForSecondScreen();
     const aspect = this.getCurrentOuterAspectForSecondScreen();
@@ -8314,7 +5931,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       displayOnly: role === "player",
       screenRole: role
     };
-    if ((_a = this.cfg.viewportFrame) == null ? void 0 : _a.trim()) {
+    if ((_a2 = this.cfg.viewportFrame) == null ? void 0 : _a2.trim()) {
       yaml.viewportFrame = this.cfg.viewportFrame.trim();
     }
     if (this.cfg.viewportFrameInsets) {
@@ -8346,7 +5963,7 @@ ${(0, import_obsidian21.stringifyYaml)(yaml).trimEnd()}
 `;
   }
   async sendToSecondScreen(useFog = false) {
-    var _a, _b, _c, _d, _e;
+    var _a2, _b2, _c, _d, _e;
     if (!this.data) return;
     if (!this.secondScreenFeatureEnabled()) {
       new import_obsidian21.Notice("Player screen integration is disabled in preferences.", 2500);
@@ -8358,10 +5975,10 @@ ${(0, import_obsidian21.stringifyYaml)(yaml).trimEnd()}
       return;
     }
     const folder = (0, import_obsidian21.normalizePath)(
-      ((_a = this.plugin.settings.secondScreenFolder) != null ? _a : "ZoomMap/SecondScreen").trim() || "ZoomMap/SecondScreen"
+      ((_a2 = this.plugin.settings.secondScreenFolder) != null ? _a2 : "ZoomMap/SecondScreen").trim() || "ZoomMap/SecondScreen"
     );
     const sec = this.ensureSecondScreenConfig();
-    const stemBase = ((_b = this.cfg.mapId) == null ? void 0 : _b.trim()) || basename(this.getActiveBasePath()).replace(/\.[^.]+$/, "") || "map";
+    const stemBase = ((_b2 = this.cfg.mapId) == null ? void 0 : _b2.trim()) || basename(this.getActiveBasePath()).replace(/\.[^.]+$/, "") || "map";
     const safeStem = this.sanitizeFileName(`${stemBase}-screen`);
     const notePath = (0, import_obsidian21.normalizePath)((_c = sec.notePath) != null ? _c : `${folder}/${safeStem}.md`);
     const markersPath = (0, import_obsidian21.normalizePath)((_d = sec.markersPath) != null ? _d : `${folder}/${safeStem}.markers.json`);
@@ -8483,14 +6100,14 @@ ${(0, import_obsidian21.stringifyYaml)(yaml).trimEnd()}
     void this.previewViewportFrameFromViewEditorAsync(cfg);
   }
   async previewViewportFrameFromViewEditorAsync(cfg) {
-    var _a, _b, _c, _d;
-    const nextFrame = ((_a = cfg.viewportFrame) != null ? _a : "").trim();
+    var _a2, _b2, _c, _d;
+    const nextFrame = ((_a2 = cfg.viewportFrame) != null ? _a2 : "").trim();
     this.cfg.viewportFrame = nextFrame.length ? nextFrame : void 0;
     this.cfg.viewportFrameInsets = cfg.viewportFrameInsets;
     const wantFrame = typeof this.cfg.viewportFrame === "string" && this.cfg.viewportFrame.trim().length > 0;
     this.el.classList.toggle("zm-root--framepad", wantFrame);
     if (!wantFrame) {
-      (_b = this.viewportFrameEl) == null ? void 0 : _b.remove();
+      (_b2 = this.viewportFrameEl) == null ? void 0 : _b2.remove();
       this.viewportFrameEl = null;
       (_c = this.frameLayerEl) == null ? void 0 : _c.remove();
       this.frameLayerEl = null;
@@ -8523,21 +6140,25 @@ ${(0, import_obsidian21.stringifyYaml)(yaml).trimEnd()}
     return this.el.ownerDocument;
   }
   getOwnerWindow() {
-    var _a;
-    return (_a = this.getOwnerDocument().defaultView) != null ? _a : window;
+    var _a2;
+    return (_a2 = this.getOwnerDocument().defaultView) != null ? _a2 : window;
   }
   getOwnerBody() {
     return this.getOwnerDocument().body;
+  }
+  isOwnerElement(value) {
+    const win = this.getOwnerWindow();
+    return !!value && value instanceof win.Element;
   }
   getSourcePath() {
     return this.cfg.sourcePath;
   }
   getMapId() {
-    var _a;
-    return (_a = this.cfg.mapId) != null ? _a : "";
+    var _a2;
+    return (_a2 = this.cfg.mapId) != null ? _a2 : "";
   }
   async buildShareExportContext() {
-    var _a, _b;
+    var _a2, _b2;
     if (!this.data) return null;
     const af = this.app.vault.getAbstractFileByPath(this.cfg.sourcePath);
     if (!(af instanceof import_obsidian21.TFile)) return null;
@@ -8545,7 +6166,7 @@ ${(0, import_obsidian21.stringifyYaml)(yaml).trimEnd()}
     const lines = text.split("\n");
     const blk = this.findZoommapBlockForThisMap(lines);
     if (!blk) return null;
-    const yamlLines = lines.slice(blk.start + 1, blk.end).map((ln) => stripQuotePrefix(ln));
+    const yamlLines = lines.slice(blk.start + 1, blk.end).map((ln2) => stripQuotePrefix(ln2));
     const yamlRaw = yamlLines.join("\n").trimEnd();
     let yamlObject = null;
     try {
@@ -8556,8 +6177,8 @@ ${(0, import_obsidian21.stringifyYaml)(yaml).trimEnd()}
     }
     return {
       sourcePath: this.cfg.sourcePath,
-      mapId: (_a = this.cfg.mapId) != null ? _a : "",
-      storageMode: (_b = this.cfg.storageMode) != null ? _b : "json",
+      mapId: (_a2 = this.cfg.mapId) != null ? _a2 : "",
+      storageMode: (_b2 = this.cfg.storageMode) != null ? _b2 : "json",
       markersPath: this.cfg.markersPath,
       yamlBlock: `\`\`\`zoommap
 ${yamlRaw}
@@ -8584,9 +6205,9 @@ ${yamlRaw}
     this.zoomControlsEl.classList.toggle("zm-hidden", !show);
   }
   refreshMarkdownViewKeepingScroll(view) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i;
     try {
-      const scroll = (_c = (_b = (_a = view.currentMode) == null ? void 0 : _a.getScroll) == null ? void 0 : _b.call(_a)) != null ? _c : 0;
+      const scroll = (_c = (_b2 = (_a2 = view.currentMode) == null ? void 0 : _a2.getScroll) == null ? void 0 : _b2.call(_a2)) != null ? _c : 0;
       if (view.getMode() === "preview") {
         (_e = (_d = view.previewMode) == null ? void 0 : _d.rerender) == null ? void 0 : _e.call(_d, true);
         (_g = (_f = view.previewMode) == null ? void 0 : _f.applyScroll) == null ? void 0 : _g.call(_f, scroll);
@@ -8595,8 +6216,8 @@ ${yamlRaw}
       const data = view.getViewData();
       view.setViewData(data, false);
       (_i = (_h = view.currentMode) == null ? void 0 : _h.applyScroll) == null ? void 0 : _i.call(_h, scroll);
-    } catch (err) {
-      console.warn("Zoom Map: failed to refresh markdown view", err);
+    } catch (err2) {
+      console.warn("Zoom Map: failed to refresh markdown view", err2);
     }
   }
   async refreshOpenMarkdownViewsForPaths(paths) {
@@ -8621,13 +6242,13 @@ ${yamlRaw}
     return null;
   }
   startDraw(kind) {
-    var _a;
+    var _a2;
     if (!this.plugin.settings.enableDrawing) {
       new import_obsidian21.Notice("Drawing tools are disabled in the plugin preferences.", 2e3);
       return;
     }
     if (!this.data) return;
-    const layers = (_a = this.data.drawLayers) != null ? _a : [];
+    const layers = (_a2 = this.data.drawLayers) != null ? _a2 : [];
     const visible = layers.find((l) => l.visible);
     if (layers.length === 0) {
       new import_obsidian21.Notice(
@@ -8684,7 +6305,7 @@ ${yamlRaw}
     this.el.classList.toggle("zm-root--svg-base", isSvg);
   }
   async applySwitchPin(m) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (!this.data) return;
     if (m.type !== "switch") return;
     const bases = this.getBasesNormalized();
@@ -8693,11 +6314,11 @@ ${yamlRaw}
     const rotate = !!m.switchRotate || !(typeof m.switchBase === "string" && m.switchBase.trim().length > 0);
     if (rotate) {
       const idx = bases.findIndex((b) => b.path === current);
-      const next = (_a = bases[((idx >= 0 ? idx : 0) + 1) % bases.length]) == null ? void 0 : _a.path;
+      const next = (_a2 = bases[((idx >= 0 ? idx : 0) + 1) % bases.length]) == null ? void 0 : _a2.path;
       if (next) await this.setActiveBase(next);
       return;
     }
-    const target = ((_b = m.switchBase) != null ? _b : "").trim();
+    const target = ((_b2 = m.switchBase) != null ? _b2 : "").trim();
     if (!target) return;
     const exists = bases.some((b) => b.path === target);
     if (exists) {
@@ -8731,22 +6352,22 @@ ${yamlRaw}
   }
   onload() {
     this.plugin.registerMapInstance(this);
-    void this.bootstrap().catch((err) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(err);
+    void this.bootstrap().catch((err2) => {
+      const msg = err2 instanceof Error ? err2.message : String(err2);
+      console.error(err2);
       new import_obsidian21.Notice(`Zoom Map error: ${msg}`, 6e3);
     });
   }
   onunload() {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     this.plugin.unregisterMapInstance(this);
     if (this.zoomHudTimer !== null) {
       window.clearTimeout(this.zoomHudTimer);
       this.zoomHudTimer = null;
     }
     this.tintedSvgCache.clear();
-    (_a = this.tooltipEl) == null ? void 0 : _a.remove();
-    (_b = this.ro) == null ? void 0 : _b.disconnect();
+    (_a2 = this.tooltipEl) == null ? void 0 : _a2.remove();
+    (_b2 = this.ro) == null ? void 0 : _b2.disconnect();
     (_c = this.calloutMo) == null ? void 0 : _c.disconnect();
     this.closeMenu();
     this.disposeBitmaps();
@@ -8763,11 +6384,11 @@ ${yamlRaw}
     this.svgUpgradeInFlight.clear();
   }
   collectAncestorCallouts() {
-    var _a;
+    var _a2;
     const out = [];
     let cur = this.el;
     while (cur) {
-      const callout = (_a = cur.closest) == null ? void 0 : _a.call(cur, ".callout");
+      const callout = (_a2 = cur.closest) == null ? void 0 : _a2.call(cur, ".callout");
       if (callout && callout instanceof HTMLElement) {
         if (!out.includes(callout)) out.push(callout);
         cur = callout.parentElement;
@@ -8778,7 +6399,7 @@ ${yamlRaw}
     return out;
   }
   scheduleTryApplyInitialViewFromCallout() {
-    var _a;
+    var _a2;
     if (this.cfg.responsive) return;
     if (!this.cfg.initialViewRect && (!this.cfg.initialZoom || !this.cfg.initialCenter)) return;
     if (this.initialViewApplied) return;
@@ -8797,7 +6418,7 @@ ${yamlRaw}
       if (this.isCanvas()) this.renderCanvas();
       this.renderMarkersOnly();
     };
-    (_a = this.calloutMo) == null ? void 0 : _a.disconnect();
+    (_a2 = this.calloutMo) == null ? void 0 : _a2.disconnect();
     this.calloutMo = new MutationObserver(() => {
       window.requestAnimationFrame(() => tryApply());
     });
@@ -8807,7 +6428,7 @@ ${yamlRaw}
     window.requestAnimationFrame(() => tryApply());
   }
   async bootstrap() {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a2, _b2, _c, _d, _e, _f, _g;
     this.el.classList.add("zm-root");
     this.el.classList.toggle("zm-root--framepad", this.hasViewportFrame());
     this.applyGlobalHoverPopoverStyleVars();
@@ -8820,8 +6441,8 @@ ${yamlRaw}
       });
     } else {
       setCssProps(this.el, {
-        width: (_a = this.cfg.width) != null ? _a : null,
-        height: (_b = this.cfg.height) != null ? _b : null
+        width: (_a2 = this.cfg.width) != null ? _a2 : null,
+        height: (_b2 = this.cfg.height) != null ? _b2 : null
       });
     }
     if (!this.cfg.responsive && this.cfg.resizable) {
@@ -9099,8 +6720,8 @@ ${yamlRaw}
     this.ro = new ResizeObserver(() => this.onResize());
     this.ro.observe(this.el);
     this.register(() => {
-      var _a2;
-      return (_a2 = this.ro) == null ? void 0 : _a2.disconnect();
+      var _a3;
+      return (_a3 = this.ro) == null ? void 0 : _a3.disconnect();
     });
     if (pendingRestore && !this.cfg.responsive) {
       this.applyInitialView(pendingRestore.scale, pendingRestore.center);
@@ -9296,11 +6917,11 @@ ${yamlRaw}
     }
   }
   pickDesiredSvgLod(scale) {
-    const max = this.getSvgRasterMaxScale();
+    const max2 = this.getSvgRasterMaxScale();
     if (scale < 1.35) return 1;
-    if (scale < 2.8) return Math.min(2, max);
-    if (scale < 5.6) return Math.min(4, max);
-    return Math.min(8, max);
+    if (scale < 2.8) return Math.min(2, max2);
+    if (scale < 5.6) return Math.min(4, max2);
+    return Math.min(8, max2);
   }
   async loadSvgBitmapAtLod(path, lod) {
     const f = this.resolveTFile(path, this.cfg.sourcePath);
@@ -9357,14 +6978,14 @@ ${yamlRaw}
     return p;
   }
   async maybeUpgradeSvgBaseForCurrentZoom() {
-    var _a, _b;
+    var _a2, _b2;
     if (!this.isCanvas()) return;
     if (!this.baseIsSvg) return;
-    const path = (_a = this.currentBasePath) != null ? _a : this.getActiveBasePath();
+    const path = (_a2 = this.currentBasePath) != null ? _a2 : this.getActiveBasePath();
     if (!path) return;
     const desired = this.pickDesiredSvgLod(this.scale);
     const byLod = this.getSvgCache(path);
-    const have = (_b = [8, 4, 2, 1].find((l) => byLod.has(l))) != null ? _b : 0;
+    const have = (_b2 = [8, 4, 2, 1].find((l) => byLod.has(l))) != null ? _b2 : 0;
     if (have >= desired) return;
     const bmp = await this.ensureSvgLod(path, desired);
     if (!bmp) return;
@@ -9384,10 +7005,10 @@ ${yamlRaw}
     }
   }
   async ensureOverlayLoaded(path) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     const cache = this.plugin.imageCache;
     if (cache) {
-      if (this.overlaySources.has(path)) return (_a = this.overlaySources.get(path)) != null ? _a : null;
+      if (this.overlaySources.has(path)) return (_a2 = this.overlaySources.get(path)) != null ? _a2 : null;
       const f = this.resolveTFile(path, this.cfg.sourcePath);
       if (!f) return null;
       if (!this.acquiredSessionPaths.has(f.path)) {
@@ -9399,26 +7020,26 @@ ${yamlRaw}
       this.overlaySources.set(path, src);
       return src;
     }
-    if (this.overlaySources.has(path)) return (_b = this.overlaySources.get(path)) != null ? _b : null;
+    if (this.overlaySources.has(path)) return (_b2 = this.overlaySources.get(path)) != null ? _b2 : null;
     if (this.overlayLoading.has(path)) return (_c = this.overlayLoading.get(path)) != null ? _c : null;
     const p = this.loadCanvasSourceFromPath(path).then((res) => {
       this.overlayLoading.delete(path);
       if (res) this.overlaySources.set(path, res);
       return res;
-    }).catch((err) => {
+    }).catch((err2) => {
       this.overlayLoading.delete(path);
-      console.warn("Zoom Map: overlay load failed", path, err);
+      console.warn("Zoom Map: overlay load failed", path, err2);
       return null;
     });
     this.overlayLoading.set(path, p);
     return p;
   }
   async ensureVisibleOverlaysLoaded() {
-    var _a;
+    var _a2;
     if (!this.data) return;
     const keepAll = !!this.plugin.settings.enableSessionImageCache && !!this.plugin.settings.keepOverlaysLoaded;
     const wantVisible = new Set(
-      ((_a = this.data.overlays) != null ? _a : []).filter((o) => keepAll || o.visible).map((o) => o.path)
+      ((_a2 = this.data.overlays) != null ? _a2 : []).filter((o) => keepAll || o.visible).map((o) => o.path)
     );
     for (const [path, src] of this.overlaySources) {
       if (!wantVisible.has(path)) {
@@ -9431,7 +7052,7 @@ ${yamlRaw}
     }
   }
   renderCanvas() {
-    var _a, _b;
+    var _a2, _b2;
     if (!this.isCanvas()) return;
     if (!this.baseCanvas || !this.ctx || !this.baseSource) return;
     const r = this.viewportEl.getBoundingClientRect();
@@ -9464,7 +7085,7 @@ ${yamlRaw}
     } else {
       ctx.drawImage(this.baseSource, 0, 0);
     }
-    if ((_b = (_a = this.data) == null ? void 0 : _a.overlays) == null ? void 0 : _b.length) {
+    if ((_b2 = (_a2 = this.data) == null ? void 0 : _a2.overlays) == null ? void 0 : _b2.length) {
       for (const o of this.data.overlays) {
         if (!o.visible) continue;
         const src = this.overlaySources.get(o.path);
@@ -9505,8 +7126,8 @@ ${yamlRaw}
     this.gridSvg.appendChild(this.gridStaticLayer);
   }
   getGridById(id) {
-    var _a, _b, _c;
-    return (_c = ((_b = (_a = this.data) == null ? void 0 : _a.grids) != null ? _b : []).find((g) => g.id === id)) != null ? _c : null;
+    var _a2, _b2, _c;
+    return (_c = ((_b2 = (_a2 = this.data) == null ? void 0 : _a2.grids) != null ? _b2 : []).find((g) => g.id === id)) != null ? _c : null;
   }
   isGridAlignIncreaseKey(e) {
     return e.key === "+" || e.code === "NumpadAdd" || e.key === "=" && e.shiftKey;
@@ -9545,8 +7166,8 @@ ${yamlRaw}
     const step = Math.max(2, spacing);
     let d = "";
     const startX = anchorX + Math.floor((0 - anchorX) / step) * step;
-    for (let x = startX; x <= this.imgW; x += step) {
-      d += `M ${x} 0 L ${x} ${this.imgH} `;
+    for (let x2 = startX; x2 <= this.imgW; x2 += step) {
+      d += `M ${x2} 0 L ${x2} ${this.imgH} `;
     }
     const startY = anchorY + Math.floor((0 - anchorY) / step) * step;
     for (let y = startY; y <= this.imgH; y += step) {
@@ -9589,7 +7210,7 @@ ${yamlRaw}
     return d.trim();
   }
   renderGrids() {
-    var _a, _b, _c, _d;
+    var _a2, _b2, _c, _d;
     if (!this.gridSvg || !this.gridStaticLayer) return;
     this.gridSvg.setAttribute("width", String(this.imgW));
     this.gridSvg.setAttribute("height", String(this.imgH));
@@ -9600,12 +7221,12 @@ ${yamlRaw}
     const isPlayerView = !!this.cfg.displayOnly;
     const ns = "http://www.w3.org/2000/svg";
     const doc = this.getOwnerDocument();
-    for (const grid of (_a = this.data.grids) != null ? _a : []) {
+    for (const grid of (_a2 = this.data.grids) != null ? _a2 : []) {
       const isPreview = this.gridAlignId === grid.id;
       if (!isPreview && !grid.visible) continue;
       if (!isPreview && grid.boundBase && grid.boundBase !== activeBase) continue;
       if (!isPreview) {
-        const target = (_b = grid.playerScreen) != null ? _b : "both";
+        const target = (_b2 = grid.playerScreen) != null ? _b2 : "both";
         if (!isPlayerView && target === "player-only") continue;
         if (isPlayerView && target === "gm-only") continue;
       }
@@ -9631,11 +7252,11 @@ ${yamlRaw}
     }
   }
   addGridInteractive() {
-    var _a, _b;
+    var _a2, _b2;
     if (!this.data) return;
     const draft = {
       id: generateId("grid"),
-      name: `Grid ${((_b = (_a = this.data.grids) == null ? void 0 : _a.length) != null ? _b : 0) + 1}`,
+      name: `Grid ${((_b2 = (_a2 = this.data.grids) == null ? void 0 : _a2.length) != null ? _b2 : 0) + 1}`,
       visible: true,
       shape: "square",
       color: "#ffffff",
@@ -9647,10 +7268,10 @@ ${yamlRaw}
       playerScreen: "both"
     };
     new GridEditorModal(this.app, draft, (res) => {
-      var _a2, _b2;
+      var _a3, _b3;
       if (!this.data) return;
       if (res.action !== "save") return;
-      (_b2 = (_a2 = this.data).grids) != null ? _b2 : _a2.grids = [];
+      (_b3 = (_a3 = this.data).grids) != null ? _b3 : _a3.grids = [];
       this.data.grids.push(res.grid);
       void this.saveDataSoon();
       this.renderGrids();
@@ -9659,10 +7280,10 @@ ${yamlRaw}
   }
   openGridEditor(grid) {
     new GridEditorModal(this.app, grid, (res) => {
-      var _a;
+      var _a2;
       if (!this.data) return;
       if (res.action !== "save") return;
-      const idx = ((_a = this.data.grids) != null ? _a : []).findIndex((g) => g.id === grid.id);
+      const idx = ((_a2 = this.data.grids) != null ? _a2 : []).findIndex((g) => g.id === grid.id);
       if (idx < 0) return;
       this.data.grids[idx] = res.grid;
       void this.saveDataSoon();
@@ -9707,8 +7328,8 @@ ${yamlRaw}
     this.renderGrids();
   }
   getDrawingById(id) {
-    var _a, _b;
-    const list = (_b = (_a = this.data) == null ? void 0 : _a.drawings) != null ? _b : [];
+    var _a2, _b2;
+    const list = (_b2 = (_a2 = this.data) == null ? void 0 : _a2.drawings) != null ? _b2 : [];
     for (const d of list) {
       if (d.id === id) return d;
     }
@@ -9864,9 +7485,9 @@ ${yamlRaw}
     this.renderDrawingEditHandles();
   }
   isEditedDrawingCurrentlyVisible(d) {
-    var _a, _b;
+    var _a2, _b2;
     if (!d.visible) return false;
-    const layer = ((_b = (_a = this.data) == null ? void 0 : _a.drawLayers) != null ? _b : []).find((l) => l.id === d.layerId);
+    const layer = ((_b2 = (_a2 = this.data) == null ? void 0 : _a2.drawLayers) != null ? _b2 : []).find((l) => l.id === d.layerId);
     if (!layer || !layer.visible) return false;
     const activeBase = this.getActiveBasePath();
     if (layer.boundBase && layer.boundBase !== activeBase) return false;
@@ -9889,12 +7510,12 @@ ${yamlRaw}
     if (this.drawEditMode === "points") {
       const pts = this.getEditableDrawingPoints(d);
       if (!pts || pts.length === 0) return;
-      for (let i = 0; i < pts.length; i += 1) {
-        const p = pts[i];
+      for (let i2 = 0; i2 < pts.length; i2 += 1) {
+        const p = pts[i2];
         const sx = this.tx + p.x * this.imgW * this.scale;
         const sy = this.ty + p.y * this.imgH * this.scale;
         const h = this.drawEditHudEl.createDiv({ cls: "zm-draw-handle" });
-        if (this.drawEditPointIndex === i) h.classList.add("zm-draw-handle--active");
+        if (this.drawEditPointIndex === i2) h.classList.add("zm-draw-handle--active");
         h.style.left = `${sx}px`;
         h.style.top = `${sy}px`;
         h.title = "Drag to move. Ctrl/Cmd + click to delete.";
@@ -9902,18 +7523,18 @@ ${yamlRaw}
           if (e.button === 0 && (e.ctrlKey || e.metaKey)) {
             e.preventDefault();
             e.stopPropagation();
-            this.deletePointFromEditedDrawing(i);
+            this.deletePointFromEditedDrawing(i2);
             return;
           }
           e.preventDefault();
           e.stopPropagation();
-          startDrag(i, "point", e.pointerId);
+          startDrag(i2, "point", e.pointerId);
         });
       }
       const segCount = d.kind === "polygon" ? pts.length : Math.max(0, pts.length - 1);
-      for (let i = 0; i < segCount; i += 1) {
-        const a = pts[i];
-        const b = pts[(i + 1) % pts.length];
+      for (let i2 = 0; i2 < segCount; i2 += 1) {
+        const a = pts[i2];
+        const b = pts[(i2 + 1) % pts.length];
         if (!a || !b) continue;
         const mx = (a.x + b.x) / 2;
         const my = (a.y + b.y) / 2;
@@ -9926,7 +7547,7 @@ ${yamlRaw}
         h.addEventListener("pointerdown", (e) => {
           e.preventDefault();
           e.stopPropagation();
-          const inserted = this.insertPointIntoEditedDrawing(i, { x: mx, y: my });
+          const inserted = this.insertPointIntoEditedDrawing(i2, { x: mx, y: my });
           if (inserted === null) return;
           startDrag(inserted, "point", e.pointerId);
           this.renderDrawings();
@@ -9995,15 +7616,15 @@ ${yamlRaw}
     }
   }
   getTextLayerById(id) {
-    var _a, _b;
+    var _a2, _b2;
     if (!id || !this.data) return null;
-    return (_b = ((_a = this.data.textLayers) != null ? _a : []).find((l) => l.id === id)) != null ? _b : null;
+    return (_b2 = ((_a2 = this.data.textLayers) != null ? _a2 : []).find((l) => l.id === id)) != null ? _b2 : null;
   }
   getTextBoxById(layerId, boxId) {
-    var _a, _b;
+    var _a2, _b2;
     const layer = this.getTextLayerById(layerId);
     if (!layer || !boxId) return null;
-    const box = (_b = ((_a = layer.boxes) != null ? _a : []).find((b) => b.id === boxId)) != null ? _b : null;
+    const box = (_b2 = ((_a2 = layer.boxes) != null ? _a2 : []).find((b) => b.id === boxId)) != null ? _b2 : null;
     if (!box) return null;
     return { layer, box };
   }
@@ -10011,8 +7632,8 @@ ${yamlRaw}
     return layer.visible !== false;
   }
   getTextBoxStyle(box, layer) {
-    var _a;
-    const style = this.normalizeTextLayerStyle((_a = box.style) != null ? _a : layer == null ? void 0 : layer.style);
+    var _a2;
+    const style = this.normalizeTextLayerStyle((_a2 = box.style) != null ? _a2 : layer == null ? void 0 : layer.style);
     if (!box.style) box.style = { ...style };
     return style;
   }
@@ -10038,13 +7659,13 @@ ${yamlRaw}
     };
   }
   buildAutoTextBoxLines(rect, style, autoCfg, existing) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
     const minX = Math.min(rect.x0, rect.x1) * this.imgW;
     const maxX = Math.max(rect.x0, rect.x1) * this.imgW;
     const minY = Math.min(rect.y0, rect.y1) * this.imgH;
     const maxY = Math.max(rect.y0, rect.y1) * this.imgH;
-    const padLeft = Math.max(0, (_a = autoCfg.padLeft) != null ? _a : 0);
-    const padRight = Math.max(0, (_b = autoCfg.padRight) != null ? _b : 0);
+    const padLeft = Math.max(0, (_a2 = autoCfg.padLeft) != null ? _a2 : 0);
+    const padRight = Math.max(0, (_b2 = autoCfg.padRight) != null ? _b2 : 0);
     const padTop = Math.max(0, (_c = autoCfg.padTop) != null ? _c : 0);
     const padBottom = Math.max(0, (_d = autoCfg.padBottom) != null ? _d : 0);
     const x0Px = minX + padLeft;
@@ -10085,17 +7706,17 @@ ${yamlRaw}
     return out;
   }
   regenerateAutoTextBoxLines(layer, box) {
-    var _a;
+    var _a2;
     if (box.mode !== "auto") return;
     if (box.sourceDrawingKind === "polyline") return;
     box.style = this.getTextBoxStyle(box, layer);
-    (_a = box.auto) != null ? _a : box.auto = this.defaultTextBoxAutoConfig();
+    (_a2 = box.auto) != null ? _a2 : box.auto = this.defaultTextBoxAutoConfig();
     box.lines = this.buildAutoTextBoxLines(box.rect, box.style, box.auto, box.lines);
   }
   ensureTextData() {
-    var _a, _b, _c, _d, _e;
+    var _a2, _b2, _c, _d, _e;
     if (!this.data) return;
-    (_b = (_a = this.data).textLayers) != null ? _b : _a.textLayers = [];
+    (_b2 = (_a2 = this.data).textLayers) != null ? _b2 : _a2.textLayers = [];
     for (const layer of this.data.textLayers) {
       (_c = layer.boxes) != null ? _c : layer.boxes = [];
       if (typeof layer.visible !== "boolean") layer.visible = true;
@@ -10127,10 +7748,10 @@ ${yamlRaw}
     };
   }
   normalizeTextLayerStyle(style) {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a2, _b2, _c, _d, _e, _f, _g;
     const s = { ...this.defaultTextLayerStyle(), ...style != null ? style : {} };
-    s.fontFamily = ((_a = s.fontFamily) != null ? _a : "").trim() || "var(--font-text)";
-    s.color = ((_b = s.color) != null ? _b : "").trim() || "var(--text-normal)";
+    s.fontFamily = ((_a2 = s.fontFamily) != null ? _a2 : "").trim() || "var(--font-text)";
+    s.color = ((_b2 = s.color) != null ? _b2 : "").trim() || "var(--text-normal)";
     if (!Number.isFinite(s.fontSize) || s.fontSize <= 1) s.fontSize = 14;
     if (!Number.isFinite((_c = s.baselineOffset) != null ? _c : 0)) s.baselineOffset = 0;
     if (!Number.isFinite((_d = s.padLeft) != null ? _d : 0) || ((_e = s.padLeft) != null ? _e : 0) < 0) s.padLeft = 0;
@@ -10148,13 +7769,13 @@ ${yamlRaw}
   openTextBoxConfigModal(layer, box) {
     box.style = this.getTextBoxStyle(box, layer);
     new TextBoxConfigModal(this.app, box, (res) => {
-      var _a, _b, _c;
+      var _a2, _b2, _c;
       if (res.action !== "save" || !this.data) return;
-      const target = ((_a = layer.boxes) != null ? _a : []).find((b) => b.id === box.id);
+      const target = ((_a2 = layer.boxes) != null ? _a2 : []).find((b) => b.id === box.id);
       if (!target) return;
       target.name = res.box.name;
       target.auto = res.box.auto;
-      target.style = this.normalizeTextLayerStyle((_c = (_b = res.box.style) != null ? _b : target.style) != null ? _c : layer.style);
+      target.style = this.normalizeTextLayerStyle((_c = (_b2 = res.box.style) != null ? _b2 : target.style) != null ? _c : layer.style);
       target.autoFlow = res.box.autoFlow !== false;
       target.allowAngledBaselines = !!res.box.allowAngledBaselines;
       target.locked = !!res.box.locked;
@@ -10191,7 +7812,7 @@ ${yamlRaw}
     this.textHitEl.classList.toggle("zm-text-hitboxes--passive", passive);
   }
   renderTextLayers() {
-    var _a, _b, _c, _d, _e, _f;
+    var _a2, _b2, _c, _d, _e, _f;
     if (!this.data || !this.textSvg) return;
     const enabled = !!this.plugin.settings.enableTextLayers;
     this.ensureTextData();
@@ -10213,18 +7834,18 @@ ${yamlRaw}
     const doc = this.getOwnerDocument();
     const abs = (nx, ny) => ({ x: nx * this.imgW, y: ny * this.imgH });
     const rectAbs = (r) => {
-      const x = Math.min(r.x0, r.x1) * this.imgW;
+      const x2 = Math.min(r.x0, r.x1) * this.imgW;
       const y = Math.min(r.y0, r.y1) * this.imgH;
       const w = Math.abs(r.x1 - r.x0) * this.imgW;
       const h = Math.abs(r.y1 - r.y0) * this.imgH;
-      return { x, y, w, h };
+      return { x: x2, y, w, h };
     };
-    const layers = (_a = this.data.textLayers) != null ? _a : [];
+    const layers = (_a2 = this.data.textLayers) != null ? _a2 : [];
     for (const layer of layers) {
       if (!this.isTextLayerVisible(layer)) continue;
       const activeBase = this.getActiveBasePath();
       if (layer.boundBase && layer.boundBase !== activeBase) continue;
-      const boxes = (_b = layer.boxes) != null ? _b : [];
+      const boxes = (_b2 = layer.boxes) != null ? _b2 : [];
       for (const box of boxes) {
         const r = rectAbs(box.rect);
         const hb = this.textHitEl.createDiv({ cls: "zm-text-hitbox" });
@@ -10295,9 +7916,9 @@ ${yamlRaw}
           rect.setAttribute("width", String(r.w));
           rect.setAttribute("height", String(r.h));
           this.textGuidesLayer.appendChild(rect);
-          for (const ln of (_c = box.lines) != null ? _c : []) {
-            const a = abs(ln.x0, ln.y0);
-            const b = abs(ln.x1, ln.y1);
+          for (const ln2 of (_c = box.lines) != null ? _c : []) {
+            const a = abs(ln2.x0, ln2.y0);
+            const b = abs(ln2.x1, ln2.y1);
             const line = doc.createElementNS(ns, "line");
             line.classList.add("zm-text-guide-line");
             line.classList.add("zm-text-guide--active");
@@ -10311,19 +7932,19 @@ ${yamlRaw}
         const isEditingThis = this.textMode === "edit" && this.activeTextLayerId === layer.id && this.activeTextBoxId === box.id;
         if (isEditingThis) continue;
         const st = this.getTextBoxStyle(box, layer);
-        for (const ln of (_d = box.lines) != null ? _d : []) {
-          const txt = ((_e = ln.text) != null ? _e : "").trimEnd();
+        for (const ln2 of (_d = box.lines) != null ? _d : []) {
+          const txt = ((_e = ln2.text) != null ? _e : "").trimEnd();
           if (!txt) continue;
-          const a = abs(ln.x0, ln.y0);
-          const b = abs(ln.x1, ln.y1);
+          const a = abs(ln2.x0, ln2.y0);
+          const b = abs(ln2.x1, ln2.y1);
           const dx = b.x - a.x;
           const dy = b.y - a.y;
           const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
           const padLeft = (_f = st.padLeft) != null ? _f : 0;
-          const x = a.x + padLeft;
+          const x2 = a.x + padLeft;
           const y = a.y;
           const t = doc.createElementNS(ns, "text");
-          t.setAttribute("x", String(x));
+          t.setAttribute("x", String(x2));
           t.setAttribute("y", String(y));
           t.textContent = txt;
           t.style.fill = st.color;
@@ -10333,7 +7954,7 @@ ${yamlRaw}
           if (st.italic) t.classList.add("zm-text-italic");
           if (typeof st.letterSpacing === "number") t.style.letterSpacing = `${st.letterSpacing}px`;
           if (Math.abs(angleDeg) > 0.01) {
-            t.setAttribute("transform", `rotate(${angleDeg} ${x} ${y})`);
+            t.setAttribute("transform", `rotate(${angleDeg} ${x2} ${y})`);
           }
           this.textTextLayer.appendChild(t);
         }
@@ -10352,14 +7973,14 @@ ${yamlRaw}
     if (this.textMode === "draw-box" && this.textDrawStart && this.textDrawPreview) {
       const a = abs(this.textDrawStart.x, this.textDrawStart.y);
       const b = abs(this.textDrawPreview.x, this.textDrawPreview.y);
-      const x = Math.min(a.x, b.x);
+      const x2 = Math.min(a.x, b.x);
       const y = Math.min(a.y, b.y);
       const w = Math.abs(a.x - b.x);
       const h = Math.abs(a.y - b.y);
       const rect = doc.createElementNS(ns, "rect");
       rect.classList.add("zm-text-guide-rect");
       rect.classList.add("zm-text-guide--active");
-      rect.setAttribute("x", String(x));
+      rect.setAttribute("x", String(x2));
       rect.setAttribute("y", String(y));
       rect.setAttribute("width", String(w));
       rect.setAttribute("height", String(h));
@@ -10379,14 +8000,14 @@ ${yamlRaw}
     }
   }
   onTextBoxClick(layer, box, ev) {
-    var _a;
+    var _a2;
     if (!this.data) return;
     if (!this.plugin.settings.enableTextLayers) return;
     if (this.isTextBoxLocked(box, layer)) {
       new import_obsidian21.Notice("Text box is locked.", 1500);
       return;
     }
-    const lines = (_a = box.lines) != null ? _a : [];
+    const lines = (_a2 = box.lines) != null ? _a2 : [];
     if (lines.length === 0) {
       new import_obsidian21.Notice("No baselines in this text box yet. Use 'draw lines' first.", 3e3);
       return;
@@ -10415,7 +8036,7 @@ ${yamlRaw}
     return { dx: dxClamped, dy: dyClamped };
   }
   startTextBoxMove(layerId, boxId, start, pointerId, host) {
-    var _a, _b;
+    var _a2, _b2;
     const found = this.getTextBoxById(layerId, boxId);
     if (!found) return;
     const { layer, box } = found;
@@ -10433,14 +8054,14 @@ ${yamlRaw}
     this.textMoveStart = start;
     this.textMoveOrig = {
       rect: { ...box.rect },
-      lines: ((_a = box.lines) != null ? _a : []).map((ln) => ({ ...ln }))
+      lines: ((_a2 = box.lines) != null ? _a2 : []).map((ln2) => ({ ...ln2 }))
     };
     host.classList.add("zm-text-hitbox--dragging");
     this.getOwnerBody().classList.add("zm-cursor-move-grabbing");
-    (_b = host.setPointerCapture) == null ? void 0 : _b.call(host, pointerId);
+    (_b2 = host.setPointerCapture) == null ? void 0 : _b2.call(host, pointerId);
   }
   updateTextBoxMove(cur) {
-    var _a;
+    var _a2;
     if (!this.data) return;
     if (!this.textMoveDragging || !this.textMoveStart || !this.textMoveOrig || !this.activeTextLayerId || !this.activeTextBoxId) return;
     const found = this.getTextBoxById(this.activeTextLayerId, this.activeTextBoxId);
@@ -10457,39 +8078,39 @@ ${yamlRaw}
       y1: this.textMoveOrig.rect.y1 + dy
     };
     const srcLines = this.textMoveOrig.lines;
-    (_a = box.lines) != null ? _a : box.lines = [];
+    (_a2 = box.lines) != null ? _a2 : box.lines = [];
     if (box.lines.length !== srcLines.length) {
-      const byId = new Map(box.lines.map((ln) => [ln.id, ln]));
+      const byId = new Map(box.lines.map((ln2) => [ln2.id, ln2]));
       box.lines = srcLines.map((s) => {
         const existing = byId.get(s.id);
         return existing != null ? existing : { ...s };
       });
     }
-    for (let i = 0; i < srcLines.length; i += 1) {
-      const s = srcLines[i];
-      const ln = box.lines[i];
-      ln.x0 = s.x0 + dx;
-      ln.y0 = s.y0 + dy;
-      ln.x1 = s.x1 + dx;
-      ln.y1 = s.y1 + dy;
+    for (let i2 = 0; i2 < srcLines.length; i2 += 1) {
+      const s = srcLines[i2];
+      const ln2 = box.lines[i2];
+      ln2.x0 = s.x0 + dx;
+      ln2.y0 = s.y0 + dy;
+      ln2.x1 = s.x1 + dx;
+      ln2.y1 = s.y1 + dy;
     }
     this.renderTextLayers();
   }
   finishTextBoxMove(commit) {
-    var _a;
+    var _a2;
     if (!this.textMoveDragging) return;
     this.textMoveDragging = false;
     this.textMovePointerId = null;
     this.textMoveStart = null;
     this.textMoveOrig = null;
     this.getOwnerBody().classList.remove("zm-cursor-move-grabbing");
-    (_a = this.textHitEl) == null ? void 0 : _a.querySelectorAll(".zm-text-hitbox--dragging").forEach((el) => el.classList.remove("zm-text-hitbox--dragging"));
+    (_a2 = this.textHitEl) == null ? void 0 : _a2.querySelectorAll(".zm-text-hitbox--dragging").forEach((el) => el.classList.remove("zm-text-hitbox--dragging"));
     if (commit) {
       void this.saveDataSoon();
     }
   }
   startTextEdit(layerId, boxId, focus) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a2, _b2, _c, _d, _e, _f;
     if (!this.data) return;
     this.measuring = false;
     this.calibrating = false;
@@ -10504,25 +8125,25 @@ ${yamlRaw}
     if (!found) return;
     const { layer, box } = found;
     if (this.isTextBoxLocked(box, layer)) return;
-    (_a = box.lines) != null ? _a : box.lines = [];
+    (_a2 = box.lines) != null ? _a2 : box.lines = [];
     if (typeof box.autoFlow !== "boolean") box.autoFlow = this.isTextBoxAutoFlow(box, layer);
     if (typeof box.allowAngledBaselines !== "boolean") box.allowAngledBaselines = this.isTextBoxAllowAngled(box, layer);
     box.style = this.getTextBoxStyle(box, layer);
     this.textEditEl.empty();
     this.textInputs.clear();
     const st = box.style;
-    const sorted = [...(_b = box.lines) != null ? _b : []].sort((a, b) => {
+    const sorted = [...(_b2 = box.lines) != null ? _b2 : []].sort((a, b) => {
       const ay = (a.y0 + a.y1) / 2;
       const by = (b.y0 + b.y1) / 2;
       return ay - by || a.x0 - b.x0;
     });
     box.lines = sorted;
-    for (let i = 0; i < box.lines.length; i += 1) {
-      const ln = box.lines[i];
-      const ax0 = ln.x0 * this.imgW;
-      const ay0 = ln.y0 * this.imgH;
-      const ax1 = ln.x1 * this.imgW;
-      const ay1 = ln.y1 * this.imgH;
+    for (let i2 = 0; i2 < box.lines.length; i2 += 1) {
+      const ln2 = box.lines[i2];
+      const ax0 = ln2.x0 * this.imgW;
+      const ay0 = ln2.y0 * this.imgH;
+      const ax1 = ln2.x1 * this.imgW;
+      const ay1 = ln2.y1 * this.imgH;
       const dx = ax1 - ax0;
       const dy = ay1 - ay0;
       const len = Math.max(1, Math.hypot(dx, dy));
@@ -10544,7 +8165,7 @@ ${yamlRaw}
       row.style.transform = `rotate(${angle}deg)`;
       const input = row.createEl("input", { cls: "zm-text-input" });
       input.type = "text";
-      input.value = (_c = ln.text) != null ? _c : "";
+      input.value = (_c = ln2.text) != null ? _c : "";
       input.style.height = `${lineH}px`;
       input.style.lineHeight = `${lineH}px`;
       input.style.fontFamily = st.fontFamily;
@@ -10560,7 +8181,7 @@ ${yamlRaw}
       input.addEventListener("dblclick", (e) => e.stopPropagation());
       input.addEventListener("contextmenu", (e) => e.stopPropagation());
       input.addEventListener("keydown", (e) => {
-        var _a2, _b2;
+        var _a3, _b3;
         if (e.key === "Escape") {
           e.preventDefault();
           e.stopPropagation();
@@ -10568,18 +8189,18 @@ ${yamlRaw}
           return;
         }
         if (e.key === "Backspace" && this.isTextBoxAutoFlow(box, layer)) {
-          const selStart = (_a2 = input.selectionStart) != null ? _a2 : 0;
-          const selEnd = (_b2 = input.selectionEnd) != null ? _b2 : selStart;
-          if (selStart === 0 && selEnd === 0 && i > 0) {
+          const selStart = (_a3 = input.selectionStart) != null ? _a3 : 0;
+          const selEnd = (_b3 = input.selectionEnd) != null ? _b3 : selStart;
+          if (selStart === 0 && selEnd === 0 && i2 > 0) {
             e.preventDefault();
             e.stopPropagation();
-            const prev = this.getTextInputByIndex(i - 1);
+            const prev = this.getTextInputByIndex(i2 - 1);
             if (!prev) return;
             const joinPos = prev.value.length;
             prev.focus();
             prev.setSelectionRange(joinPos, joinPos);
             this.textDirty = true;
-            this.reflowTextBox(box, st, i - 1, { advanceFocus: false });
+            this.reflowTextBox(box, st, i2 - 1, { advanceFocus: false });
             this.scheduleTextSave();
             window.setTimeout(() => {
               if (this.textMode !== "edit") return;
@@ -10593,12 +8214,12 @@ ${yamlRaw}
         if (e.key === "Enter") {
           e.preventDefault();
           e.stopPropagation();
-          const next = this.getTextInputByIndex(i + 1);
+          const next = this.getTextInputByIndex(i2 + 1);
           next == null ? void 0 : next.focus();
           return;
         }
         if (e.key === "ArrowDown") {
-          const next = this.getTextInputByIndex(i + 1);
+          const next = this.getTextInputByIndex(i2 + 1);
           if (next) {
             e.preventDefault();
             next.focus();
@@ -10606,7 +8227,7 @@ ${yamlRaw}
           return;
         }
         if (e.key === "ArrowUp") {
-          const prev = this.getTextInputByIndex(i - 1);
+          const prev = this.getTextInputByIndex(i2 - 1);
           if (prev) {
             e.preventDefault();
             prev.focus();
@@ -10615,25 +8236,25 @@ ${yamlRaw}
         }
       });
       input.addEventListener("input", () => {
-        var _a2, _b2, _c2;
+        var _a3, _b3, _c2;
         if (this.isTextBoxLocked(box, layer)) {
-          input.value = (_a2 = ln.text) != null ? _a2 : "";
+          input.value = (_a3 = ln2.text) != null ? _a3 : "";
           new import_obsidian21.Notice("Text box is locked.", 1200);
           return;
         }
         if (!this.isTextBoxAutoFlow(box, layer)) {
-          ln.text = input.value;
+          ln2.text = input.value;
           this.textDirty = true;
           this.scheduleTextSave();
           return;
         }
-        const selStart = (_b2 = input.selectionStart) != null ? _b2 : input.value.length;
+        const selStart = (_b3 = input.selectionStart) != null ? _b3 : input.value.length;
         const selEnd = (_c2 = input.selectionEnd) != null ? _c2 : selStart;
         const hasSelection = selEnd !== selStart;
         const atEnd = !hasSelection && selStart === input.value.length;
-        ln.text = input.value;
+        ln2.text = input.value;
         this.textDirty = true;
-        const move = this.reflowTextBox(box, st, i, { advanceFocus: atEnd });
+        const move = this.reflowTextBox(box, st, i2, { advanceFocus: atEnd });
         this.scheduleTextSave();
         if (move.advance) {
           window.setTimeout(() => {
@@ -10646,7 +8267,7 @@ ${yamlRaw}
           }, 0);
         }
       });
-      this.textInputs.set(ln.id, input);
+      this.textInputs.set(ln2.id, input);
     }
     this.installTextOutsideClickHandler();
     if (focus) {
@@ -10657,14 +8278,14 @@ ${yamlRaw}
     this.renderTextLayers();
   }
   stopTextEdit(save) {
-    var _a;
+    var _a2;
     if (this.textMode !== "edit") return;
     this.textMode = null;
     this.activeTextLayerId = null;
     this.activeTextBoxId = null;
     this.textInputs.clear();
     this.textEditEl.empty();
-    (_a = this.textOutsideCleanup) == null ? void 0 : _a.call(this);
+    (_a2 = this.textOutsideCleanup) == null ? void 0 : _a2.call(this);
     this.textOutsideCleanup = null;
     if (save) {
       this.flushTextSaveNow();
@@ -10678,8 +8299,8 @@ ${yamlRaw}
     this.renderTextLayers();
   }
   installTextOutsideClickHandler() {
-    var _a;
-    (_a = this.textOutsideCleanup) == null ? void 0 : _a.call(this);
+    var _a2;
+    (_a2 = this.textOutsideCleanup) == null ? void 0 : _a2.call(this);
     this.textOutsideCleanup = null;
     const doc = this.el.ownerDocument;
     const handler = (ev) => {
@@ -10702,29 +8323,29 @@ ${yamlRaw}
     };
   }
   getTextInputByIndex(index) {
-    var _a, _b;
+    var _a2, _b2;
     const found = this.getTextBoxById(this.activeTextLayerId, this.activeTextBoxId);
     if (!found) return null;
-    const ln = (_a = found.box.lines) == null ? void 0 : _a[index];
-    if (!ln) return null;
-    return (_b = this.textInputs.get(ln.id)) != null ? _b : null;
+    const ln2 = (_a2 = found.box.lines) == null ? void 0 : _a2[index];
+    if (!ln2) return null;
+    return (_b2 = this.textInputs.get(ln2.id)) != null ? _b2 : null;
   }
   focusNearestBaseline(box, p) {
-    var _a, _b;
-    if (!((_a = box.lines) == null ? void 0 : _a.length)) return;
+    var _a2, _b2;
+    if (!((_a2 = box.lines) == null ? void 0 : _a2.length)) return;
     const py = p.y;
     let bestIdx = 0;
     let bestDist = Infinity;
-    for (let i = 0; i < box.lines.length; i += 1) {
-      const ln = box.lines[i];
-      const y = (ln.y0 + ln.y1) / 2;
+    for (let i2 = 0; i2 < box.lines.length; i2 += 1) {
+      const ln2 = box.lines[i2];
+      const y = (ln2.y0 + ln2.y1) / 2;
       const d = Math.abs(y - py);
       if (d < bestDist) {
         bestDist = d;
-        bestIdx = i;
+        bestIdx = i2;
       }
     }
-    (_b = this.getTextInputByIndex(bestIdx)) == null ? void 0 : _b.focus();
+    (_b2 = this.getTextInputByIndex(bestIdx)) == null ? void 0 : _b2.focus();
   }
   scheduleTextSave(delayMs = 900) {
     if (!this.data) return;
@@ -10749,36 +8370,36 @@ ${yamlRaw}
     });
   }
   measureTextWidthPx(style, text) {
-    var _a, _b;
+    var _a2, _b2;
     const span = this.textMeasureSpan;
-    if (!span) return text.length * ((_a = style.fontSize) != null ? _a : 14);
+    if (!span) return text.length * ((_a2 = style.fontSize) != null ? _a2 : 14);
     span.style.fontFamily = style.fontFamily;
     span.style.fontSize = `${style.fontSize}px`;
-    span.style.fontWeight = (_b = style.fontWeight) != null ? _b : "400";
+    span.style.fontWeight = (_b2 = style.fontWeight) != null ? _b2 : "400";
     span.style.letterSpacing = typeof style.letterSpacing === "number" ? `${style.letterSpacing}px` : "normal";
     span.textContent = text || "";
     return span.getBoundingClientRect().width;
   }
-  lineCapacityPx(style, ln) {
-    var _a, _b;
-    const ax0 = ln.x0 * this.imgW;
-    const ay0 = ln.y0 * this.imgH;
-    const ax1 = ln.x1 * this.imgW;
-    const ay1 = ln.y1 * this.imgH;
+  lineCapacityPx(style, ln2) {
+    var _a2, _b2;
+    const ax0 = ln2.x0 * this.imgW;
+    const ay0 = ln2.y0 * this.imgH;
+    const ax1 = ln2.x1 * this.imgW;
+    const ay1 = ln2.y1 * this.imgH;
     const len = Math.hypot(ax1 - ax0, ay1 - ay0);
-    const cap = len - ((_a = style.padLeft) != null ? _a : 0) - ((_b = style.padRight) != null ? _b : 0);
+    const cap = len - ((_a2 = style.padLeft) != null ? _a2 : 0) - ((_b2 = style.padRight) != null ? _b2 : 0);
     return Math.max(10, cap);
   }
-  splitToFit(style, ln, text) {
-    const cap = this.lineCapacityPx(style, ln);
+  splitToFit(style, ln2, text) {
+    const cap = this.lineCapacityPx(style, ln2);
     const st = style;
     if (this.measureTextWidthPx(st, text) <= cap) {
       return { fit: text, rest: "", overflowed: false, boundaryOnly: false };
     }
-    for (let i = text.length - 1; i >= 0; i -= 1) {
-      if (text[i] !== " ") continue;
-      const left = text.slice(0, i).trimEnd();
-      const right = text.slice(i + 1).trimStart();
+    for (let i2 = text.length - 1; i2 >= 0; i2 -= 1) {
+      if (text[i2] !== " ") continue;
+      const left = text.slice(0, i2).trimEnd();
+      const right = text.slice(i2 + 1).trimStart();
       if (!left) continue;
       if (this.measureTextWidthPx(st, left) <= cap) {
         return { fit: left, rest: right, overflowed: true, boundaryOnly: right.length === 0 };
@@ -10797,27 +8418,27 @@ ${yamlRaw}
     return { fit, rest, overflowed: true, boundaryOnly: false };
   }
   pullWord(text) {
-    var _a, _b;
+    var _a2, _b2;
     const s = text.trimStart();
     if (!s) return null;
     const m = /^(\S+)\s*(.*)$/.exec(s);
     if (!m) return null;
-    return { word: (_a = m[1]) != null ? _a : "", rest: (_b = m[2]) != null ? _b : "" };
+    return { word: (_a2 = m[1]) != null ? _a2 : "", rest: (_b2 = m[2]) != null ? _b2 : "" };
   }
   reflowTextBox(box, style, startIndex, opts) {
-    var _a, _b, _c, _d, _e;
-    if (!((_a = box.lines) == null ? void 0 : _a.length)) return {};
+    var _a2, _b2, _c, _d, _e;
+    if (!((_a2 = box.lines) == null ? void 0 : _a2.length)) return {};
     let advance;
-    for (let i = startIndex; i < box.lines.length; i += 1) {
-      const ln = box.lines[i];
-      const txt = (_b = ln.text) != null ? _b : "";
-      const { fit, rest, overflowed, boundaryOnly } = this.splitToFit(style, ln, txt);
+    for (let i2 = startIndex; i2 < box.lines.length; i2 += 1) {
+      const ln2 = box.lines[i2];
+      const txt = (_b2 = ln2.text) != null ? _b2 : "";
+      const { fit, rest, overflowed, boundaryOnly } = this.splitToFit(style, ln2, txt);
       if (!overflowed) {
-        ln.text = fit;
+        ln2.text = fit;
         continue;
       }
-      ln.text = fit;
-      const next = box.lines[i + 1];
+      ln2.text = fit;
+      const next = box.lines[i2 + 1];
       if (!next) {
         new import_obsidian21.Notice("No more baselines in this text box.", 1500);
         continue;
@@ -10826,13 +8447,13 @@ ${yamlRaw}
         const nextTxt = ((_c = next.text) != null ? _c : "").trimStart();
         next.text = (rest + (nextTxt ? " " + nextTxt : "")).trimEnd();
       }
-      if (!advance && i === startIndex && (opts == null ? void 0 : opts.advanceFocus)) {
-        advance = { toIndex: i + 1, caret: boundaryOnly ? 0 : rest.length };
+      if (!advance && i2 === startIndex && (opts == null ? void 0 : opts.advanceFocus)) {
+        advance = { toIndex: i2 + 1, caret: boundaryOnly ? 0 : rest.length };
       }
     }
-    for (let i = startIndex; i < box.lines.length - 1; i += 1) {
-      const cur = box.lines[i];
-      const next = box.lines[i + 1];
+    for (let i2 = startIndex; i2 < box.lines.length - 1; i2 += 1) {
+      const cur = box.lines[i2];
+      const next = box.lines[i2 + 1];
       if (!next) continue;
       while (true) {
         const pick = this.pullWord((_d = next.text) != null ? _d : "");
@@ -10851,12 +8472,12 @@ ${yamlRaw}
     return { advance };
   }
   syncInputsFromBox(box) {
-    var _a, _b, _c, _d;
+    var _a2, _b2, _c, _d;
     const active = this.el.ownerDocument.activeElement;
-    for (const ln of (_a = box.lines) != null ? _a : []) {
-      const input = this.textInputs.get(ln.id);
+    for (const ln2 of (_a2 = box.lines) != null ? _a2 : []) {
+      const input = this.textInputs.get(ln2.id);
       if (!input) continue;
-      const want = (_b = ln.text) != null ? _b : "";
+      const want = (_b2 = ln2.text) != null ? _b2 : "";
       if (input.value === want) continue;
       if (active === input) {
         const selStart = (_c = input.selectionStart) != null ? _c : want.length;
@@ -10871,7 +8492,7 @@ ${yamlRaw}
     }
   }
   onTextDrawLineClick(layer, box, ev) {
-    var _a;
+    var _a2;
     if (!this.data) return;
     if (this.isTextBoxLocked(box, layer)) {
       new import_obsidian21.Notice("Text box is locked.", 1500);
@@ -10918,7 +8539,7 @@ ${yamlRaw}
       this.renderTextDraft();
       return;
     }
-    (_a = box.lines) != null ? _a : box.lines = [];
+    (_a2 = box.lines) != null ? _a2 : box.lines = [];
     box.lines.push({
       id: generateId("tln"),
       x0,
@@ -10963,7 +8584,7 @@ ${yamlRaw}
     new import_obsidian21.Notice(`Draw ${mode} text box: drag to create the box. Press esc to cancel.`, 4500);
   }
   finishDrawNewTextBox() {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (!this.data || !this.textDrawStart || !this.textDrawPreview) return;
     const layer = this.getTextLayerById(this.activeTextLayerId);
     if (!layer) return;
@@ -10983,7 +8604,7 @@ ${yamlRaw}
     }
     const box = {
       id: generateId("tbox"),
-      name: `Text box ${((_b = (_a = layer.boxes) == null ? void 0 : _a.length) != null ? _b : 0) + 1}`,
+      name: `Text box ${((_b2 = (_a2 = layer.boxes) == null ? void 0 : _a2.length) != null ? _b2 : 0) + 1}`,
       mode: this.textDrawBoxMode,
       rect,
       lines: [],
@@ -11023,9 +8644,9 @@ ${yamlRaw}
     if (this.measuring && this.measurePreview) pts.push(this.measurePreview);
     const toAbs = (p) => ({ x: p.x * this.imgW, y: p.y * this.imgH });
     let d = "";
-    pts.forEach((p, i) => {
+    pts.forEach((p, i2) => {
       const a = toAbs(p);
-      d += i === 0 ? `M ${a.x} ${a.y}` : ` L ${a.x} ${a.y}`;
+      d += i2 === 0 ? `M ${a.x} ${a.y}` : ` L ${a.x} ${a.y}`;
     });
     this.measurePath.setAttribute("d", d);
     while (this.measureDots.firstChild) this.measureDots.removeChild(this.measureDots.firstChild);
@@ -11048,9 +8669,9 @@ ${yamlRaw}
     const pts = [...this.calibPts];
     if (this.calibrating && this.calibPts.length === 1 && this.calibPreview) pts.push(this.calibPreview);
     let d = "";
-    pts.forEach((p, i) => {
+    pts.forEach((p, i2) => {
       const a = toAbs(p);
-      d += i === 0 ? `M ${a.x} ${a.y}` : ` L ${a.x} ${a.y}`;
+      d += i2 === 0 ? `M ${a.x} ${a.y}` : ` L ${a.x} ${a.y}`;
     });
     this.calibPath.setAttribute("d", d);
     while (this.calibDots.firstChild) this.calibDots.removeChild(this.calibDots.firstChild);
@@ -11071,43 +8692,43 @@ ${yamlRaw}
     this.renderMeasure();
   }
   ensureMeasureProTerrainIds() {
-    var _a, _b;
+    var _a2, _b2;
     if (!this.plugin.settings.enableMeasurePro) return;
     const want = Math.max(0, this.measurePts.length - 1);
     const terrains = this.plugin.getActiveTerrains();
-    const def = (_b = (_a = terrains[0]) == null ? void 0 : _a.id) != null ? _b : "";
+    const def = (_b2 = (_a2 = terrains[0]) == null ? void 0 : _a2.id) != null ? _b2 : "";
     while (this.measureSegTerrainIds.length < want) this.measureSegTerrainIds.push(def);
     if (this.measureSegTerrainIds.length > want) this.measureSegTerrainIds.length = want;
   }
   terrainFactor(id) {
     if (!id) return 1;
-    const t = this.plugin.getActiveTerrains().find((x) => x.id === id);
+    const t = this.plugin.getActiveTerrains().find((x2) => x2.id === id);
     return t ? t.factor : 1;
   }
   computeMeasureSegmentsMeters(includePreview) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     const mpp = this.getMetersPerPixel();
     if (!mpp) return null;
     const pts = [...this.measurePts];
     const terrains = [...this.measureSegTerrainIds];
     if (includePreview && this.measurePreview && pts.length >= 1) {
       pts.push(this.measurePreview);
-      terrains.push((_b = (_a = terrains[terrains.length - 1]) != null ? _a : terrains[0]) != null ? _b : "");
+      terrains.push((_b2 = (_a2 = terrains[terrains.length - 1]) != null ? _a2 : terrains[0]) != null ? _b2 : "");
     }
     if (pts.length < 2) return null;
     const out = [];
-    for (let i = 1; i < pts.length; i += 1) {
-      const a = pts[i - 1];
-      const b = pts[i];
+    for (let i2 = 1; i2 < pts.length; i2 += 1) {
+      const a = pts[i2 - 1];
+      const b = pts[i2];
       const dx = (b.x - a.x) * this.imgW;
       const dy = (b.y - a.y) * this.imgH;
       const px = Math.hypot(dx, dy);
-      out.push({ meters: px * mpp, terrainId: (_c = terrains[i - 1]) != null ? _c : "" });
+      out.push({ meters: px * mpp, terrainId: (_c = terrains[i2 - 1]) != null ? _c : "" });
     }
     return out;
   }
   openMeasureTerrainModal() {
-    var _a, _b, _c, _d;
+    var _a2, _b2, _c, _d;
     if (!this.plugin.settings.enableMeasurePro) return;
     if (this.measurePts.length < 2) {
       new import_obsidian21.Notice("Measure terrains: add at least 2 points first.", 2500);
@@ -11119,23 +8740,23 @@ ${yamlRaw}
       return;
     }
     this.ensureMeasureProTerrainIds();
-    const unit = (_c = (_b = (_a = this.data) == null ? void 0 : _a.measurement) == null ? void 0 : _b.displayUnit) != null ? _c : "auto-metric";
+    const unit = (_c = (_b2 = (_a2 = this.data) == null ? void 0 : _a2.measurement) == null ? void 0 : _b2.displayUnit) != null ? _c : "auto-metric";
     const mpp = this.getMetersPerPixel();
     if (!mpp && unit !== "custom") {
       new import_obsidian21.Notice("Scale is not calibrated.", 2500);
       return;
     }
     const segments = [];
-    for (let i = 1; i < this.measurePts.length; i += 1) {
-      const a = this.measurePts[i - 1];
-      const b = this.measurePts[i];
+    for (let i2 = 1; i2 < this.measurePts.length; i2 += 1) {
+      const a = this.measurePts[i2 - 1];
+      const b = this.measurePts[i2];
       const dx = (b.x - a.x) * this.imgW;
       const dy = (b.y - a.y) * this.imgH;
       const px = Math.hypot(dx, dy);
       const label = unit === "custom" ? this.formatCustomDistanceFromPixels(px) : this.formatDistance(px * mpp);
       segments.push({
         label,
-        terrainId: (_d = this.measureSegTerrainIds[i - 1]) != null ? _d : terrains[0].id
+        terrainId: (_d = this.measureSegTerrainIds[i2 - 1]) != null ? _d : terrains[0].id
       });
     }
     new MeasureTerrainModal(this.app, terrains, segments, (res) => {
@@ -11163,17 +8784,17 @@ ${yamlRaw}
     this.clearMeasure();
   }
   getMetersPerPixel() {
-    var _a;
+    var _a2;
     const base = this.getActiveBasePath();
-    const m = (_a = this.data) == null ? void 0 : _a.measurement;
+    const m = (_a2 = this.data) == null ? void 0 : _a2.measurement;
     if (!m) return void 0;
     if (m.scales && base in m.scales) return m.scales[base];
     return m.metersPerPixel;
   }
   ensureMeasurement() {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j;
     if (!this.data) return;
-    (_b = (_a = this.data).measurement) != null ? _b : _a.measurement = {
+    (_b2 = (_a2 = this.data).measurement) != null ? _b2 : _a2.measurement = {
       displayUnit: "km",
       metersPerPixel: void 0,
       scales: {},
@@ -11185,21 +8806,21 @@ ${yamlRaw}
     (_j = (_i = this.data.measurement).customUnitPxPerUnit) != null ? _j : _i.customUnitPxPerUnit = {};
   }
   getCustomPxPerUnit(customUnitId) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     const base = this.getActiveBasePath();
-    const map = (_c = (_b = (_a = this.data) == null ? void 0 : _a.measurement) == null ? void 0 : _b.customUnitPxPerUnit) == null ? void 0 : _c[base];
+    const map = (_c = (_b2 = (_a2 = this.data) == null ? void 0 : _a2.measurement) == null ? void 0 : _b2.customUnitPxPerUnit) == null ? void 0 : _c[base];
     const v = map == null ? void 0 : map[customUnitId];
     return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : void 0;
   }
   async applyCustomUnitCalibration(customUnitId, pxPerUnit) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (!this.data) return;
     this.ensureMeasurement();
     const base = this.getActiveBasePath();
     const meas = this.data.measurement;
     if (!meas) return;
-    (_a = meas.customUnitPxPerUnit) != null ? _a : meas.customUnitPxPerUnit = {};
-    (_c = (_b = meas.customUnitPxPerUnit)[base]) != null ? _c : _b[base] = {};
+    (_a2 = meas.customUnitPxPerUnit) != null ? _a2 : meas.customUnitPxPerUnit = {};
+    (_c = (_b2 = meas.customUnitPxPerUnit)[base]) != null ? _c : _b2[base] = {};
     meas.customUnitPxPerUnit[base][customUnitId] = pxPerUnit;
     meas.displayUnit = "custom";
     meas.customUnitId = customUnitId;
@@ -11210,11 +8831,11 @@ ${yamlRaw}
     this.schedulePingUpdate();
   }
   updateMeasureHud() {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (!this.measureHud) return;
     const px = this.computeDistancePixels();
     const meters = this.computeDistanceMeters();
-    const unit = (_c = (_b = (_a = this.data) == null ? void 0 : _a.measurement) == null ? void 0 : _b.displayUnit) != null ? _c : "km";
+    const unit = (_c = (_b2 = (_a2 = this.data) == null ? void 0 : _a2.measurement) == null ? void 0 : _b2.displayUnit) != null ? _c : "km";
     if (this.measuring || this.measurePts.length >= 2) {
       let distTxt = "No scale";
       if (unit === "custom") {
@@ -11240,9 +8861,9 @@ ${yamlRaw}
     const pts = [...this.measurePts];
     if (this.measuring && this.measurePreview) pts.push(this.measurePreview);
     let px = 0;
-    for (let i = 1; i < pts.length; i += 1) {
-      const a = pts[i - 1];
-      const b = pts[i];
+    for (let i2 = 1; i2 < pts.length; i2 += 1) {
+      const a = pts[i2 - 1];
+      const b = pts[i2];
       const dx = (b.x - a.x) * this.imgW;
       const dy = (b.y - a.y) * this.imgH;
       px += Math.hypot(dx, dy);
@@ -11257,9 +8878,9 @@ ${yamlRaw}
     const pts = [...this.measurePts];
     if (this.measuring && this.measurePreview) pts.push(this.measurePreview);
     let px = 0;
-    for (let i = 1; i < pts.length; i += 1) {
-      const a = pts[i - 1];
-      const b = pts[i];
+    for (let i2 = 1; i2 < pts.length; i2 += 1) {
+      const a = pts[i2 - 1];
+      const b = pts[i2];
       const dx = (b.x - a.x) * this.imgW;
       const dy = (b.y - a.y) * this.imgH;
       px += Math.hypot(dx, dy);
@@ -11267,11 +8888,11 @@ ${yamlRaw}
     return px;
   }
   formatCustomDistanceFromPixels(px) {
-    var _a, _b, _c, _d, _e;
-    const meas = (_a = this.data) == null ? void 0 : _a.measurement;
+    var _a2, _b2, _c, _d, _e;
+    const meas = (_a2 = this.data) == null ? void 0 : _a2.measurement;
     const defs = this.plugin.getActiveCustomUnits();
     if (!meas || defs.length === 0) return "No custom units";
-    const id = (_b = meas.customUnitId) != null ? _b : defs[0].id;
+    const id = (_b2 = meas.customUnitId) != null ? _b2 : defs[0].id;
     const def = (_c = defs.find((d) => d.id === id)) != null ? _c : defs[0];
     if (!def) return "No custom units";
     const pxPerUnit = this.getCustomPxPerUnit(def.id);
@@ -11282,9 +8903,9 @@ ${yamlRaw}
     return `${round(val, 2)} ${label}`;
   }
   formatDistance(m) {
-    var _a, _b, _c, _d;
-    const meas = (_a = this.data) == null ? void 0 : _a.measurement;
-    const unit = (_b = meas == null ? void 0 : meas.displayUnit) != null ? _b : "km";
+    var _a2, _b2, _c, _d;
+    const meas = (_a2 = this.data) == null ? void 0 : _a2.measurement;
+    const unit = (_b2 = meas == null ? void 0 : meas.displayUnit) != null ? _b2 : "km";
     const round = (v, d = 2) => Math.round(v * 10 ** d) / 10 ** d;
     if (unit === "custom") {
       const defs = this.plugin.getActiveCustomUnits();
@@ -11314,7 +8935,7 @@ ${yamlRaw}
     }
   }
   travelDistanceToMeters(value, unit, customUnitId) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (!Number.isFinite(value) || value <= 0) return null;
     switch (unit) {
       case "km":
@@ -11325,7 +8946,7 @@ ${yamlRaw}
         return value * 0.3048;
       case "custom": {
         const defs = this.plugin.getActiveCustomUnits();
-        const id = (_c = customUnitId ? (_a = defs.find((d) => d.id === customUnitId)) == null ? void 0 : _a.id : void 0) != null ? _c : (_b = defs[0]) == null ? void 0 : _b.id;
+        const id = (_c = customUnitId ? (_a2 = defs.find((d) => d.id === customUnitId)) == null ? void 0 : _a2.id : void 0) != null ? _c : (_b2 = defs[0]) == null ? void 0 : _b2.id;
         if (!id) return null;
         const pxPerUnit = this.getCustomPxPerUnit(id);
         const mpp = this.getMetersPerPixel();
@@ -11344,8 +8965,8 @@ ${yamlRaw}
     return String(Math.round(v * p) / p);
   }
   getSelectedTravelPerDayPreset() {
-    var _a, _b, _c, _d, _e, _f, _g;
-    const info = (_b = (_a = this.plugin).getActiveTravelPerDayPresets) == null ? void 0 : _b.call(_a);
+    var _a2, _b2, _c, _d, _e, _f, _g;
+    const info = (_b2 = (_a2 = this.plugin).getActiveTravelPerDayPresets) == null ? void 0 : _b2.call(_a2);
     const presets = (_c = info == null ? void 0 : info.presets) != null ? _c : [];
     const note = (info == null ? void 0 : info.multipleEnabled) ? `Multiple travel packs enabled; using "${(_d = info.packName) != null ? _d : "first enabled"}".` : void 0;
     if (!presets.length) return { preset: null, note };
@@ -11354,8 +8975,8 @@ ${yamlRaw}
     return { preset: picked != null ? picked : presets[0], note };
   }
   computeTravelTimeLines(distanceMeters) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
-    const selected = new Set((_c = (_b = (_a = this.data) == null ? void 0 : _a.measurement) == null ? void 0 : _b.travelTimePresetIds) != null ? _c : []);
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j;
+    const selected = new Set((_c = (_b2 = (_a2 = this.data) == null ? void 0 : _a2.measurement) == null ? void 0 : _b2.travelTimePresetIds) != null ? _c : []);
     if (selected.size === 0) return [];
     const presets = this.plugin.getActiveTravelTimePresets();
     const out = [];
@@ -11411,8 +9032,8 @@ ${yamlRaw}
     return out;
   }
   computeTravelTimeLinesBySegments(segments) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
-    const selected = new Set((_c = (_b = (_a = this.data) == null ? void 0 : _a.measurement) == null ? void 0 : _b.travelTimePresetIds) != null ? _c : []);
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j;
+    const selected = new Set((_c = (_b2 = (_a2 = this.data) == null ? void 0 : _a2.measurement) == null ? void 0 : _b2.travelTimePresetIds) != null ? _c : []);
     if (selected.size === 0) return [];
     const presets = this.plugin.getActiveTravelTimePresets();
     const out = [];
@@ -11542,9 +9163,9 @@ ${yamlRaw}
     }
   }
   onWheel(e) {
-    var _a;
+    var _a2;
     if (!this.ready) return;
-    const factor = (_a = this.plugin.settings.wheelZoomFactor) != null ? _a : 1.1;
+    const factor = (_a2 = this.plugin.settings.wheelZoomFactor) != null ? _a2 : 1.1;
     const step = Math.pow(factor, e.deltaY < 0 ? 1 : -1);
     const vpRect = this.viewportEl.getBoundingClientRect();
     const cx = clamp(e.clientX - vpRect.left, 0, this.vw);
@@ -11552,14 +9173,14 @@ ${yamlRaw}
     this.zoomAt(cx, cy, step);
   }
   panButtonMatches(e) {
-    var _a;
-    const want = (_a = this.plugin.settings.panMouseButton) != null ? _a : "left";
+    var _a2;
+    const want = (_a2 = this.plugin.settings.panMouseButton) != null ? _a2 : "left";
     if (want === "middle") return e.button === 1;
     if (want === "right") return e.button === 2;
     return e.button === 0;
   }
   onPointerDownViewport(e) {
-    var _a;
+    var _a2;
     if (!this.ready) return;
     if (this.gridAlignId) {
       e.preventDefault();
@@ -11581,7 +9202,7 @@ ${yamlRaw}
     this.plugin.setActiveMap(this);
     this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const captureTarget = this.asElement(e.target);
-    (_a = captureTarget == null ? void 0 : captureTarget.setPointerCapture) == null ? void 0 : _a.call(captureTarget, e.pointerId);
+    (_a2 = captureTarget == null ? void 0 : captureTarget.setPointerCapture) == null ? void 0 : _a2.call(captureTarget, e.pointerId);
     const tgt = this.asElement(e.target);
     if (tgt == null ? void 0 : tgt.closest(".zm-marker")) return;
     if (this.cfg.responsive) return;
@@ -11601,7 +9222,7 @@ ${yamlRaw}
     this.viewDragMoved = false;
   }
   onPointerMove(e) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (!this.ready) return;
     if (this.gridAlignId) {
       const vpRect = this.viewportEl.getBoundingClientRect();
@@ -11676,13 +9297,13 @@ ${yamlRaw}
       const vpRect = this.viewportEl.getBoundingClientRect();
       const vx = e.clientX - vpRect.left;
       const vy = e.clientY - vpRect.top;
-      const off = (_a = this.dragAnchorOffset) != null ? _a : { dx: 0, dy: 0 };
+      const off = (_a2 = this.dragAnchorOffset) != null ? _a2 : { dx: 0, dy: 0 };
       if (m.anchorSpace === "viewport") {
         const vw = vpRect.width || 1;
         const vh = vpRect.height || 1;
         const leftScreen = vx - off.dx;
         const topScreen = vy - off.dy;
-        const prevX = (_b = m.hudX) != null ? _b : leftScreen;
+        const prevX = (_b2 = m.hudX) != null ? _b2 : leftScreen;
         const prevY = (_c = m.hudY) != null ? _c : topScreen;
         m.hudX = leftScreen;
         m.hudY = topScreen;
@@ -11746,7 +9367,7 @@ ${yamlRaw}
     this.requestPanFrame();
   }
   onPointerUp(e) {
-    var _a;
+    var _a2;
     if (this.drawEditPointerId !== null && (!e || e.pointerId === this.drawEditPointerId)) {
       this.drawEditPointerId = null;
       this.drawEditPointIndex = null;
@@ -11782,7 +9403,7 @@ ${yamlRaw}
         void this.saveDataSoon();
         this.schedulePingUpdate();
       }
-      const host = (_a = this.markersEl.querySelector(`.zm-marker[data-id="${draggedId}"]`)) != null ? _a : this.hudMarkersEl.querySelector(`.zm-marker[data-id="${draggedId}"]`);
+      const host = (_a2 = this.markersEl.querySelector(`.zm-marker[data-id="${draggedId}"]`)) != null ? _a2 : this.hudMarkersEl.querySelector(`.zm-marker[data-id="${draggedId}"]`);
       if (host) host.classList.remove("zm-marker--dragging");
     }
     this.draggingMarkerId = null;
@@ -11892,7 +9513,7 @@ ${yamlRaw}
   handleTouchTapOnPointerUp(e) {
     if (e.pointerType !== "touch") return;
     const target = e.target;
-    if (!(target instanceof Element)) {
+    if (!this.isOwnerElement(target)) {
       this.resetTouchDoubleTapState();
       return;
     }
@@ -11963,7 +9584,7 @@ ${yamlRaw}
     this.zoomAt(cx, cy, 1.5);
   }
   onClickViewport(e) {
-    var _a;
+    var _a2;
     if (!this.ready) return;
     if (this.gridAlignId) {
       const vpRect = this.viewportEl.getBoundingClientRect();
@@ -11997,7 +9618,7 @@ ${yamlRaw}
           (this.calibPts[1].x - this.calibPts[0].x) * this.imgW,
           (this.calibPts[1].y - this.calibPts[0].y) * this.imgH
         );
-        const meas = (_a = this.data) == null ? void 0 : _a.measurement;
+        const meas = (_a2 = this.data) == null ? void 0 : _a2.measurement;
         const customDefs = this.plugin.getActiveCustomUnits();
         let initialUnit = "km";
         if ((meas == null ? void 0 : meas.displayUnit) === "custom" && typeof meas.customUnitId === "string" && meas.customUnitId.trim()) {
@@ -12010,11 +9631,11 @@ ${yamlRaw}
           pxDist,
           (result) => {
             void (async () => {
-              var _a2, _b, _c;
+              var _a3, _b2, _c;
               if (typeof result.metersPerPixel === "number") {
                 await this.applyScaleCalibration(result.metersPerPixel);
                 this.ensureMeasurement();
-                if ((_a2 = this.data) == null ? void 0 : _a2.measurement) {
+                if ((_a3 = this.data) == null ? void 0 : _a3.measurement) {
                   if (result.unit === "m" || result.unit === "km" || result.unit === "mi" || result.unit === "ft") {
                     this.data.measurement.displayUnit = result.unit;
                     delete this.data.measurement.customUnitId;
@@ -12026,7 +9647,7 @@ ${yamlRaw}
                 await this.applyCustomUnitCalibration(result.customUnitId, result.pixelsPerUnit);
                 const defs = this.plugin.getActiveCustomUnits();
                 const def = defs.find((d) => d.id === result.customUnitId);
-                const label = ((_c = (_b = def == null ? void 0 : def.abbreviation) != null ? _b : def == null ? void 0 : def.name) != null ? _c : result.customUnitId).trim();
+                const label = ((_c = (_b2 = def == null ? void 0 : def.abbreviation) != null ? _b2 : def == null ? void 0 : def.name) != null ? _c : result.customUnitId).trim();
                 new import_obsidian21.Notice(`Unit scale set: ${result.pixelsPerUnit.toFixed(3)} px/${label}`, 2500);
               }
               this.updateMeasureHud();
@@ -12072,17 +9693,17 @@ ${yamlRaw}
     }
   }
   getLayerById(id) {
-    var _a;
-    return (_a = this.data) == null ? void 0 : _a.layers.find((l) => l.id === id);
+    var _a2;
+    return (_a2 = this.data) == null ? void 0 : _a2.layers.find((l) => l.id === id);
   }
   getPreferredNewMarkerLayerId() {
-    var _a, _b, _c, _d, _e, _f;
+    var _a2, _b2, _c, _d, _e, _f;
     if (!this.data || !this.data.layers || this.data.layers.length === 0) {
       return "default";
     }
     const prefer = !!this.plugin.settings.preferActiveLayerInEditor;
     if (prefer) {
-      return (_d = (_c = (_a = this.data.layers.find((l) => l.visible && !l.locked)) == null ? void 0 : _a.id) != null ? _c : (_b = this.data.layers.find((l) => l.visible)) == null ? void 0 : _b.id) != null ? _d : this.data.layers[0].id;
+      return (_d = (_c = (_a2 = this.data.layers.find((l) => l.visible && !l.locked)) == null ? void 0 : _a2.id) != null ? _c : (_b2 = this.data.layers.find((l) => l.visible)) == null ? void 0 : _b2.id) != null ? _d : this.data.layers[0].id;
     }
     return (_f = (_e = this.data.layers.find((l) => l.visible)) == null ? void 0 : _e.id) != null ? _f : this.data.layers[0].id;
   }
@@ -12113,7 +9734,7 @@ ${yamlRaw}
     return !!(l && l.visible && l.locked);
   }
   async applyBoundBaseVisibility() {
-    var _a;
+    var _a2;
     if (!this.data) return;
     const active = this.getActiveBasePath();
     let changed = false;
@@ -12125,7 +9746,7 @@ ${yamlRaw}
         changed = true;
       }
     }
-    for (const dl of (_a = this.data.drawLayers) != null ? _a : []) {
+    for (const dl of (_a2 = this.data.drawLayers) != null ? _a2 : []) {
       if (!dl.boundBase) continue;
       const want = dl.boundBase === active;
       if (dl.visible !== want) {
@@ -12142,21 +9763,21 @@ ${yamlRaw}
   }
   /* ===== Collections helpers ===== */
   getActiveBasePath() {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (!this.data) return this.cfg.imagePath;
-    return (_c = (_b = this.data.activeBase) != null ? _b : (_a = this.getBasesNormalized()[0]) == null ? void 0 : _a.path) != null ? _c : this.cfg.imagePath;
+    return (_c = (_b2 = this.data.activeBase) != null ? _b2 : (_a2 = this.getBasesNormalized()[0]) == null ? void 0 : _a2.path) != null ? _c : this.cfg.imagePath;
   }
   getCollectionsSplitForActive() {
-    var _a;
-    const all = ((_a = this.plugin.settings.baseCollections) != null ? _a : []).filter(Boolean);
+    var _a2;
+    const all = ((_a2 = this.plugin.settings.baseCollections) != null ? _a2 : []).filter(Boolean);
     const active = this.getActiveBasePath();
     const matches = (c) => {
-      var _a2, _b;
-      return ((_b = (_a2 = c.bindings) == null ? void 0 : _a2.basePaths) != null ? _b : []).some((p) => p === active);
+      var _a3, _b2;
+      return ((_b2 = (_a3 = c.bindings) == null ? void 0 : _a3.basePaths) != null ? _b2 : []).some((p) => p === active);
     };
     const isGlobal = (c) => {
-      var _a2, _b;
-      return !c.bindings || ((_b = (_a2 = c.bindings.basePaths) == null ? void 0 : _a2.length) != null ? _b : 0) === 0;
+      var _a3, _b2;
+      return !c.bindings || ((_b2 = (_a3 = c.bindings.basePaths) == null ? void 0 : _a3.length) != null ? _b2 : 0) === 0;
     };
     const matched = all.filter(matches);
     const globals = all.filter(isGlobal);
@@ -12165,67 +9786,67 @@ ${yamlRaw}
   computeCollectionSets() {
     const { matched, globals } = this.getCollectionsSplitForActive();
     const pinsBase = [...new Set(matched.flatMap((c) => {
-      var _a, _b;
-      return (_b = (_a = c.include) == null ? void 0 : _a.pinKeys) != null ? _b : [];
+      var _a2, _b2;
+      return (_b2 = (_a2 = c.include) == null ? void 0 : _a2.pinKeys) != null ? _b2 : [];
     }))];
     const favsBase = [];
     matched.forEach(
       (c) => {
-        var _a, _b;
-        return ((_b = (_a = c.include) == null ? void 0 : _a.favorites) != null ? _b : []).forEach((f) => favsBase.push(f));
+        var _a2, _b2;
+        return ((_b2 = (_a2 = c.include) == null ? void 0 : _a2.favorites) != null ? _b2 : []).forEach((f) => favsBase.push(f));
       }
     );
     const stickersBase = [];
     matched.forEach(
       (c) => {
-        var _a, _b;
-        return ((_b = (_a = c.include) == null ? void 0 : _a.stickers) != null ? _b : []).forEach((s) => stickersBase.push(s));
+        var _a2, _b2;
+        return ((_b2 = (_a2 = c.include) == null ? void 0 : _a2.stickers) != null ? _b2 : []).forEach((s) => stickersBase.push(s));
       }
     );
     const pinsGlobal = [...new Set(globals.flatMap((c) => {
-      var _a, _b;
-      return (_b = (_a = c.include) == null ? void 0 : _a.pinKeys) != null ? _b : [];
+      var _a2, _b2;
+      return (_b2 = (_a2 = c.include) == null ? void 0 : _a2.pinKeys) != null ? _b2 : [];
     }))];
     const favsGlobal = [];
     globals.forEach(
       (c) => {
-        var _a, _b;
-        return ((_b = (_a = c.include) == null ? void 0 : _a.favorites) != null ? _b : []).forEach((f) => favsGlobal.push(f));
+        var _a2, _b2;
+        return ((_b2 = (_a2 = c.include) == null ? void 0 : _a2.favorites) != null ? _b2 : []).forEach((f) => favsGlobal.push(f));
       }
     );
     const stickersGlobal = [];
     globals.forEach(
       (c) => {
-        var _a, _b;
-        return ((_b = (_a = c.include) == null ? void 0 : _a.stickers) != null ? _b : []).forEach((s) => stickersGlobal.push(s));
+        var _a2, _b2;
+        return ((_b2 = (_a2 = c.include) == null ? void 0 : _a2.stickers) != null ? _b2 : []).forEach((s) => stickersGlobal.push(s));
       }
     );
     const swapBase = [];
     matched.forEach(
       (c) => {
-        var _a, _b;
-        return ((_b = (_a = c.include) == null ? void 0 : _a.swapPins) != null ? _b : []).forEach((sp) => swapBase.push(sp));
+        var _a2, _b2;
+        return ((_b2 = (_a2 = c.include) == null ? void 0 : _a2.swapPins) != null ? _b2 : []).forEach((sp) => swapBase.push(sp));
       }
     );
     const swapGlobal = [];
     globals.forEach(
       (c) => {
-        var _a, _b;
-        return ((_b = (_a = c.include) == null ? void 0 : _a.swapPins) != null ? _b : []).forEach((sp) => swapGlobal.push(sp));
+        var _a2, _b2;
+        return ((_b2 = (_a2 = c.include) == null ? void 0 : _a2.swapPins) != null ? _b2 : []).forEach((sp) => swapGlobal.push(sp));
       }
     );
     const pingBase = [];
     matched.forEach(
       (c) => {
-        var _a, _b;
-        return ((_b = (_a = c.include) == null ? void 0 : _a.pingPins) != null ? _b : []).forEach((pp) => pingBase.push(pp));
+        var _a2, _b2;
+        return ((_b2 = (_a2 = c.include) == null ? void 0 : _a2.pingPins) != null ? _b2 : []).forEach((pp) => pingBase.push(pp));
       }
     );
     const pingGlobal = [];
     globals.forEach(
       (c) => {
-        var _a, _b;
-        return ((_b = (_a = c.include) == null ? void 0 : _a.pingPins) != null ? _b : []).forEach((pp) => pingGlobal.push(pp));
+        var _a2, _b2;
+        return ((_b2 = (_a2 = c.include) == null ? void 0 : _a2.pingPins) != null ? _b2 : []).forEach((pp) => pingGlobal.push(pp));
       }
     );
     return {
@@ -12242,20 +9863,20 @@ ${yamlRaw}
     };
   }
   findSwapPresetById(id) {
-    var _a, _b, _c;
-    const cols = (_a = this.plugin.settings.baseCollections) != null ? _a : [];
+    var _a2, _b2, _c;
+    const cols = (_a2 = this.plugin.settings.baseCollections) != null ? _a2 : [];
     for (const col of cols) {
-      const list = (_c = (_b = col.include) == null ? void 0 : _b.swapPins) != null ? _c : [];
+      const list = (_c = (_b2 = col.include) == null ? void 0 : _b2.swapPins) != null ? _c : [];
       const found = list.find((sp) => sp.id === id);
       if (found) return found;
     }
     return void 0;
   }
   findPingPresetById(id) {
-    var _a, _b, _c;
-    const cols = (_a = this.plugin.settings.baseCollections) != null ? _a : [];
+    var _a2, _b2, _c;
+    const cols = (_a2 = this.plugin.settings.baseCollections) != null ? _a2 : [];
     for (const col of cols) {
-      const list = (_c = (_b = col.include) == null ? void 0 : _b.pingPins) != null ? _c : [];
+      const list = (_c = (_b2 = col.include) == null ? void 0 : _b2.pingPins) != null ? _c : [];
       const found = list.find((pp) => pp.id === id);
       if (found) return found;
     }
@@ -12287,7 +9908,7 @@ ${yamlRaw}
     return { pingBase, pingGlobal };
   }
   getSwapEffectiveLink(m) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (m.type !== "swap") return m.link;
     if (!m.swapKey) return m.link;
     const preset = this.findSwapPresetById(m.swapKey);
@@ -12295,10 +9916,10 @@ ${yamlRaw}
     const rawIndex = typeof m.swapIndex === "number" ? m.swapIndex : 0;
     const count = preset.frames.length;
     const idx = (rawIndex % count + count) % count;
-    const override = (_a = m.swapLinks) == null ? void 0 : _a[idx];
+    const override = (_a2 = m.swapLinks) == null ? void 0 : _a2[idx];
     if (typeof override === "string" && override.trim()) return override.trim();
     const frame = preset.frames[idx];
-    const presetLink = ((_b = frame == null ? void 0 : frame.link) != null ? _b : "").trim();
+    const presetLink = ((_b2 = frame == null ? void 0 : frame.link) != null ? _b2 : "").trim();
     if (presetLink) return presetLink;
     const iconKey = ((_c = frame == null ? void 0 : frame.iconKey) != null ? _c : "").trim();
     if (iconKey) return this.plugin.getIconDefaultLink(iconKey);
@@ -12357,10 +9978,10 @@ ${yamlRaw}
     new import_obsidian21.Notice("Swap pin added.", 900);
   }
   async rollDiceMarker(m) {
-    var _a;
+    var _a2;
     if (!this.data) return;
     if (m.type !== "dice") return;
-    const rolls = (_a = m.diceRolls) != null ? _a : [{ count: 1, sides: 20 }];
+    const rolls = (_a2 = m.diceRolls) != null ? _a2 : [{ count: 1, sides: 20 }];
     const formula = diceRollsToFormula(rolls);
     const want3d = !!m.diceRender3d;
     const w = window;
@@ -12435,14 +10056,14 @@ Total: ${local.total}`, 6e3);
     ).open();
   }
   getPreferredTextLayer() {
-    var _a, _b;
+    var _a2, _b2;
     if (!this.data) return null;
     const activeBase = this.getActiveBasePath();
     const current = this.getTextLayerById(this.activeTextLayerId);
     if (current && this.isTextLayerVisible(current) && (!current.boundBase || current.boundBase === activeBase)) {
       return current;
     }
-    return (_b = ((_a = this.data.textLayers) != null ? _a : []).find((l) => this.isTextLayerVisible(l) && (!l.boundBase || l.boundBase === activeBase))) != null ? _b : null;
+    return (_b2 = ((_a2 = this.data.textLayers) != null ? _a2 : []).find((l) => this.isTextLayerVisible(l) && (!l.boundBase || l.boundBase === activeBase))) != null ? _b2 : null;
   }
   drawingToTextBoxRect(d) {
     if (d.kind === "rect" && d.rect) {
@@ -12472,9 +10093,9 @@ Total: ${local.total}`, 6e3);
   }
   polylineToBaselines(points) {
     const out = [];
-    for (let i = 1; i < points.length; i += 1) {
-      const a = points[i - 1];
-      const b = points[i];
+    for (let i2 = 1; i2 < points.length; i2 += 1) {
+      const a = points[i2 - 1];
+      const b = points[i2];
       const dxPx = (b.x - a.x) * this.imgW;
       const dyPx = (b.y - a.y) * this.imgH;
       const angleDeg = Math.atan2(dyPx, dxPx) * 180 / Math.PI;
@@ -12492,7 +10113,7 @@ Total: ${local.total}`, 6e3);
     return out;
   }
   applyDrawingAsTextBox(d, mode) {
-    var _a;
+    var _a2;
     if (!this.data) return;
     const layer = this.getPreferredTextLayer();
     if (!layer) {
@@ -12523,24 +10144,24 @@ Total: ${local.total}`, 6e3);
       box.auto = this.defaultTextBoxAutoConfig();
       box.lines = this.buildAutoTextBoxLines(rect, box.style, box.auto);
     }
-    (_a = layer.boxes) != null ? _a : layer.boxes = [];
+    (_a2 = layer.boxes) != null ? _a2 : layer.boxes = [];
     layer.boxes.push(box);
     void this.saveDataSoon();
     this.renderTextLayers();
   }
   buildMeasureMenuItems() {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
-    const meas = (_a = this.data) == null ? void 0 : _a.measurement;
-    const currentUnit = (_b = meas == null ? void 0 : meas.displayUnit) != null ? _b : "km";
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
+    const meas = (_a2 = this.data) == null ? void 0 : _a2.measurement;
+    const currentUnit = (_b2 = meas == null ? void 0 : meas.displayUnit) != null ? _b2 : "km";
     const currentCustomId = meas == null ? void 0 : meas.customUnitId;
     const unitItems = [
       {
         label: "m",
         checked: currentUnit === "m",
         action: () => {
-          var _a2;
+          var _a3;
           this.ensureMeasurement();
-          if ((_a2 = this.data) == null ? void 0 : _a2.measurement) {
+          if ((_a3 = this.data) == null ? void 0 : _a3.measurement) {
             this.data.measurement.displayUnit = "m";
             delete this.data.measurement.customUnitId;
             void this.saveDataSoon();
@@ -12553,9 +10174,9 @@ Total: ${local.total}`, 6e3);
         label: "km",
         checked: currentUnit === "km",
         action: () => {
-          var _a2;
+          var _a3;
           this.ensureMeasurement();
-          if ((_a2 = this.data) == null ? void 0 : _a2.measurement) {
+          if ((_a3 = this.data) == null ? void 0 : _a3.measurement) {
             this.data.measurement.displayUnit = "km";
             delete this.data.measurement.customUnitId;
             void this.saveDataSoon();
@@ -12568,9 +10189,9 @@ Total: ${local.total}`, 6e3);
         label: "mi",
         checked: currentUnit === "mi",
         action: () => {
-          var _a2;
+          var _a3;
           this.ensureMeasurement();
-          if ((_a2 = this.data) == null ? void 0 : _a2.measurement) {
+          if ((_a3 = this.data) == null ? void 0 : _a3.measurement) {
             this.data.measurement.displayUnit = "mi";
             delete this.data.measurement.customUnitId;
             void this.saveDataSoon();
@@ -12583,9 +10204,9 @@ Total: ${local.total}`, 6e3);
         label: "ft",
         checked: currentUnit === "ft",
         action: () => {
-          var _a2;
+          var _a3;
           this.ensureMeasurement();
-          if ((_a2 = this.data) == null ? void 0 : _a2.measurement) {
+          if ((_a3 = this.data) == null ? void 0 : _a3.measurement) {
             this.data.measurement.displayUnit = "ft";
             delete this.data.measurement.customUnitId;
             void this.saveDataSoon();
@@ -12604,9 +10225,9 @@ Total: ${local.total}`, 6e3);
           label: def.abbreviation ? `${def.name} (${def.abbreviation})` : def.name,
           checked: isActive,
           action: () => {
-            var _a2;
+            var _a3;
             this.ensureMeasurement();
-            if ((_a2 = this.data) == null ? void 0 : _a2.measurement) {
+            if ((_a3 = this.data) == null ? void 0 : _a3.measurement) {
               this.data.measurement.displayUnit = "custom";
               this.data.measurement.customUnitId = def.id;
               void this.saveDataSoon();
@@ -12629,9 +10250,9 @@ Total: ${local.total}`, 6e3);
       mark: ((_o = (_n = this.data) == null ? void 0 : _n.measurement) == null ? void 0 : _o.travelDaysEnabled) ? "check" : "x",
       markColor: ((_q = (_p = this.data) == null ? void 0 : _p.measurement) == null ? void 0 : _q.travelDaysEnabled) ? "var(--text-accent)" : "var(--text-muted)",
       action: (rowEl) => {
-        var _a2;
+        var _a3;
         this.ensureMeasurement();
-        if (!((_a2 = this.data) == null ? void 0 : _a2.measurement)) return;
+        if (!((_a3 = this.data) == null ? void 0 : _a3.measurement)) return;
         const next = !this.data.measurement.travelDaysEnabled;
         this.data.measurement.travelDaysEnabled = next;
         void this.saveDataSoon();
@@ -12650,9 +10271,9 @@ Total: ${local.total}`, 6e3);
         label: tpd.name || tpd.id,
         checked: effectiveId === tpd.id,
         action: (rowEl) => {
-          var _a2;
+          var _a3;
           this.ensureMeasurement();
-          if (!((_a2 = this.data) == null ? void 0 : _a2.measurement)) return;
+          if (!((_a3 = this.data) == null ? void 0 : _a3.measurement)) return;
           this.data.measurement.travelDayPresetId = tpd.id;
           void this.saveDataSoon();
           this.updateMeasureHud();
@@ -12670,17 +10291,17 @@ Total: ${local.total}`, 6e3);
           label: p.name || p.id,
           checked: selectedTravel.has(p.id),
           action: (rowEl) => {
-            var _a2, _b2, _c2;
+            var _a3, _b3, _c2;
             this.ensureMeasurement();
-            if (!((_a2 = this.data) == null ? void 0 : _a2.measurement)) return;
-            const arr = (_c2 = (_b2 = this.data.measurement).travelTimePresetIds) != null ? _c2 : _b2.travelTimePresetIds = [];
-            const i = arr.indexOf(p.id);
-            if (i >= 0) arr.splice(i, 1);
+            if (!((_a3 = this.data) == null ? void 0 : _a3.measurement)) return;
+            const arr = (_c2 = (_b3 = this.data.measurement).travelTimePresetIds) != null ? _c2 : _b3.travelTimePresetIds = [];
+            const i2 = arr.indexOf(p.id);
+            if (i2 >= 0) arr.splice(i2, 1);
             else arr.push(p.id);
             void this.saveDataSoon();
             this.updateMeasureHud();
             const chk = rowEl.querySelector(".zm-menu__check");
-            if (chk) chk.textContent = i >= 0 ? "" : "\u2713";
+            if (chk) chk.textContent = i2 >= 0 ? "" : "\u2713";
           }
         }))
       );
@@ -12782,7 +10403,7 @@ Total: ${local.total}`, 6e3);
     });
   }
   onContextMenuViewport(e) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
     if (!this.ready || !this.data) return;
     this.closeMenu();
     if (this.cfg.displayOnly) return;
@@ -12796,7 +10417,7 @@ Total: ${local.total}`, 6e3);
       this.stopGridAlignMode(false);
       return;
     }
-    if (((_a = this.plugin.settings.panMouseButton) != null ? _a : "left") === "right" && this.suppressContextMenuOnce) {
+    if (((_a2 = this.plugin.settings.panMouseButton) != null ? _a2 : "left") === "right" && this.suppressContextMenuOnce) {
       this.suppressContextMenuOnce = false;
       return;
     }
@@ -12816,9 +10437,9 @@ Total: ${local.total}`, 6e3);
     const ny = clamp(wy / this.imgH, 0, 1);
     const bases = this.getBasesNormalized();
     const baseItems = bases.map((b) => {
-      var _a2;
+      var _a3;
       return {
-        label: (_a2 = b.name) != null ? _a2 : basename(b.path),
+        label: (_a3 = b.name) != null ? _a3 : basename(b.path),
         checked: this.getActiveBasePath() === b.path,
         action: (rowEl) => {
           void this.setActiveBase(b.path).then(() => {
@@ -12830,17 +10451,17 @@ Total: ${local.total}`, 6e3);
             });
             const chk = rowEl.querySelector(".zm-menu__check");
             if (chk) chk.textContent = "\u2713";
-          }).catch((err) => {
-            console.error("Set base failed:", err);
+          }).catch((err2) => {
+            console.error("Set base failed:", err2);
             new import_obsidian21.Notice("Failed to set base image.", 2500);
           });
         }
       };
     });
-    const overlayItems = ((_b = this.data.overlays) != null ? _b : []).map((o) => {
-      var _a2;
+    const overlayItems = ((_b2 = this.data.overlays) != null ? _b2 : []).map((o) => {
+      var _a3;
       return {
-        label: (_a2 = o.name) != null ? _a2 : basename(o.path),
+        label: (_a3 = o.name) != null ? _a3 : basename(o.path),
         checked: !!o.visible,
         action: (rowEl) => {
           o.visible = !o.visible;
@@ -12859,9 +10480,9 @@ Total: ${local.total}`, 6e3);
         label: "m",
         checked: currentUnit === "m",
         action: () => {
-          var _a2;
+          var _a3;
           this.ensureMeasurement();
-          if ((_a2 = this.data) == null ? void 0 : _a2.measurement) {
+          if ((_a3 = this.data) == null ? void 0 : _a3.measurement) {
             this.data.measurement.displayUnit = "m";
             delete this.data.measurement.customUnitId;
             void this.saveDataSoon();
@@ -12874,9 +10495,9 @@ Total: ${local.total}`, 6e3);
         label: "km",
         checked: currentUnit === "km",
         action: () => {
-          var _a2;
+          var _a3;
           this.ensureMeasurement();
-          if ((_a2 = this.data) == null ? void 0 : _a2.measurement) {
+          if ((_a3 = this.data) == null ? void 0 : _a3.measurement) {
             this.data.measurement.displayUnit = "km";
             delete this.data.measurement.customUnitId;
             void this.saveDataSoon();
@@ -12889,9 +10510,9 @@ Total: ${local.total}`, 6e3);
         label: "mi",
         checked: currentUnit === "mi",
         action: () => {
-          var _a2;
+          var _a3;
           this.ensureMeasurement();
-          if ((_a2 = this.data) == null ? void 0 : _a2.measurement) {
+          if ((_a3 = this.data) == null ? void 0 : _a3.measurement) {
             this.data.measurement.displayUnit = "mi";
             delete this.data.measurement.customUnitId;
             void this.saveDataSoon();
@@ -12904,9 +10525,9 @@ Total: ${local.total}`, 6e3);
         label: "ft",
         checked: currentUnit === "ft",
         action: () => {
-          var _a2;
+          var _a3;
           this.ensureMeasurement();
-          if ((_a2 = this.data) == null ? void 0 : _a2.measurement) {
+          if ((_a3 = this.data) == null ? void 0 : _a3.measurement) {
             this.data.measurement.displayUnit = "ft";
             delete this.data.measurement.customUnitId;
             void this.saveDataSoon();
@@ -12925,9 +10546,9 @@ Total: ${local.total}`, 6e3);
           label: def.abbreviation ? `${def.name} (${def.abbreviation})` : def.name,
           checked: isActive,
           action: () => {
-            var _a2;
+            var _a3;
             this.ensureMeasurement();
-            if ((_a2 = this.data) == null ? void 0 : _a2.measurement) {
+            if ((_a3 = this.data) == null ? void 0 : _a3.measurement) {
               this.data.measurement.displayUnit = "custom";
               this.data.measurement.customUnitId = def.id;
               void this.saveDataSoon();
@@ -12963,8 +10584,8 @@ Total: ${local.total}`, 6e3);
         }
       };
     };
-    const pinsBaseMenu = pinsBase.map(pinItemFromKey).filter((x) => !!x);
-    const pinsGlobalMenu = pinsGlobal.map(pinItemFromKey).filter((x) => !!x);
+    const pinsBaseMenu = pinsBase.map(pinItemFromKey).filter((x2) => !!x2);
+    const pinsGlobalMenu = pinsGlobal.map(pinItemFromKey).filter((x2) => !!x2);
     const favItems = (arr) => arr.map((p) => {
       const icon = this.getIconInfo(p.iconKey);
       return {
@@ -13059,7 +10680,7 @@ Total: ${local.total}`, 6e3);
             initialHud: false
           },
           (res) => {
-            var _a2;
+            var _a3;
             if (!this.data) return;
             if (res.action !== "save" || !res.value) return;
             const marker = {
@@ -13070,7 +10691,7 @@ Total: ${local.total}`, 6e3);
               y: ny,
               iconKey: res.value.iconKey,
               switchRotate: res.value.rotate ? true : void 0,
-              switchBase: res.value.rotate ? void 0 : (_a2 = res.value.switchBase) != null ? _a2 : void 0,
+              switchBase: res.value.rotate ? void 0 : (_a3 = res.value.switchBase) != null ? _a3 : void 0,
               scaleLikeSticker: res.value.scaleLikeSticker ? true : void 0
             };
             if (res.value.placeAsHudPin) {
@@ -13181,9 +10802,9 @@ Total: ${local.total}`, 6e3);
       };
     });
     const labelForBase = (p) => {
-      var _a2;
+      var _a3;
       const b = bases.find((bb) => bb.path === p);
-      return b ? (_a2 = b.name) != null ? _a2 : basename(b.path) : basename(p);
+      return b ? (_a3 = b.name) != null ? _a3 : basename(b.path) : basename(p);
     };
     const bindLayerSubmenus = this.data.layers.map((l) => {
       const suffix = l.boundBase ? ` \u2192 ${labelForBase(l.boundBase)}` : " \u2192 None";
@@ -13204,9 +10825,9 @@ Total: ${local.total}`, 6e3);
           },
           { type: "separator" },
           ...bases.map((b) => {
-            var _a2;
+            var _a3;
             return {
-              label: (_a2 = b.name) != null ? _a2 : basename(b.path),
+              label: (_a3 = b.name) != null ? _a3 : basename(b.path),
               checked: l.boundBase === b.path,
               action: (rowEl) => {
                 l.boundBase = b.path;
@@ -13252,9 +10873,9 @@ Total: ${local.total}`, 6e3);
           },
           { type: "separator" },
           ...bases.map((b) => {
-            var _a2;
+            var _a3;
             return {
-              label: (_a2 = b.name) != null ? _a2 : basename(b.path),
+              label: (_a3 = b.name) != null ? _a3 : basename(b.path),
               checked: dl.boundBase === b.path,
               action: (rowEl) => {
                 dl.boundBase = b.path;
@@ -13298,23 +10919,23 @@ Total: ${local.total}`, 6e3);
           children: drawLayers.map((dl) => ({
             label: dl.name,
             action: () => {
-              var _a2;
+              var _a3;
               if (!this.data) return;
-              const count = ((_a2 = this.data.drawings) != null ? _a2 : []).filter(
+              const count = ((_a3 = this.data.drawings) != null ? _a3 : []).filter(
                 (d) => d.layerId === dl.id
               ).length;
               const msg = count > 0 ? `Delete draw layer "${dl.name}" and ${count} drawings on it?` : `Delete draw layer "${dl.name}"?`;
               new ConfirmModal(this.app, "Delete draw layer", msg, () => {
-                var _a3, _b2, _c2, _d2;
+                var _a4, _b3, _c2, _d2;
                 if (!this.data) return;
                 this.pushDeleteUndo(
                   {
                     kind: "draw-layer",
                     layer: cloneForUndo(dl),
-                    index: ((_a3 = this.data.drawLayers) != null ? _a3 : []).findIndex((l) => l.id === dl.id),
-                    drawings: ((_b2 = this.data.drawings) != null ? _b2 : []).map((drawing, index) => ({ drawing, index })).filter((x) => x.drawing.layerId === dl.id).map((x) => ({
-                      drawing: cloneForUndo(x.drawing),
-                      index: x.index
+                    index: ((_a4 = this.data.drawLayers) != null ? _a4 : []).findIndex((l) => l.id === dl.id),
+                    drawings: ((_b3 = this.data.drawings) != null ? _b3 : []).map((drawing, index) => ({ drawing, index })).filter((x2) => x2.drawing.layerId === dl.id).map((x2) => ({
+                      drawing: cloneForUndo(x2.drawing),
+                      index: x2.index
                     }))
                   },
                   `Delete draw layer: ${dl.name}`
@@ -13341,11 +10962,11 @@ Total: ${local.total}`, 6e3);
               "Name for draw layer",
               baseName,
               (value) => {
-                var _a2, _b2;
+                var _a3, _b3;
                 if (!this.data) return;
                 const name = (value || baseName).trim() || baseName;
                 const id = generateId("draw");
-                (_b2 = (_a2 = this.data).drawLayers) != null ? _b2 : _a2.drawLayers = [];
+                (_b3 = (_a3 = this.data).drawLayers) != null ? _b3 : _a3.drawLayers = [];
                 this.data.drawLayers.push({
                   id,
                   name,
@@ -13381,9 +11002,9 @@ Total: ${local.total}`, 6e3);
       {
         label: "Delete base\u2026",
         children: bases.map((b) => {
-          var _a2;
+          var _a3;
           return {
-            label: (_a2 = b.name) != null ? _a2 : basename(b.path),
+            label: (_a3 = b.name) != null ? _a3 : basename(b.path),
             action: () => {
               this.closeMenu();
               this.confirmDeleteBase(b.path);
@@ -13394,9 +11015,9 @@ Total: ${local.total}`, 6e3);
       {
         label: "Delete overlay\u2026",
         children: ((_e = this.data.overlays) != null ? _e : []).length > 0 ? ((_f = this.data.overlays) != null ? _f : []).map((o) => {
-          var _a2;
+          var _a3;
           return {
-            label: (_a2 = o.name) != null ? _a2 : basename(o.path),
+            label: (_a3 = o.name) != null ? _a3 : basename(o.path),
             action: () => {
               this.closeMenu();
               this.confirmDeleteOverlay(o.path);
@@ -13451,7 +11072,7 @@ Total: ${local.total}`, 6e3);
             children: this.data.layers.map((l) => ({
               label: l.name,
               action: () => {
-                const others = this.data.layers.filter((x) => x.id !== l.id);
+                const others = this.data.layers.filter((x2) => x2.id !== l.id);
                 if (others.length === 0) {
                   new import_obsidian21.Notice("Cannot delete the last layer.", 2e3);
                   return;
@@ -13496,8 +11117,8 @@ Total: ${local.total}`, 6e3);
         }
       };
       const textLayerItems = ((_g = this.data.textLayers) != null ? _g : []).map((tl) => {
-        var _a2;
-        const boxChildren = ((_a2 = tl.boxes) != null ? _a2 : []).map((box) => {
+        var _a3;
+        const boxChildren = ((_a3 = tl.boxes) != null ? _a3 : []).map((box) => {
           const boxLocked = this.isTextBoxLocked(box, tl);
           return {
             label: box.name || "(text box)",
@@ -13540,17 +11161,17 @@ Total: ${local.total}`, 6e3);
               {
                 label: "Delete box",
                 action: () => {
-                  var _a3, _b2;
+                  var _a4, _b3;
                   this.pushDeleteUndo(
                     {
                       kind: "text-box",
                       layerId: tl.id,
                       box: cloneForUndo(box),
-                      index: ((_a3 = tl.boxes) != null ? _a3 : []).findIndex((b) => b.id === box.id)
+                      index: ((_a4 = tl.boxes) != null ? _a4 : []).findIndex((b) => b.id === box.id)
                     },
                     `Delete text box: ${box.name || "Text box"}`
                   );
-                  tl.boxes = ((_b2 = tl.boxes) != null ? _b2 : []).filter((b) => b.id !== box.id);
+                  tl.boxes = ((_b3 = tl.boxes) != null ? _b3 : []).filter((b) => b.id !== box.id);
                   if (this.textMode === "edit" && this.activeTextLayerId === tl.id && this.activeTextBoxId === box.id) {
                     this.stopTextEdit(false);
                   }
@@ -13639,9 +11260,9 @@ Total: ${local.total}`, 6e3);
                 },
                 { type: "separator" },
                 ...bases.map((b) => {
-                  var _a3;
+                  var _a4;
                   return {
-                    label: (_a3 = b.name) != null ? _a3 : basename(b.path),
+                    label: (_a4 = b.name) != null ? _a4 : basename(b.path),
                     checked: tl.boundBase === b.path,
                     action: (rowEl) => {
                       tl.boundBase = b.path;
@@ -13670,13 +11291,13 @@ Total: ${local.total}`, 6e3);
             "Delete text layer",
             `Delete text layer "${tl.name || tl.id}"? This cannot be undone.`,
             () => {
-              var _a2, _b2;
+              var _a3, _b3;
               if (!this.data) return;
               this.pushDeleteUndo(
                 {
                   kind: "text-layer",
                   layer: cloneForUndo(tl),
-                  index: ((_a2 = this.data.textLayers) != null ? _a2 : []).findIndex((x) => x.id === tl.id)
+                  index: ((_a3 = this.data.textLayers) != null ? _a3 : []).findIndex((x2) => x2.id === tl.id)
                 },
                 `Delete text layer: ${tl.name || tl.id}`
               );
@@ -13689,7 +11310,7 @@ Total: ${local.total}`, 6e3);
                 this.activeTextLayerId = null;
                 this.activeTextBoxId = null;
               }
-              this.data.textLayers = ((_b2 = this.data.textLayers) != null ? _b2 : []).filter((x) => x.id !== tl.id);
+              this.data.textLayers = ((_b3 = this.data.textLayers) != null ? _b3 : []).filter((x2) => x2.id !== tl.id);
               void this.saveDataSoon();
               this.renderTextLayers();
             }
@@ -13707,19 +11328,19 @@ Total: ${local.total}`, 6e3);
             {
               label: "Add text layer\u2026",
               action: () => {
-                var _a2, _b2;
+                var _a3, _b3;
                 if (!this.data) return;
-                const idx = ((_b2 = (_a2 = this.data.textLayers) == null ? void 0 : _a2.length) != null ? _b2 : 0) + 1;
+                const idx = ((_b3 = (_a3 = this.data.textLayers) == null ? void 0 : _a3.length) != null ? _b3 : 0) + 1;
                 const defaultName = `Text layer ${idx}`;
                 new NamePromptModal(
                   this.app,
                   "Name for text layer",
                   defaultName,
                   (value) => {
-                    var _a3, _b3;
+                    var _a4, _b4;
                     if (!this.data) return;
                     const name = (value || defaultName).trim() || defaultName;
-                    (_b3 = (_a3 = this.data).textLayers) != null ? _b3 : _a3.textLayers = [];
+                    (_b4 = (_a4 = this.data).textLayers) != null ? _b4 : _a4.textLayers = [];
                     this.data.textLayers.push({
                       id: generateId("txt"),
                       name,
@@ -13800,9 +11421,9 @@ Total: ${local.total}`, 6e3);
             label: "Allow panning beyond image",
             checked: !((_k = (_j = this.data) == null ? void 0 : _j.panClamp) != null ? _k : true),
             action: async (rowEl) => {
-              var _a2;
+              var _a3;
               if (!this.data) return;
-              const current = (_a2 = this.data.panClamp) != null ? _a2 : true;
+              const current = (_a3 = this.data.panClamp) != null ? _a3 : true;
               this.data.panClamp = !current;
               await this.saveDataSoon();
               this.applyTransform(this.scale, this.tx, this.ty);
@@ -13910,9 +11531,9 @@ Total: ${local.total}`, 6e3);
                   },
                   { type: "separator" },
                   ...bases.map((b) => {
-                    var _a2;
+                    var _a3;
                     return {
-                      label: (_a2 = b.name) != null ? _a2 : basename(b.path),
+                      label: (_a3 = b.name) != null ? _a3 : basename(b.path),
                       checked: g.boundBase === b.path,
                       action: (rowEl) => {
                         g.boundBase = b.path;
@@ -13930,17 +11551,17 @@ Total: ${local.total}`, 6e3);
               {
                 label: "Delete grid",
                 action: () => {
-                  var _a2, _b2, _c2;
+                  var _a3, _b3, _c2;
                   this.pushDeleteUndo(
                     {
                       kind: "grid",
                       grid: cloneForUndo(g),
-                      index: ((_b2 = (_a2 = this.data) == null ? void 0 : _a2.grids) != null ? _b2 : []).findIndex((x) => x.id === g.id)
+                      index: ((_b3 = (_a3 = this.data) == null ? void 0 : _a3.grids) != null ? _b3 : []).findIndex((x2) => x2.id === g.id)
                     },
                     `Delete grid: ${g.name || "Grid"}`
                   );
                   if (!this.data) return;
-                  this.data.grids = ((_c2 = this.data.grids) != null ? _c2 : []).filter((x) => x.id !== g.id);
+                  this.data.grids = ((_c2 = this.data.grids) != null ? _c2 : []).filter((x2) => x2.id !== g.id);
                   if (this.gridAlignId === g.id) this.stopGridAlignMode(false);
                   void this.saveDataSoon();
                   this.renderGrids();
@@ -14044,14 +11665,14 @@ Total: ${local.total}`, 6e3);
     });
   }
   forwardContextMenuPastTextHitbox(ev) {
-    var _a, _b;
+    var _a2, _b2;
     const doc = this.el.ownerDocument;
     const stack = typeof doc.elementsFromPoint === "function" ? doc.elementsFromPoint(ev.clientX, ev.clientY) : [];
     for (const el of stack) {
       if (el.closest(".zm-text-hitbox")) continue;
       const drawEl = el.closest(".zm-draw__shape");
       if (drawEl instanceof SVGElement) {
-        const id = (_b = (_a = drawEl.dataset.id) != null ? _a : drawEl.getAttribute("data-id")) != null ? _b : "";
+        const id = (_b2 = (_a2 = drawEl.dataset.id) != null ? _a2 : drawEl.getAttribute("data-id")) != null ? _b2 : "";
         if (id) {
           const drawing = this.getDrawingById(id);
           if (drawing) {
@@ -14096,7 +11717,7 @@ Total: ${local.total}`, 6e3);
     return typeof p === "string" && p.toLowerCase().endsWith(".svg");
   }
   async getSvgIntrinsicSize(svgPath) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     const af = this.app.vault.getAbstractFileByPath(svgPath);
     if (!(af instanceof import_obsidian21.TFile)) return null;
     try {
@@ -14104,8 +11725,8 @@ Total: ${local.total}`, 6e3);
       const doc = new DOMParser().parseFromString(raw, "image/svg+xml");
       const el = doc.querySelector("svg");
       if (!el) return null;
-      const wAttr = (_a = el.getAttribute("width")) != null ? _a : "";
-      const hAttr = (_b = el.getAttribute("height")) != null ? _b : "";
+      const wAttr = (_a2 = el.getAttribute("width")) != null ? _a2 : "";
+      const hAttr = (_b2 = el.getAttribute("height")) != null ? _b2 : "";
       const vbAttr = (_c = el.getAttribute("viewBox")) != null ? _c : "";
       const parseLen = (s) => {
         const m = /^([0-9.+-eE]+)\s*(px)?\s*$/.exec(s.trim());
@@ -14117,7 +11738,7 @@ Total: ${local.total}`, 6e3);
       if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
         return { w, h };
       }
-      const vb = vbAttr.trim().split(/[\s,]+/).map((x) => Number(x));
+      const vb = vbAttr.trim().split(/[\s,]+/).map((x2) => Number(x2));
       if (vb.length === 4 && vb.every((n) => Number.isFinite(n))) {
         const vw = vb[2];
         const vh = vb[3];
@@ -14181,10 +11802,10 @@ Total: ${local.total}`, 6e3);
     let finalPath = (0, import_obsidian21.normalizePath)(outPath);
     const lower = finalPath.toLowerCase();
     const base = lower.endsWith(".webp") ? finalPath.slice(0, -5) : finalPath;
-    let i = 1;
+    let i2 = 1;
     while (this.app.vault.getAbstractFileByPath(finalPath)) {
-      finalPath = (0, import_obsidian21.normalizePath)(`${base}-${i}.webp`);
-      i++;
+      finalPath = (0, import_obsidian21.normalizePath)(`${base}-${i2}.webp`);
+      i2++;
     }
     await this.app.vault.adapter.writeBinary(finalPath, await blob.arrayBuffer());
     return finalPath;
@@ -14258,8 +11879,8 @@ Total: ${local.total}`, 6e3);
     }
   }
   applySecondScreenViewFromData() {
-    var _a, _b;
-    if (!((_b = (_a = this.data) == null ? void 0 : _a.secondScreen) == null ? void 0 : _b.view)) return false;
+    var _a2, _b2;
+    if (!((_b2 = (_a2 = this.data) == null ? void 0 : _a2.secondScreen) == null ? void 0 : _b2.view)) return false;
     const v = this.data.secondScreen.view;
     if (!Number.isFinite(v.scale) || !Number.isFinite(v.tx) || !Number.isFinite(v.ty)) {
       return false;
@@ -14280,10 +11901,10 @@ Total: ${local.total}`, 6e3);
       window.clearTimeout(this.secondScreenViewSaveTimer);
     }
     this.secondScreenViewSaveTimer = window.setTimeout(() => {
-      var _a, _b;
+      var _a2, _b2;
       this.secondScreenViewSaveTimer = null;
       if (!this.data) return;
-      (_b = (_a = this.data).secondScreen) != null ? _b : _a.secondScreen = {};
+      (_b2 = (_a2 = this.data).secondScreen) != null ? _b2 : _a2.secondScreen = {};
       this.data.secondScreen.view = {
         activeBase: this.getActiveBasePath(),
         scale: this.scale,
@@ -14294,12 +11915,12 @@ Total: ${local.total}`, 6e3);
     }, delayMs);
   }
   applyTransform(scale, tx, ty, render = true) {
-    var _a, _b;
+    var _a2, _b2;
     const prevScale = this.scale;
     const s = clamp(scale, this.cfg.minZoom, this.cfg.maxZoom);
     const scaledW = this.imgW * s;
     const scaledH = this.imgH * s;
-    const clampPan = (_b = (_a = this.data) == null ? void 0 : _a.panClamp) != null ? _b : true;
+    const clampPan = (_b2 = (_a2 = this.data) == null ? void 0 : _a2.panClamp) != null ? _b2 : true;
     if (clampPan) {
       const minTx = this.vw - scaledW;
       const maxTx = 0;
@@ -14388,8 +12009,8 @@ Total: ${local.total}`, 6e3);
         const hasMin = typeof minStr === "string" && minStr.length > 0;
         const hasMax = typeof maxStr === "string" && maxStr.length > 0;
         const min = hasMin ? Number.parseFloat(minStr) : void 0;
-        const max = hasMax ? Number.parseFloat(maxStr) : void 0;
-        const visible = (!hasMin || Number.isFinite(min) && s >= min) && (!hasMax || Number.isFinite(max) && s <= max);
+        const max2 = hasMax ? Number.parseFloat(maxStr) : void 0;
+        const visible = (!hasMin || Number.isFinite(min) && s >= min) && (!hasMax || Number.isFinite(max2) && s <= max2);
         if (visible) el.classList.remove("zm-hidden");
         else el.classList.add("zm-hidden");
       });
@@ -14398,8 +12019,8 @@ Total: ${local.total}`, 6e3);
     updateContainer(this.hudMarkersEl);
   }
   getBasesNormalized() {
-    var _a, _b, _c;
-    const raw = (_b = (_a = this.data) == null ? void 0 : _a.bases) != null ? _b : [];
+    var _a2, _b2, _c;
+    const raw = (_b2 = (_a2 = this.data) == null ? void 0 : _a2.bases) != null ? _b2 : [];
     const out = [];
     for (const it of raw) {
       if (typeof it === "string") out.push({ path: it });
@@ -14513,7 +12134,7 @@ Total: ${local.total}`, 6e3);
     }
   }
   placePresetAt(p, nx, ny, overrideLayerId) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (!this.data) return;
     let layerId = this.data.layers[0].id;
     if (overrideLayerId) {
@@ -14534,8 +12155,8 @@ Total: ${local.total}`, 6e3);
       x: nx,
       y: ny,
       layer: layerId,
-      link: (_a = p.linkTemplate) != null ? _a : "",
-      iconKey: (_b = p.iconKey) != null ? _b : this.plugin.settings.defaultIconKey,
+      link: (_a2 = p.linkTemplate) != null ? _a2 : "",
+      iconKey: (_b2 = p.iconKey) != null ? _b2 : this.plugin.settings.defaultIconKey,
       tooltip: (_c = p.tooltip) != null ? _c : "",
       scaleLikeSticker: this.plugin.settings.defaultScaleLikeSticker ? true : void 0
     };
@@ -14558,7 +12179,7 @@ Total: ${local.total}`, 6e3);
     }
   }
   placeStickerPresetAt(p, nx, ny) {
-    var _a;
+    var _a2;
     if (!this.data) return;
     let layerId = this.getPreferredNewMarkerLayerId();
     if (p.layerName) {
@@ -14577,7 +12198,7 @@ Total: ${local.total}`, 6e3);
       y: ny,
       layer: layerId,
       stickerPath: p.imagePath,
-      stickerSize: Math.max(1, Math.round((_a = p.size) != null ? _a : 64))
+      stickerSize: Math.max(1, Math.round((_a2 = p.size) != null ? _a2 : 64))
     };
     if (p.openEditor) {
       const modal = new MarkerEditorModal(this.app, this.plugin, this.data, draft, (res) => {
@@ -14598,7 +12219,7 @@ Total: ${local.total}`, 6e3);
     }
   }
   deleteMarker(m) {
-    var _a;
+    var _a2;
     if (!this.data) return;
     const index = this.data.markers.findIndex((mm) => mm.id === m.id);
     if (index < 0) return;
@@ -14608,7 +12229,7 @@ Total: ${local.total}`, 6e3);
         marker: cloneForUndo(m),
         index
       },
-      `Delete ${(_a = m.type) != null ? _a : "marker"}`
+      `Delete ${(_a2 = m.type) != null ? _a2 : "marker"}`
     );
     void this.deletePingNoteIfOwned(m);
     this.data.markers.splice(index, 1);
@@ -14622,10 +12243,10 @@ Total: ${local.total}`, 6e3);
     return (s != null ? s : "").replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim();
   }
   findCustomUnitDef(id) {
-    var _a, _b;
-    const packs = (_a = this.plugin.settings.travelRulesPacks) != null ? _a : [];
+    var _a2, _b2;
+    const packs = (_a2 = this.plugin.settings.travelRulesPacks) != null ? _a2 : [];
     for (const p of packs) {
-      const found = ((_b = p.customUnits) != null ? _b : []).find((u) => u.id === id);
+      const found = ((_b2 = p.customUnits) != null ? _b2 : []).find((u) => u.id === id);
       if (found) return found;
     }
     return void 0;
@@ -14682,7 +12303,7 @@ Total: ${local.total}`, 6e3);
     return (tag != null ? tag : "").trim().replace(/^#/, "").toLowerCase();
   }
   collectTagsForFile(file) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     const out = /* @__PURE__ */ new Map();
     const add = (raw) => {
       const t = (raw != null ? raw : "").trim();
@@ -14693,31 +12314,31 @@ Total: ${local.total}`, 6e3);
       if (!out.has(norm)) out.set(norm, withHash);
     };
     const cache = this.app.metadataCache.getFileCache(file);
-    for (const tc of (_a = cache == null ? void 0 : cache.tags) != null ? _a : []) add(tc.tag);
-    const fm = (_b = cache == null ? void 0 : cache.frontmatter) != null ? _b : {};
+    for (const tc of (_a2 = cache == null ? void 0 : cache.tags) != null ? _a2 : []) add(tc.tag);
+    const fm = (_b2 = cache == null ? void 0 : cache.frontmatter) != null ? _b2 : {};
     const fmTags = (_c = fm["tags"]) != null ? _c : fm["tag"];
     if (typeof fmTags === "string") {
       fmTags.split(/[, ]+/).map((s) => s.trim()).filter(Boolean).forEach(add);
     } else if (Array.isArray(fmTags)) {
-      for (const x of fmTags) if (typeof x === "string") add(x);
+      for (const x2 of fmTags) if (typeof x2 === "string") add(x2);
     }
     return out;
   }
   fileMatchesPartyFilters(file, preset) {
-    var _a, _b, _c, _d;
+    var _a2, _b2, _c, _d;
     if (!preset) return true;
-    const wantTagNorms = ((_a = preset.filterTags) != null ? _a : []).map((t) => this.normalizeTagForIndex(t)).filter(Boolean);
+    const wantTagNorms = ((_a2 = preset.filterTags) != null ? _a2 : []).map((t) => this.normalizeTagForIndex(t)).filter(Boolean);
     if (wantTagNorms.length) {
       const tags = this.collectTagsForFile(file);
       const hasAny = wantTagNorms.some((t) => tags.has(t));
       if (!hasAny) return false;
     }
-    const props = (_b = preset.filterProps) != null ? _b : {};
+    const props = (_b2 = preset.filterProps) != null ? _b2 : {};
     if (props && Object.keys(props).length) {
       const fm = (_d = (_c = this.app.metadataCache.getFileCache(file)) == null ? void 0 : _c.frontmatter) != null ? _d : {};
-      const matchScalar = (x, want) => {
-        if (typeof x === "string") return x.trim() === want;
-        if (typeof x === "number" || typeof x === "boolean") return String(x).trim() === want;
+      const matchScalar = (x2, want) => {
+        if (typeof x2 === "string") return x2.trim() === want;
+        if (typeof x2 === "number" || typeof x2 === "boolean") return String(x2).trim() === want;
         return false;
       };
       const clauses = Object.entries(props).flatMap(([kRaw, vRaw]) => {
@@ -14731,8 +12352,8 @@ Total: ${local.total}`, 6e3);
         const matchesAny = clauses.some(({ key, wants }) => {
           const have = fm[key];
           if (have == null) return false;
-          const matchesWants = (x) => wants.some((w) => matchScalar(x, w));
-          if (Array.isArray(have)) return have.some((x) => matchesWants(x));
+          const matchesWants = (x2) => wants.some((w) => matchScalar(x2, w));
+          if (Array.isArray(have)) return have.some((x2) => matchesWants(x2));
           return matchesWants(have);
         });
         if (!matchesAny) return false;
@@ -14741,19 +12362,19 @@ Total: ${local.total}`, 6e3);
     return true;
   }
   resolvePingSearchLayerIds(ping, preset) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (!this.data) return null;
-    const mode = (_a = preset == null ? void 0 : preset.searchLayersMode) != null ? _a : "all";
+    const mode = (_a2 = preset == null ? void 0 : preset.searchLayersMode) != null ? _a2 : "all";
     if (mode === "self") {
       return /* @__PURE__ */ new Set([ping.layer]);
     }
     if (mode === "custom") {
-      const names = ((_b = preset == null ? void 0 : preset.searchLayerNames) != null ? _b : []).map((s) => (s != null ? s : "").trim()).filter(Boolean);
+      const names = ((_b2 = preset == null ? void 0 : preset.searchLayerNames) != null ? _b2 : []).map((s) => (s != null ? s : "").trim()).filter(Boolean);
       if (names.length === 0) return null;
       const ids = new Set(
         ((_c = this.data.layers) != null ? _c : []).filter((l) => {
-          var _a2;
-          return names.includes(((_a2 = l.name) != null ? _a2 : "").trim());
+          var _a3;
+          return names.includes(((_a3 = l.name) != null ? _a3 : "").trim());
         }).map((l) => l.id)
       );
       if (ids.size === 0) return null;
@@ -14765,8 +12386,8 @@ Total: ${local.total}`, 6e3);
     const index = /* @__PURE__ */ new Map();
     if (want.size === 0) return index;
     const files = this.app.vault.getFiles().filter((f) => {
-      var _a;
-      return ((_a = f.extension) == null ? void 0 : _a.toLowerCase()) === "md";
+      var _a2;
+      return ((_a2 = f.extension) == null ? void 0 : _a2.toLowerCase()) === "md";
     });
     for (const f of files) {
       const tags = this.collectTagsForFile(f);
@@ -14815,8 +12436,8 @@ Total: ${local.total}`, 6e3);
   buildTagIndex() {
     const index = /* @__PURE__ */ new Map();
     const files = this.app.vault.getFiles().filter((f) => {
-      var _a;
-      return ((_a = f.extension) == null ? void 0 : _a.toLowerCase()) === "md";
+      var _a2;
+      return ((_a2 = f.extension) == null ? void 0 : _a2.toLowerCase()) === "md";
     });
     for (const f of files) {
       const tags = this.collectTagsForFile(f);
@@ -14848,9 +12469,9 @@ Total: ${local.total}`, 6e3);
     const lines = text.split("\n");
     const open = "```" + lang;
     let start = -1;
-    for (let i = 0; i < lines.length; i += 1) {
-      if (lines[i].trimStart().startsWith(open)) {
-        start = i;
+    for (let i2 = 0; i2 < lines.length; i2 += 1) {
+      if (lines[i2].trimStart().startsWith(open)) {
+        start = i2;
         break;
       }
     }
@@ -14875,10 +12496,10 @@ Total: ${local.total}`, 6e3);
     }
   }
   buildPingNoteText(prevText, opts) {
-    var _a, _b;
+    var _a2, _b2;
     const { frontmatter, rest } = this.splitFrontmatterBlock(prevText);
-    const title = ((_a = this.extractFirstMarkdownHeading(rest)) != null ? _a : opts.defaultTitle).trimEnd();
-    const baseBlock = opts.includeBases ? (_b = this.extractFirstCodeFenceBlock(rest, "base")) != null ? _b : `\`\`\`base
+    const title = ((_a2 = this.extractFirstMarkdownHeading(rest)) != null ? _a2 : opts.defaultTitle).trimEnd();
+    const baseBlock = opts.includeBases ? (_b2 = this.extractFirstCodeFenceBlock(rest, "base")) != null ? _b2 : `\`\`\`base
 ${opts.baseYamlFallback.trimEnd()}
 \`\`\`` : "";
     const relatedSection = opts.includeRelated ? `${PING_RELATED_BEGIN}
@@ -14917,9 +12538,9 @@ ${after}`;
     });
   }
   schedulePingUpdate(delayMs = 900) {
-    var _a;
+    var _a2;
     if (!this.data) return;
-    if (!((_a = this.data.markers) == null ? void 0 : _a.some((m) => m.type === "ping"))) return;
+    if (!((_a2 = this.data.markers) == null ? void 0 : _a2.some((m) => m.type === "ping"))) return;
     if (this.pingUpdateTimer !== null) window.clearTimeout(this.pingUpdateTimer);
     this.pingUpdateTimer = window.setTimeout(() => {
       this.pingUpdateTimer = null;
@@ -14938,18 +12559,18 @@ ${after}`;
     }
   }
   buildPingBaseYaml(preset, unitLabel) {
-    var _a, _b;
+    var _a2, _b2;
     const andFilters = [
       "list(this.zoommapPingInRangePaths).contains(file.path)",
       'file.ext == "md"'
     ];
-    const tags = ((_a = preset.filterTags) != null ? _a : []).map((t) => (t != null ? t : "").trim()).filter(Boolean);
+    const tags = ((_a2 = preset.filterTags) != null ? _a2 : []).map((t) => (t != null ? t : "").trim()).filter(Boolean);
     if (tags.length) {
       andFilters.push({
         or: tags.map((t) => `file.hasTag("${t.replace(/^#/, "")}")`)
       });
     }
-    const props = (_b = preset.filterProps) != null ? _b : {};
+    const props = (_b2 = preset.filterProps) != null ? _b2 : {};
     const propClauses = [];
     for (const [kRaw, vRaw] of Object.entries(props)) {
       const k = (kRaw != null ? kRaw : "").trim();
@@ -14981,10 +12602,10 @@ ${after}`;
     return (0, import_obsidian21.stringifyYaml)(baseObj).trimEnd();
   }
   buildPingTravelTimesTable(fromPath, inRangeFiles, metersByPath) {
-    var _a;
+    var _a2;
     const presets = this.plugin.getActiveTravelTimePresets();
     if (!presets.length) return "*(none)*";
-    const locs = inRangeFiles.map((x) => ({ file: x.file, meters: metersByPath[x.file.path] })).filter((x) => typeof x.meters === "number" && Number.isFinite(x.meters) && x.meters >= 0);
+    const locs = inRangeFiles.map((x2) => ({ file: x2.file, meters: metersByPath[x2.file.path] })).filter((x2) => typeof x2.meters === "number" && Number.isFinite(x2.meters) && x2.meters >= 0);
     if (!locs.length) return "*(no calibrated scale)*";
     const header = ["Mode", ...locs.map((l) => this.formatWikiLink(l.file, fromPath))];
     const rows = [];
@@ -14993,7 +12614,7 @@ ${after}`;
     for (const p of presets) {
       const refMeters = this.travelDistanceToMeters(p.distanceValue, p.distanceUnit, p.distanceCustomUnitId);
       const name = p.name || p.id;
-      const unit = ((_a = p.timeUnit) != null ? _a : "").trim() || "h";
+      const unit = ((_a2 = p.timeUnit) != null ? _a2 : "").trim() || "h";
       const cells = [name];
       for (const loc of locs) {
         if (!refMeters || !Number.isFinite(refMeters) || refMeters <= 0) {
@@ -15008,9 +12629,9 @@ ${after}`;
     return rows.join("\n").trimEnd();
   }
   async addPingPinAt(preset, nx, ny, distanceValue) {
-    var _a, _b, _c, _d, _e;
+    var _a2, _b2, _c, _d, _e;
     if (!this.data) return;
-    const unit = (_a = preset.unit) != null ? _a : "km";
+    const unit = (_a2 = preset.unit) != null ? _a2 : "km";
     const customUnitId = preset.customUnitId;
     if (unit === "custom" && (!customUnitId || !customUnitId.trim())) {
       new import_obsidian21.Notice("Party preset uses a custom unit but no customunitid is set.", 4e3);
@@ -15031,7 +12652,7 @@ ${after}`;
         layerId = id;
       }
     }
-    const iconKey = (_b = preset.iconKey) != null ? _b : this.plugin.settings.defaultIconKey;
+    const iconKey = (_b2 = preset.iconKey) != null ? _b2 : this.plugin.settings.defaultIconKey;
     const distanceLabel = this.formatPingDistanceLabel(distanceValue, unit, customUnitId);
     const marker = {
       id: generateId("ping"),
@@ -15051,10 +12672,10 @@ ${after}`;
     const baseName = this.sanitizeFileName(`Party - ${preset.name || "Party"} - ${distanceLabel} - ${marker.id}`);
     let outPath = (0, import_obsidian21.normalizePath)(`${folder}/${baseName}.md`);
     await this.ensureFolderForPath(outPath);
-    let i = 1;
+    let i2 = 1;
     while (this.app.vault.getAbstractFileByPath(outPath)) {
-      outPath = (0, import_obsidian21.normalizePath)(`${folder}/${baseName}-${i}.md`);
-      i++;
+      outPath = (0, import_obsidian21.normalizePath)(`${folder}/${baseName}-${i2}.md`);
+      i2++;
     }
     const unitLabel = this.pingUnitLabel(unit, customUnitId);
     const baseYaml = this.buildPingBaseYaml(preset, unitLabel);
@@ -15110,14 +12731,14 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     new import_obsidian21.Notice("Party pin created.", 1200);
   }
   async updatePingNoteForMarker(ping) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i;
     if (!this.data) return;
     if (ping.type !== "ping") return;
     const preset = ping.pingPresetId ? this.findPingPresetById(ping.pingPresetId) : void 0;
     const af = await this.ensurePingNoteFileForMarker(ping, preset);
     if (!(af instanceof import_obsidian21.TFile)) return;
-    const radius = (_a = ping.pingRadius) != null ? _a : 0;
-    const unit = (_b = ping.pingRadiusUnit) != null ? _b : "km";
+    const radius = (_a2 = ping.pingRadius) != null ? _a2 : 0;
+    const unit = (_b2 = ping.pingRadiusUnit) != null ? _b2 : "km";
     const customUnitId = ping.pingRadiusCustomUnitId;
     const radiusPx = this.pingToPixels(radius, unit, customUnitId);
     if (radiusPx == null) return;
@@ -15163,7 +12784,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     );
     let fmChanged = false;
     await this.app.fileManager.processFrontMatter(af, (fm) => {
-      var _a2, _b2;
+      var _a3, _b3;
       const set = (key, value) => {
         const cur = fm[key];
         if (!stableEqual(cur, value)) {
@@ -15179,7 +12800,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       };
       set("zoommapPing", true);
       set("zoommapPingId", ping.id);
-      set("zoommapPingMapId", (_a2 = this.cfg.mapId) != null ? _a2 : "");
+      set("zoommapPingMapId", (_a3 = this.cfg.mapId) != null ? _a3 : "");
       set("zoommapPingSourcePath", this.cfg.sourcePath);
       set("zoommapPingSourceFileName", basename(this.cfg.sourcePath));
       set("zoommapPingBase", this.getActiveBasePath());
@@ -15187,7 +12808,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       set("zoommapPingUnit", unit);
       if (unit === "custom") set("zoommapPingCustomUnitId", customUnitId);
       else del("zoommapPingCustomUnitId");
-      set("zoommapPingPresetId", (_b2 = ping.pingPresetId) != null ? _b2 : "");
+      set("zoommapPingPresetId", (_b3 = ping.pingPresetId) != null ? _b3 : "");
       set("zoommapPingInRangePaths", listSorted);
       set("zoommapPingDistances", distancesSorted);
       if (fmChanged) {
@@ -15204,9 +12825,9 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     const includeRelated = sections.related !== false;
     const includeTravel = sections.travelTimes !== false;
     let relatedBody = "";
-    const inRangeFiles = listSorted.map((p) => this.app.vault.getAbstractFileByPath(p)).filter((x) => x instanceof import_obsidian21.TFile).map((file) => {
-      var _a2;
-      return { file, dist: (_a2 = distances[file.path]) != null ? _a2 : 0 };
+    const inRangeFiles = listSorted.map((p) => this.app.vault.getAbstractFileByPath(p)).filter((x2) => x2 instanceof import_obsidian21.TFile).map((file) => {
+      var _a3;
+      return { file, dist: (_a3 = distances[file.path]) != null ? _a3 : 0 };
     }).filter(({ file }) => this.fileMatchesPartyFilters(file, preset)).sort((a, b) => a.dist - b.dist || a.file.path.localeCompare(b.file.path));
     try {
       if (!includeRelated) {
@@ -15225,7 +12846,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
             lines.push(`| ${pinLabel} | Backlinks |`);
             lines.push("| --- | --- |");
             const sourcePaths = this.getBacklinkSourcePaths(c.file);
-            const sources = sourcePaths.map((p) => this.app.vault.getAbstractFileByPath(p)).filter((x) => x instanceof import_obsidian21.TFile).filter((f) => f.path !== c.file.path && f.path !== af.path).sort((a, b) => a.basename.localeCompare(b.basename, void 0, { sensitivity: "base" }));
+            const sources = sourcePaths.map((p) => this.app.vault.getAbstractFileByPath(p)).filter((x2) => x2 instanceof import_obsidian21.TFile).filter((f) => f.path !== c.file.path && f.path !== af.path).sort((a, b) => a.basename.localeCompare(b.basename, void 0, { sensitivity: "base" }));
             const slice = sources.slice(0, maxPerNote);
             const rest = sources.length - slice.length;
             const links = slice.map((f) => this.formatWikiLink(f, af.path));
@@ -15243,9 +12864,9 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
           const tags = this.collectTagsForFile(file);
           for (const ex of excludeTagNorms) tags.delete(ex);
           const norms = [...tags.keys()].sort((aa, bb) => {
-            var _a2, _b2;
-            const aTag = (_a2 = tags.get(aa)) != null ? _a2 : aa;
-            const bTag = (_b2 = tags.get(bb)) != null ? _b2 : bb;
+            var _a3, _b3;
+            const aTag = (_a3 = tags.get(aa)) != null ? _a3 : aa;
+            const bTag = (_b3 = tags.get(bb)) != null ? _b3 : bb;
             return aTag.localeCompare(bTag, void 0, { sensitivity: "base" });
           });
           return { file, dist, tags, norms };
@@ -15310,13 +12931,13 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     await this.refreshOpenMarkdownViewsForPaths([this.cfg.sourcePath]);
   }
   async deletePingNoteIfOwned(m) {
-    var _a, _b;
+    var _a2, _b2;
     if (m.type !== "ping") return;
-    const p = ((_a = m.pingNotePath) != null ? _a : "").trim();
+    const p = ((_a2 = m.pingNotePath) != null ? _a2 : "").trim();
     if (!p) return;
     const af = this.app.vault.getAbstractFileByPath(p);
     if (!(af instanceof import_obsidian21.TFile)) return;
-    const fm = (_b = this.app.metadataCache.getFileCache(af)) == null ? void 0 : _b.frontmatter;
+    const fm = (_b2 = this.app.metadataCache.getFileCache(af)) == null ? void 0 : _b2.frontmatter;
     const owner = fm == null ? void 0 : fm.zoommapPingId;
     if (owner !== m.id) return;
     try {
@@ -15326,16 +12947,16 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     }
   }
   openPinSizeEditor(focusIconKey) {
-    var _a, _b, _c, _d, _e;
+    var _a2, _b2, _c, _d, _e;
     if (!this.data) return;
     const usedKeys = /* @__PURE__ */ new Set();
     for (const m of this.data.markers) {
       if (m.type === "sticker") continue;
       if (m.type === "swap" && m.swapKey) {
         const preset = this.findSwapPresetById(m.swapKey);
-        if ((_a = preset == null ? void 0 : preset.frames) == null ? void 0 : _a.length) {
+        if ((_a2 = preset == null ? void 0 : preset.frames) == null ? void 0 : _a2.length) {
           for (const fr of preset.frames) {
-            const k = ((_b = fr == null ? void 0 : fr.iconKey) != null ? _b : "").trim();
+            const k = ((_b2 = fr == null ? void 0 : fr.iconKey) != null ? _b2 : "").trim();
             if (k) usedKeys.add(k);
           }
         }
@@ -15351,7 +12972,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     }
     const rows = [];
     for (const key of usedKeys) {
-      const profile = (_d = this.plugin.settings.icons.find((i) => i.key === key)) != null ? _d : this.plugin.builtinIcon();
+      const profile = (_d = this.plugin.settings.icons.find((i2) => i2.key === key)) != null ? _d : this.plugin.builtinIcon();
       const baseSize = profile.size;
       const override = (_e = this.data.pinSizeOverrides) == null ? void 0 : _e[key];
       const imgUrl = this.resolveResourceUrl(profile.pathOrDataUrl);
@@ -15411,7 +13032,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     return d.kind === "polygon" || d.kind === "rect" || d.kind === "circle";
   }
   showDrawingTooltip(clientX, clientY, body, title) {
-    var _a, _b;
+    var _a2, _b2;
     const text = (body != null ? body : "").trim();
     const head = (title != null ? title : "").trim();
     if (!text && !head) return;
@@ -15420,8 +13041,8 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       this.tooltipEl.addEventListener("mouseenter", () => this.cancelHideTooltip());
       this.tooltipEl.addEventListener("mouseleave", () => this.hideTooltipSoon());
     }
-    this.tooltipEl.style.maxWidth = `${(_a = this.plugin.settings.hoverMaxWidth) != null ? _a : 360}px`;
-    this.tooltipEl.style.maxHeight = `${(_b = this.plugin.settings.hoverMaxHeight) != null ? _b : 260}px`;
+    this.tooltipEl.style.maxWidth = `${(_a2 = this.plugin.settings.hoverMaxWidth) != null ? _a2 : 360}px`;
+    this.tooltipEl.style.maxHeight = `${(_b2 = this.plugin.settings.hoverMaxHeight) != null ? _b2 : 260}px`;
     this.cancelHideTooltip();
     this.tooltipEl.empty();
     if (head) this.tooltipEl.createEl("div", { cls: "zm-tooltip__title", text: head });
@@ -15430,16 +13051,16 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     this.tooltipEl.classList.add("zm-tooltip-visible");
   }
   onDrawingRegionEnter(ev, d) {
-    var _a, _b;
+    var _a2, _b2;
     if (this.measuring || this.calibrating) return;
-    const tooltip = ((_b = (_a = d.style) == null ? void 0 : _a.regionTooltip) != null ? _b : "").trim();
+    const tooltip = ((_b2 = (_a2 = d.style) == null ? void 0 : _a2.regionTooltip) != null ? _b2 : "").trim();
     if (!tooltip) return;
     this.showDrawingTooltip(ev.clientX, ev.clientY, tooltip);
   }
   triggerDrawingRegionHoverPopover(ev, d, targetEl) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (this.measuring || this.calibrating) return;
-    const link = ((_b = (_a = d.style) == null ? void 0 : _a.regionLink) != null ? _b : "").trim();
+    const link = ((_b2 = (_a2 = d.style) == null ? void 0 : _a2.regionLink) != null ? _b2 : "").trim();
     if (!link) return;
     if (((_c = d.style) == null ? void 0 : _c.regionHoverPreview) === false) return;
     const forcePopover = this.plugin.settings.forcePopoverWithoutModKey === true;
@@ -15485,8 +13106,8 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     return this.drawingHoverAnchorEl;
   }
   openDrawingRegionLink(d, opts) {
-    var _a, _b;
-    const link = ((_b = (_a = d.style) == null ? void 0 : _a.regionLink) != null ? _b : "").trim();
+    var _a2, _b2;
+    const link = ((_b2 = (_a2 = d.style) == null ? void 0 : _a2.regionLink) != null ? _b2 : "").trim();
     if (!link) return;
     if (opts == null ? void 0 : opts.newTab) {
       this.openLinkInNewTab(link);
@@ -15495,7 +13116,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     void this.app.workspace.openLinkText(link, this.cfg.sourcePath);
   }
   renderDrawings() {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i;
     if (!this.drawSvg || !this.drawStaticLayer || !this.drawDefs) return;
     this.drawSvg.setAttribute("width", String(this.imgW));
     this.drawSvg.setAttribute("height", String(this.imgH));
@@ -15505,12 +13126,12 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     while (this.drawDefs.firstChild) {
       this.drawDefs.removeChild(this.drawDefs.firstChild);
     }
-    (_a = this.drawHitboxesEl) == null ? void 0 : _a.empty();
+    (_a2 = this.drawHitboxesEl) == null ? void 0 : _a2.empty();
     if (!this.data || !Array.isArray(this.data.drawings) || this.data.drawings.length === 0) {
       return;
     }
     const visibleDrawLayers = new Set(
-      ((_b = this.data.drawLayers) != null ? _b : []).filter((l) => l.visible).map((l) => l.id)
+      ((_b2 = this.data.drawLayers) != null ? _b2 : []).filter((l) => l.visible).map((l) => l.id)
     );
     const toAbs = (nx, ny) => ({
       x: nx * this.imgW,
@@ -15550,16 +13171,16 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
         const { x0, y0, x1, y1 } = d.rect;
         const a = toAbs(x0, y0);
         const b = toAbs(x1, y1);
-        const x = Math.min(a.x, b.x);
+        const x2 = Math.min(a.x, b.x);
         const y = Math.min(a.y, b.y);
         const w = Math.abs(a.x - b.x);
         const h = Math.abs(a.y - b.y);
-        minX = x;
+        minX = x2;
         minY = y;
         width = w;
         height = h;
         const rEl = doc.createElementNS(ns, "rect");
-        rEl.setAttribute("x", String(x));
+        rEl.setAttribute("x", String(x2));
         rEl.setAttribute("y", String(y));
         rEl.setAttribute("width", String(w));
         rEl.setAttribute("height", String(h));
@@ -15596,30 +13217,30 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
         let maxPx = -Infinity;
         let maxPy = -Infinity;
         const absPts = d.polyline.map((p) => toAbs(p.x, p.y));
-        for (let i = 0; i < absPts.length; i += 1) {
-          const a = absPts[i];
-          dAttr += i === 0 ? `M ${a.x} ${a.y}` : ` L ${a.x} ${a.y}`;
+        for (let i2 = 0; i2 < absPts.length; i2 += 1) {
+          const a = absPts[i2];
+          dAttr += i2 === 0 ? `M ${a.x} ${a.y}` : ` L ${a.x} ${a.y}`;
           minPx = Math.min(minPx, a.x);
           maxPx = Math.max(maxPx, a.x);
           minPy = Math.min(minPy, a.y);
           maxPy = Math.max(maxPy, a.y);
         }
-        for (let i = 1; i < absPts.length; i += 1) {
-          polylineLenPx += Math.hypot(absPts[i].x - absPts[i - 1].x, absPts[i].y - absPts[i - 1].y);
+        for (let i2 = 1; i2 < absPts.length; i2 += 1) {
+          polylineLenPx += Math.hypot(absPts[i2].x - absPts[i2 - 1].x, absPts[i2].y - absPts[i2 - 1].y);
         }
         if (polylineLenPx > 0) {
           const target = polylineLenPx / 2;
           let acc = 0;
-          for (let i = 1; i < absPts.length; i += 1) {
-            const p0 = absPts[i - 1];
-            const p1 = absPts[i];
+          for (let i2 = 1; i2 < absPts.length; i2 += 1) {
+            const p0 = absPts[i2 - 1];
+            const p1 = absPts[i2];
             const seg = Math.hypot(p1.x - p0.x, p1.y - p0.y);
             if (acc + seg >= target && seg > 0) {
               const t = (target - acc) / seg;
-              const x = p0.x + (p1.x - p0.x) * t;
+              const x2 = p0.x + (p1.x - p0.x) * t;
               const y = p0.y + (p1.y - p0.y) * t;
               const angleDeg = Math.atan2(p1.y - p0.y, p1.x - p0.x) * 180 / Math.PI;
-              polylineMid = { x, y, angleDeg };
+              polylineMid = { x: x2, y, angleDeg };
               break;
             }
             acc += seg;
@@ -15786,12 +13407,12 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
           this.onDrawingRegionEnter(ev, d);
         });
         hit.addEventListener("mousemove", (ev) => {
-          var _a2, _b2, _c2;
+          var _a3, _b3, _c2;
           const forcePopover = this.plugin.settings.forcePopoverWithoutModKey === true;
           if (!forcePopover && (ev.ctrlKey || ev.metaKey)) {
             this.triggerDrawingRegionHoverPopover(ev, d, hit);
           }
-          if (((_b2 = (_a2 = d.style) == null ? void 0 : _a2.regionTooltip) != null ? _b2 : "").trim() && ((_c2 = this.tooltipEl) == null ? void 0 : _c2.classList.contains("zm-tooltip-visible"))) {
+          if (((_b3 = (_a3 = d.style) == null ? void 0 : _a3.regionTooltip) != null ? _b3 : "").trim() && ((_c2 = this.tooltipEl) == null ? void 0 : _c2.classList.contains("zm-tooltip-visible"))) {
             this.positionTooltip(ev.clientX, ev.clientY);
           }
         });
@@ -15826,17 +13447,17 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     this.renderDrawingEditHandles();
   }
   formatPolylineDistance(px) {
-    var _a, _b, _c;
-    const unit = (_c = (_b = (_a = this.data) == null ? void 0 : _a.measurement) == null ? void 0 : _b.displayUnit) != null ? _c : "auto-metric";
+    var _a2, _b2, _c;
+    const unit = (_c = (_b2 = (_a2 = this.data) == null ? void 0 : _a2.measurement) == null ? void 0 : _b2.displayUnit) != null ? _c : "auto-metric";
     if (unit === "custom") return this.formatCustomDistanceFromPixels(px);
     const mpp = this.getMetersPerPixel();
     if (!mpp) return null;
     return this.formatDistance(px * mpp);
   }
   buildPatternSvgMarkup(d, box) {
-    var _a, _b, _c;
-    const style = (_a = d.style) != null ? _a : {};
-    const patternKind = (_b = style.fillPattern) != null ? _b : style.fillColor ? "solid" : "none";
+    var _a2, _b2, _c;
+    const style = (_a2 = d.style) != null ? _a2 : {};
+    const patternKind = (_b2 = style.fillPattern) != null ? _b2 : style.fillColor ? "solid" : "none";
     if (patternKind === "none" || patternKind === "solid") return null;
     const { minX, minY, width, height } = box;
     const maxX = minX + width;
@@ -15855,11 +13476,11 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       const { x0, y0, x1, y1 } = d.rect;
       const a = toAbs(x0, y0);
       const b = toAbs(x1, y1);
-      const x = Math.min(a.x, b.x);
+      const x2 = Math.min(a.x, b.x);
       const y = Math.min(a.y, b.y);
       const w = Math.abs(a.x - b.x);
       const h = Math.abs(a.y - b.y);
-      clipBody = `<rect x="${x}" y="${y}" width="${w}" height="${h}" />`;
+      clipBody = `<rect x="${x2}" y="${y}" width="${w}" height="${h}" />`;
     } else if (d.kind === "polygon" && d.polygon && d.polygon.length >= 2) {
       let pathD = "";
       d.polygon.forEach((p, idx) => {
@@ -15882,23 +13503,23 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     const centerY = minY + height / 2;
     let stripeContent = "";
     if (patternKind === "striped" || patternKind === "wavy") {
-      for (let x = minX - width; x <= maxX + width; x += spacing) {
+      for (let x2 = minX - width; x2 <= maxX + width; x2 += spacing) {
         if (patternKind === "striped") {
-          const xf = x.toFixed(2);
+          const xf = x2.toFixed(2);
           stripeContent += `<line x1="${xf}" y1="${(minY - height).toFixed(
             2
           )}" x2="${xf}" y2="${(maxY + height).toFixed(2)}" />`;
         } else {
-          const xf = x.toFixed(2);
+          const xf = x2.toFixed(2);
           const amp = height / 6;
           const segments = 8;
           let dPath = `M ${xf} ${minY.toFixed(2)}`;
-          for (let i = 1; i <= segments; i += 1) {
-            const t = i / segments;
+          for (let i2 = 1; i2 <= segments; i2 += 1) {
+            const t = i2 / segments;
             const y = minY + t * height;
             const midY = minY + (t - 0.5 / segments) * height;
-            const dir = i % 2 === 0 ? -1 : 1;
-            const ctrlX = x + dir * amp;
+            const dir = i2 % 2 === 0 ? -1 : 1;
+            const ctrlX = x2 + dir * amp;
             dPath += ` C ${ctrlX.toFixed(2)} ${midY.toFixed(
               2
             )} ${ctrlX.toFixed(2)} ${midY.toFixed(2)} ${xf} ${y.toFixed(2)}`;
@@ -15907,8 +13528,8 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
         }
       }
     } else if (patternKind === "cross") {
-      for (let x = minX - width; x <= maxX + width; x += spacing) {
-        const xf = x.toFixed(2);
+      for (let x2 = minX - width; x2 <= maxX + width; x2 += spacing) {
+        const xf = x2.toFixed(2);
         stripeContent += `<line x1="${xf}" y1="${(minY - height).toFixed(
           2
         )}" x2="${xf}" y2="${(maxY + height).toFixed(2)}" />`;
@@ -15944,7 +13565,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     return svg;
   }
   async bakePatternSvgToFile(d, box) {
-    var _a;
+    var _a2;
     const svg = this.buildPatternSvgMarkup(d, box);
     if (!svg) return;
     const vault = this.app.vault;
@@ -15952,7 +13573,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     if (!vault.getAbstractFileByPath(folder)) {
       await vault.createFolder(folder);
     }
-    const mapId = (_a = this.cfg.mapId) != null ? _a : this.cfg.sourcePath.replace(/[\\/]/g, "_").replace(/[^\w.-]/g, "_");
+    const mapId = (_a2 = this.cfg.mapId) != null ? _a2 : this.cfg.sourcePath.replace(/[\\/]/g, "_").replace(/[^\w.-]/g, "_");
     const fileName = `${mapId}-${d.id}.svg`;
     const fullPath = `${folder}/${fileName}`;
     const existing = vault.getAbstractFileByPath(fullPath);
@@ -15970,9 +13591,9 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     }
   }
   async deleteDrawing(d) {
-    var _a, _b;
+    var _a2, _b2;
     if (!this.data) return;
-    const index = ((_a = this.data.drawings) != null ? _a : []).findIndex((x) => x.id === d.id);
+    const index = ((_a2 = this.data.drawings) != null ? _a2 : []).findIndex((x2) => x2.id === d.id);
     if (index < 0) return;
     this.pushDeleteUndo(
       {
@@ -15995,12 +13616,12 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       if (af instanceof import_obsidian21.TFile) {
         try {
           await this.app.fileManager.trashFile(af, true);
-        } catch (err) {
-          console.error("Zoom Map: failed to delete baked SVG", d.bakedPath, err);
+        } catch (err2) {
+          console.error("Zoom Map: failed to delete baked SVG", d.bakedPath, err2);
         }
       }
     }
-    this.data.drawings = ((_b = this.data.drawings) != null ? _b : []).filter((x) => x.id !== d.id);
+    this.data.drawings = ((_b2 = this.data.drawings) != null ? _b2 : []).filter((x2) => x2.id !== d.id);
     await this.saveDataSoon();
     this.renderDrawings();
     new import_obsidian21.Notice("Drawing deleted.", 900);
@@ -16019,21 +13640,21 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       {
         label: "Edit drawing\u2026",
         action: () => {
-          var _a;
+          var _a2;
           this.closeMenu();
           if (!this.data) return;
           const modal = new DrawingEditorModal(
             this.app,
             d,
-            (_a = this.data.drawLayers) != null ? _a : [],
+            (_a2 = this.data.drawLayers) != null ? _a2 : [],
             (res) => {
-              var _a2;
+              var _a3;
               this.stopEditDrawingGeometry(true);
               if (!this.data) return;
               if (res.action === "save" && res.drawing) {
                 const updated = res.drawing;
-                const idx = ((_a2 = this.data.drawings) != null ? _a2 : []).findIndex(
-                  (x) => x.id === d.id
+                const idx = ((_a3 = this.data.drawings) != null ? _a3 : []).findIndex(
+                  (x2) => x2.id === d.id
                 );
                 if (idx >= 0 && this.data.drawings) {
                   this.data.drawings[idx].layerId = updated.layerId;
@@ -16122,11 +13743,11 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     });
   }
   getOrCreateDefaultDrawLayer() {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (!this.data) {
       throw new Error("No marker data loaded");
     }
-    (_b = (_a = this.data).drawLayers) != null ? _b : _a.drawLayers = [];
+    (_b2 = (_a2 = this.data).drawLayers) != null ? _b2 : _a2.drawLayers = [];
     let layer = (_c = this.data.drawLayers.find((l) => l.visible)) != null ? _c : this.data.drawLayers[0];
     if (!layer) {
       layer = {
@@ -16140,7 +13761,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     return layer;
   }
   handleDrawClick(e) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (!this.drawingMode) return false;
     if (!this.data) return false;
     const vpRect = this.viewportEl.getBoundingClientRect();
@@ -16150,7 +13771,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     const wy = (vy - this.ty) / this.scale;
     const nx = clamp(wx / this.imgW, 0, 1);
     const ny = clamp(wy / this.imgH, 0, 1);
-    const layerId = (_a = this.drawingActiveLayerId) != null ? _a : this.getOrCreateDefaultDrawLayer().id;
+    const layerId = (_a2 = this.drawingActiveLayerId) != null ? _a2 : this.getOrCreateDefaultDrawLayer().id;
     if ((this.drawingMode === "polygon" || this.drawingMode === "polyline") && e.detail > 1) {
       return true;
     }
@@ -16184,12 +13805,12 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       const modal = new DrawingEditorModal(
         this.app,
         draft,
-        (_b = this.data.drawLayers) != null ? _b : [],
+        (_b2 = this.data.drawLayers) != null ? _b2 : [],
         (res) => {
-          var _a2, _b2;
+          var _a3, _b3;
           if (!this.data) return;
           if (res.action === "save" && res.drawing) {
-            (_b2 = (_a2 = this.data).drawings) != null ? _b2 : _a2.drawings = [];
+            (_b3 = (_a3 = this.data).drawings) != null ? _b3 : _a3.drawings = [];
             this.data.drawings.push(res.drawing);
             void this.saveDataSoon();
             this.renderDrawings();
@@ -16232,10 +13853,10 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
         draft,
         (_c = this.data.drawLayers) != null ? _c : [],
         (res) => {
-          var _a2, _b2;
+          var _a3, _b3;
           if (!this.data) return;
           if (res.action === "save" && res.drawing) {
-            (_b2 = (_a2 = this.data).drawings) != null ? _b2 : _a2.drawings = [];
+            (_b3 = (_a3 = this.data).drawings) != null ? _b3 : _a3.drawings = [];
             this.data.drawings.push(res.drawing);
             void this.saveDataSoon();
             this.renderDrawings();
@@ -16256,11 +13877,11 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     return false;
   }
   finishPolygonDrawing() {
-    var _a, _b;
+    var _a2, _b2;
     if (!this.drawingMode || this.drawingMode !== "polygon") return;
     if (!this.data) return;
     if (this.drawPolygonPoints.length < 2) return;
-    const layerId = (_a = this.drawingActiveLayerId) != null ? _a : this.getOrCreateDefaultDrawLayer().id;
+    const layerId = (_a2 = this.drawingActiveLayerId) != null ? _a2 : this.getOrCreateDefaultDrawLayer().id;
     const points = [...this.drawPolygonPoints];
     const draft = {
       id: generateId("draw"),
@@ -16286,12 +13907,12 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     const modal = new DrawingEditorModal(
       this.app,
       draft,
-      (_b = this.data.drawLayers) != null ? _b : [],
+      (_b2 = this.data.drawLayers) != null ? _b2 : [],
       (res) => {
-        var _a2, _b2;
+        var _a3, _b3;
         if (!this.data) return;
         if (res.action === "save" && res.drawing) {
-          (_b2 = (_a2 = this.data).drawings) != null ? _b2 : _a2.drawings = [];
+          (_b3 = (_a3 = this.data).drawings) != null ? _b3 : _a3.drawings = [];
           this.data.drawings.push(res.drawing);
           void this.saveDataSoon();
           this.renderDrawings();
@@ -16301,11 +13922,11 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     modal.open();
   }
   finishPolylineDrawing() {
-    var _a, _b;
+    var _a2, _b2;
     if (!this.drawingMode || this.drawingMode !== "polyline") return;
     if (!this.data) return;
     if (this.drawPolygonPoints.length < 2) return;
-    const layerId = (_a = this.drawingActiveLayerId) != null ? _a : this.getOrCreateDefaultDrawLayer().id;
+    const layerId = (_a2 = this.drawingActiveLayerId) != null ? _a2 : this.getOrCreateDefaultDrawLayer().id;
     const points = [...this.drawPolygonPoints];
     const draft = {
       id: generateId("draw"),
@@ -16331,12 +13952,12 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     const modal = new DrawingEditorModal(
       this.app,
       draft,
-      (_b = this.data.drawLayers) != null ? _b : [],
+      (_b2 = this.data.drawLayers) != null ? _b2 : [],
       (res) => {
-        var _a2, _b2;
+        var _a3, _b3;
         if (!this.data) return;
         if (res.action === "save" && res.drawing) {
-          (_b2 = (_a2 = this.data).drawings) != null ? _b2 : _a2.drawings = [];
+          (_b3 = (_a3 = this.data).drawings) != null ? _b3 : _a3.drawings = [];
           this.data.drawings.push(res.drawing);
           void this.saveDataSoon();
           this.renderDrawings();
@@ -16364,12 +13985,12 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       const y0 = start.y * this.imgH;
       const x1 = nx * this.imgW;
       const y1 = ny * this.imgH;
-      const x = Math.min(x0, x1);
+      const x2 = Math.min(x0, x1);
       const y = Math.min(y0, y1);
       const w = Math.abs(x0 - x1);
       const h = Math.abs(y0 - y1);
       const r = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
-      r.setAttribute("x", String(x));
+      r.setAttribute("x", String(x2));
       r.setAttribute("y", String(y));
       r.setAttribute("width", String(w));
       r.setAttribute("height", String(h));
@@ -16439,7 +14060,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     return false;
   }
   saveMeasurementAsPolyline() {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (!this.plugin.settings.enableDrawing) return;
     if (!this.data) return;
     if (this.measurePts.length < 2) {
@@ -16455,8 +14076,8 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       visible: true,
       polyline: points,
       style: {
-        strokeColor: (_a = this.plugin.settings.measureLineColor) != null ? _a : "#ff0000",
-        strokeWidth: (_b = this.plugin.settings.measureLineWidth) != null ? _b : 2,
+        strokeColor: (_a2 = this.plugin.settings.measureLineColor) != null ? _a2 : "#ff0000",
+        strokeWidth: (_b2 = this.plugin.settings.measureLineWidth) != null ? _b2 : 2,
         arrowEnd: true,
         distanceLabel: true
       }
@@ -16466,10 +14087,10 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       draft,
       (_c = this.data.drawLayers) != null ? _c : [],
       (res) => {
-        var _a2, _b2;
+        var _a3, _b3;
         if (!this.data) return;
         if (res.action === "save" && res.drawing) {
-          (_b2 = (_a2 = this.data).drawings) != null ? _b2 : _a2.drawings = [];
+          (_b3 = (_a3 = this.data).drawings) != null ? _b3 : _a3.drawings = [];
           this.data.drawings.push(res.drawing);
           void this.saveDataSoon();
           this.renderDrawings();
@@ -16523,7 +14144,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     this.renderTextLayers();
   }
   renderMarkersOnly() {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a2, _b2, _c, _d, _e, _f, _g;
     if (!this.data) return;
     const s = this.scale;
     this.markersEl.empty();
@@ -16555,7 +14176,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       let leftScreen;
       let topScreen;
       if (isHud) {
-        const hx = (_b = m.hudX) != null ? _b : ((_a = m.x) != null ? _a : 0.5) * vw;
+        const hx = (_b2 = m.hudX) != null ? _b2 : ((_a2 = m.x) != null ? _a2 : 0.5) * vw;
         const hy = (_d = m.hudY) != null ? _d : ((_c = m.y) != null ? _c : 0.5) * vh;
         leftScreen = hx;
         topScreen = hy;
@@ -16651,12 +14272,12 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       }
       if (m.type !== "sticker" && !!m.tooltipLabelAlways && typeof m.tooltip === "string" && m.tooltip.trim().length > 0) {
         const effectiveKey = (() => {
-          var _a2;
+          var _a3;
           if (m.type === "swap") {
             const fr = this.getSwapFrameForMarker(m);
             if (fr == null ? void 0 : fr.iconKey) return fr.iconKey;
           }
-          return (_a2 = m.iconKey) != null ? _a2 : this.plugin.settings.defaultIconKey;
+          return (_a3 = m.iconKey) != null ? _a3 : this.plugin.settings.defaultIconKey;
         })();
         const info = this.getIconInfo(effectiveKey, m.sizeOverride);
         const scaleLike = isScaleLikeSticker(m);
@@ -16722,7 +14343,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
           this.openMarkerLink(m, { newTab: true });
         });
         host.addEventListener("pointerdown", (e) => {
-          var _a2;
+          var _a3;
           if (this.measuring || this.calibrating) return;
           if (e.button === 1 && this.plugin.settings.middleClickOpensLinkInNewTab) {
             if (m.type === "sticker") return;
@@ -16757,7 +14378,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
           }
           host.classList.add("zm-marker--dragging");
           this.getOwnerBody().classList.add("zm-cursor-grabbing");
-          (_a2 = host.setPointerCapture) == null ? void 0 : _a2.call(host, e.pointerId);
+          (_a3 = host.setPointerCapture) == null ? void 0 : _a3.call(host, e.pointerId);
           e.preventDefault();
         });
         host.addEventListener("pointerup", () => {
@@ -16790,7 +14411,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
               {
                 label: "Edit switch pin\u2026",
                 action: () => {
-                  var _a2;
+                  var _a3;
                   this.closeMenu();
                   if (!this.data) return;
                   const bases = this.getBasesNormalized();
@@ -16801,14 +14422,14 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
                   this.openSwitchPinModal(
                     {
                       basePaths: bases,
-                      initialIconKey: ((_a2 = m.iconKey) != null ? _a2 : this.plugin.settings.defaultIconKey).trim() || this.plugin.settings.defaultIconKey,
+                      initialIconKey: ((_a3 = m.iconKey) != null ? _a3 : this.plugin.settings.defaultIconKey).trim() || this.plugin.settings.defaultIconKey,
                       initialRotate: !!m.switchRotate || !(typeof m.switchBase === "string" && m.switchBase.trim().length > 0),
                       initialSwitchBase: m.switchBase,
                       initialScaleLikeSticker: !!m.scaleLikeSticker,
                       initialHud: m.anchorSpace === "viewport"
                     },
                     (res) => {
-                      var _a3, _b2, _c2;
+                      var _a4, _b3, _c2;
                       if (!this.data) return;
                       if (res.action !== "save" || !res.value) return;
                       m.iconKey = res.value.iconKey;
@@ -16817,14 +14438,14 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
                         delete m.switchBase;
                       } else {
                         delete m.switchRotate;
-                        m.switchBase = ((_a3 = res.value.switchBase) != null ? _a3 : "").trim() || void 0;
+                        m.switchBase = ((_a4 = res.value.switchBase) != null ? _a4 : "").trim() || void 0;
                       }
                       if (res.value.scaleLikeSticker) m.scaleLikeSticker = true;
                       else delete m.scaleLikeSticker;
                       if (res.value.placeAsHudPin) {
                         if (m.anchorSpace !== "viewport") {
                           m.anchorSpace = "viewport";
-                          m.hudX = (_b2 = m.hudX) != null ? _b2 : 0;
+                          m.hudX = (_b3 = m.hudX) != null ? _b3 : 0;
                           m.hudY = (_c2 = m.hudY) != null ? _c2 : 0;
                           this.classifyHudMetaFromCurrentPosition(m, this.viewportEl.getBoundingClientRect());
                         }
@@ -16867,21 +14488,21 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
               {
                 label: "Edit dice pin\u2026",
                 action: () => {
-                  var _a2, _b2;
+                  var _a3, _b3;
                   this.closeMenu();
                   if (!this.data) return;
                   new DicePinModal(
                     this.app,
                     this.plugin,
                     {
-                      iconKey: ((_a2 = m.iconKey) != null ? _a2 : this.plugin.settings.defaultIconKey).trim(),
-                      rolls: (_b2 = m.diceRolls) != null ? _b2 : [{ count: 1, sides: 20 }],
+                      iconKey: ((_a3 = m.iconKey) != null ? _a3 : this.plugin.settings.defaultIconKey).trim(),
+                      rolls: (_b3 = m.diceRolls) != null ? _b3 : [{ count: 1, sides: 20 }],
                       scaleLikeSticker: !!m.scaleLikeSticker,
                       placeAsHudPin: m.anchorSpace === "viewport",
                       render3d: !!m.diceRender3d
                     },
                     (res) => {
-                      var _a3, _b3, _c2;
+                      var _a4, _b4, _c2;
                       if (!this.data) return;
                       if (res.action !== "save") return;
                       m.type = "dice";
@@ -16901,8 +14522,8 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
                         m.hudY = pos.y;
                         this.classifyHudMetaFromCurrentPosition(m, vpRect2);
                       } else if (!wantHud && isHud2) {
-                        const hx = typeof m.hudX === "number" ? m.hudX : ((_a3 = m.x) != null ? _a3 : 0.5) * (vpRect2.width || 1);
-                        const hy = typeof m.hudY === "number" ? m.hudY : ((_b3 = m.y) != null ? _b3 : 0.5) * (vpRect2.height || 1);
+                        const hx = typeof m.hudX === "number" ? m.hudX : ((_a4 = m.x) != null ? _a4 : 0.5) * (vpRect2.width || 1);
+                        const hy = typeof m.hudY === "number" ? m.hudY : ((_b4 = m.y) != null ? _b4 : 0.5) * (vpRect2.height || 1);
                         const world = this.viewportPxToWorldNorm(hx, hy);
                         m.x = world.x;
                         m.y = world.y;
@@ -17002,10 +14623,10 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
               {
                 label: "Pin sizes for this map\u2026",
                 action: () => {
-                  var _a2, _b2;
+                  var _a3, _b3;
                   this.closeMenu();
                   const fr = this.getSwapFrameForMarker(m);
-                  const key = ((_b2 = (_a2 = fr == null ? void 0 : fr.iconKey) != null ? _a2 : m.iconKey) != null ? _b2 : this.plugin.settings.defaultIconKey).trim();
+                  const key = ((_b3 = (_a3 = fr == null ? void 0 : fr.iconKey) != null ? _a3 : m.iconKey) != null ? _b3 : this.plugin.settings.defaultIconKey).trim();
                   this.openPinSizeEditor(key);
                 }
               },
@@ -17104,8 +14725,8 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
             items.push({
               label: "Pin sizes for this map\u2026",
               action: () => {
-                var _a2;
-                const key = (_a2 = m.iconKey) != null ? _a2 : this.plugin.settings.defaultIconKey;
+                var _a3;
+                const key = (_a3 = m.iconKey) != null ? _a3 : this.plugin.settings.defaultIconKey;
                 this.openPinSizeEditor(key);
                 this.closeMenu();
               }
@@ -17153,9 +14774,9 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     ];
   }
   toggleMarkerRevealedForPlayers(markerId) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (!this.data) return;
-    (_b = (_a = this.data).secondScreen) != null ? _b : _a.secondScreen = {};
+    (_b2 = (_a2 = this.data).secondScreen) != null ? _b2 : _a2.secondScreen = {};
     const current = new Set((_c = this.data.secondScreen.revealedMarkerIds) != null ? _c : []);
     if (current.has(markerId)) current.delete(markerId);
     else current.add(markerId);
@@ -17220,17 +14841,17 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     }
   }
   getLinkDisplayName(link) {
-    var _a;
+    var _a2;
     const f = this.resolveTFile(link, this.cfg.sourcePath);
     if (f) return f.basename;
-    const raw = (_a = (link != null ? link : "").split("#")[0]) != null ? _a : "";
+    const raw = (_a2 = (link != null ? link : "").split("#")[0]) != null ? _a2 : "";
     return basename(raw);
   }
   showInternalTooltip(ev, m, opts) {
-    var _a, _b, _c, _d;
+    var _a2, _b2, _c, _d;
     if (!this.ready) return;
-    const text = ((_a = m.tooltip) != null ? _a : "").trim();
-    const title = ((_b = opts == null ? void 0 : opts.title) != null ? _b : "").trim();
+    const text = ((_a2 = m.tooltip) != null ? _a2 : "").trim();
+    const title = ((_b2 = opts == null ? void 0 : opts.title) != null ? _b2 : "").trim();
     if (!text && !title) return;
     if (!this.tooltipEl) {
       this.tooltipEl = this.hudClipEl.createDiv({ cls: "zm-tooltip" });
@@ -17256,23 +14877,23 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     if (!this.tooltipEl) return;
     const pad = 12;
     const vpRect = this.hudClipEl.getBoundingClientRect();
-    let x = clientX - vpRect.left + pad;
+    let x2 = clientX - vpRect.left + pad;
     let y = clientY - vpRect.top + pad;
     const rect = this.tooltipEl.getBoundingClientRect();
     const vw = vpRect.width;
     const vh = vpRect.height;
-    if (x + rect.width > vw) x = clientX - vpRect.left - rect.width - pad;
-    if (x < 0) x = pad;
+    if (x2 + rect.width > vw) x2 = clientX - vpRect.left - rect.width - pad;
+    if (x2 < 0) x2 = pad;
     if (y + rect.height > vh) y = clientY - vpRect.top - rect.height - pad;
     if (y < 0) y = pad;
-    setCssProps(this.tooltipEl, { left: `${x}px`, top: `${y}px` });
+    setCssProps(this.tooltipEl, { left: `${x2}px`, top: `${y}px` });
   }
   hideTooltipSoon(delay = 150) {
     if (!this.tooltipEl) return;
     this.cancelHideTooltip();
     this.tooltipHideTimer = window.setTimeout(() => {
-      var _a;
-      (_a = this.tooltipEl) == null ? void 0 : _a.classList.remove("zm-tooltip-visible");
+      var _a2;
+      (_a2 = this.tooltipEl) == null ? void 0 : _a2.classList.remove("zm-tooltip-visible");
     }, delay);
   }
   cancelHideTooltip() {
@@ -17282,11 +14903,11 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     }
   }
   getIconInfo(iconKey, sizeOverride) {
-    var _a, _b, _c, _d, _e;
+    var _a2, _b2, _c, _d, _e;
     const key = iconKey != null ? iconKey : this.plugin.settings.defaultIconKey;
-    const profile = (_a = this.plugin.settings.icons.find((i) => i.key === key)) != null ? _a : this.plugin.builtinIcon();
+    const profile = (_a2 = this.plugin.settings.icons.find((i2) => i2.key === key)) != null ? _a2 : this.plugin.builtinIcon();
     const baseSize = profile.size;
-    const overrideSize = typeof sizeOverride === "number" && Number.isFinite(sizeOverride) && sizeOverride > 0 ? Math.round(sizeOverride) : (_c = (_b = this.data) == null ? void 0 : _b.pinSizeOverrides) == null ? void 0 : _c[key];
+    const overrideSize = typeof sizeOverride === "number" && Number.isFinite(sizeOverride) && sizeOverride > 0 ? Math.round(sizeOverride) : (_c = (_b2 = this.data) == null ? void 0 : _b2.pinSizeOverrides) == null ? void 0 : _c[key];
     const size = overrideSize && Number.isFinite(overrideSize) && overrideSize > 0 ? overrideSize : baseSize;
     const imgUrl = this.resolveResourceUrl(profile.pathOrDataUrl);
     const rotationDeg = (_d = profile.rotationDeg) != null ? _d : 0;
@@ -17302,21 +14923,21 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
   }
   getIconDefaultLink(iconKey) {
     const key = iconKey != null ? iconKey : this.plugin.settings.defaultIconKey;
-    const icon = this.plugin.settings.icons.find((i) => i.key === key);
+    const icon = this.plugin.settings.icons.find((i2) => i2.key === key);
     const raw = icon == null ? void 0 : icon.defaultLink;
     if (!raw) return void 0;
     const trimmed = raw.trim();
     return trimmed.length ? trimmed : void 0;
   }
   classifyHudMetaFromCurrentPosition(m, vpRect) {
-    var _a, _b;
+    var _a2, _b2;
     const W = vpRect.width || 1;
     const H = vpRect.height || 1;
     const centerX = W / 2;
     const centerY = H / 2;
     const eps = 1;
-    let hudX = (_a = m.hudX) != null ? _a : 0;
-    let hudY = (_b = m.hudY) != null ? _b : 0;
+    let hudX = (_a2 = m.hudX) != null ? _a2 : 0;
+    let hudY = (_b2 = m.hudY) != null ? _b2 : 0;
     let modeX;
     if (Math.abs(hudX - centerX) <= eps) {
       modeX = "center";
@@ -17346,7 +14967,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     m.y = H > 0 ? hudY / H : 0;
   }
   updateHudPinsForResize(vpRect) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
     if (!this.data) return;
     const W = vpRect.width || 1;
     const H = vpRect.height || 1;
@@ -17354,7 +14975,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     const centerY = H / 2;
     for (const m of this.data.markers) {
       if (m.anchorSpace !== "viewport") continue;
-      if (!Number.isFinite((_a = m.hudLastWidth) != null ? _a : NaN) || !Number.isFinite((_b = m.hudLastHeight) != null ? _b : NaN)) {
+      if (!Number.isFinite((_a2 = m.hudLastWidth) != null ? _a2 : NaN) || !Number.isFinite((_b2 = m.hudLastHeight) != null ? _b2 : NaN)) {
         if (typeof m.hudX !== "number" || typeof m.hudY !== "number") {
           const approxX = ((_c = m.x) != null ? _c : 0.5) * W;
           const approxY = ((_d = m.y) != null ? _d : 0.5) * H;
@@ -17401,8 +15022,8 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     }
   }
   openMarkerLink(m, opts) {
-    var _a;
-    const link = (_a = this.getSwapEffectiveLink(m)) == null ? void 0 : _a.trim();
+    var _a2;
+    const link = (_a2 = this.getSwapEffectiveLink(m)) == null ? void 0 : _a2.trim();
     if (!link) return;
     if (opts == null ? void 0 : opts.newTab) {
       this.openLinkInNewTab(link);
@@ -17457,12 +15078,12 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     }
   }
   buildOverlayElements() {
-    var _a;
+    var _a2;
     if (this.isCanvas()) return;
     this.overlayMap.clear();
     this.overlaysEl.empty();
     if (!this.data) return;
-    for (const o of (_a = this.data.overlays) != null ? _a : []) {
+    for (const o of (_a2 = this.data.overlays) != null ? _a2 : []) {
       const f = this.resolveTFile(o.path, this.cfg.sourcePath);
       if (!f) continue;
       const url = this.app.vault.getResourcePath(f);
@@ -17481,14 +15102,14 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     this.overlaysEl.style.height = `${this.imgH}px`;
   }
   async updateOverlayVisibility() {
-    var _a;
+    var _a2;
     if (!this.data) return;
     if (this.isCanvas()) {
       await this.ensureVisibleOverlaysLoaded();
       this.renderCanvas();
       return;
     }
-    for (const o of (_a = this.data.overlays) != null ? _a : []) {
+    for (const o of (_a2 = this.data.overlays) != null ? _a2 : []) {
       const el = this.overlayMap.get(o.path);
       if (!el) continue;
       if (o.visible) el.classList.remove("zm-overlay-hidden");
@@ -17557,12 +15178,12 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     });
   }
   shouldUseSavedFrame() {
-    var _a, _b;
-    return !!this.cfg.resizable && !(((_a = this.cfg.widthFromYaml) != null ? _a : false) || ((_b = this.cfg.heightFromYaml) != null ? _b : false)) && !this.cfg.responsive;
+    var _a2, _b2;
+    return !!this.cfg.resizable && !(((_a2 = this.cfg.widthFromYaml) != null ? _a2 : false) || ((_b2 = this.cfg.heightFromYaml) != null ? _b2 : false)) && !this.cfg.responsive;
   }
   isFrameVisibleEnough(minPx = 48) {
-    var _a;
-    if (!((_a = this.el) == null ? void 0 : _a.isConnected)) return false;
+    var _a2;
+    if (!((_a2 = this.el) == null ? void 0 : _a2.isConnected)) return false;
     if (this.el.offsetParent === null) return false;
     const rect = this.el.getBoundingClientRect();
     return rect.width >= minPx && rect.height >= minPx;
@@ -17593,9 +15214,9 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     }
   }
   applyMeasureStyle() {
-    var _a, _b;
-    const color = ((_a = this.plugin.settings.measureLineColor) != null ? _a : "var(--text-accent)").trim();
-    const widthPx = Math.max(1, (_b = this.plugin.settings.measureLineWidth) != null ? _b : 2);
+    var _a2, _b2;
+    const color = ((_a2 = this.plugin.settings.measureLineColor) != null ? _a2 : "var(--text-accent)").trim();
+    const widthPx = Math.max(1, (_b2 = this.plugin.settings.measureLineWidth) != null ? _b2 : 2);
     setCssProps(this.el, {
       "--zm-measure-color": color,
       "--zm-measure-width": `${widthPx}px`
@@ -17610,8 +15231,8 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       window.clearTimeout(this.zoomHudTimer);
     }
     this.zoomHudTimer = window.setTimeout(() => {
-      var _a;
-      (_a = this.zoomHud) == null ? void 0 : _a.classList.remove("zm-zoom-hud-visible");
+      var _a2;
+      (_a2 = this.zoomHud) == null ? void 0 : _a2.classList.remove("zm-zoom-hud-visible");
       this.zoomHudTimer = null;
     }, 1e3);
   }
@@ -17627,11 +15248,11 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     });
   }
   async applyYamlOnFirstLoad() {
-    var _a, _b;
+    var _a2, _b2;
     if (this.yamlAppliedOnce) return;
     this.yamlAppliedOnce = true;
-    const yb = (_a = this.cfg.yamlBases) != null ? _a : [];
-    const yo = (_b = this.cfg.yamlOverlays) != null ? _b : [];
+    const yb = (_a2 = this.cfg.yamlBases) != null ? _a2 : [];
+    const yo = (_b2 = this.cfg.yamlOverlays) != null ? _b2 : [];
     const overlaysProvided = await this.isYamlKeyPresent("imageOverlays");
     if (yb.length === 0 && yo.length === 0 && !overlaysProvided) return;
     const changed = this.syncYamlLayers(yb, yo, void 0, overlaysProvided);
@@ -17649,7 +15270,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       const blk = this.findZoommapBlockForThisMap(lines);
       if (!blk) return false;
       const keyLower = key.toLowerCase();
-      return lines.slice(blk.start + 1, blk.end).some((ln) => stripQuotePrefix(ln).trimStart().toLowerCase().startsWith(`${keyLower}:`));
+      return lines.slice(blk.start + 1, blk.end).some((ln2) => stripQuotePrefix(ln2).trimStart().toLowerCase().startsWith(`${keyLower}:`));
     } catch (e) {
       return false;
     }
@@ -17673,19 +15294,19 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       const content = lines.slice(blk.start + 1, blk.end);
       let changed = false;
       const keyRe = /^(\s*)image\s*:\s*(.*)$/i;
-      const out = content.map((ln) => {
-        var _a, _b;
-        const info = splitQuotePrefix(ln);
+      const out = content.map((ln2) => {
+        var _a2, _b2;
+        const info = splitQuotePrefix(ln2);
         const m = keyRe.exec(info.rest);
-        if (!m) return ln;
-        const indent = (_a = m[1]) != null ? _a : "";
-        const rhs = (_b = m[2]) != null ? _b : "";
+        if (!m) return ln2;
+        const indent = (_a2 = m[1]) != null ? _a2 : "";
+        const rhs = (_b2 = m[2]) != null ? _b2 : "";
         const val = stripQuotes(rhs);
         if (val === oldValue) {
           changed = true;
           return `${info.prefix}${indent}image: ${JSON.stringify(newValue)}`;
         }
-        return ln;
+        return ln2;
       });
       if (!changed) return text;
       if (af.path === this.store.getPath()) {
@@ -17700,7 +15321,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     return foundBlock;
   }
   syncYamlLayers(yamlBases, yamlOverlays, yamlImage, overlaysProvided = false) {
-    var _a;
+    var _a2;
     if (!this.data) return false;
     let changed = false;
     if (yamlBases && yamlBases.length > 0) {
@@ -17715,13 +15336,13 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       changed = true;
     }
     if (overlaysProvided || yamlOverlays && yamlOverlays.length > 0) {
-      const prev = new Map(((_a = this.data.overlays) != null ? _a : []).map((o) => [o.path, o]));
+      const prev = new Map(((_a2 = this.data.overlays) != null ? _a2 : []).map((o) => [o.path, o]));
       const next = (yamlOverlays != null ? yamlOverlays : []).map((o) => {
-        var _a2, _b;
+        var _a3, _b2;
         return {
           path: o.path,
           name: o.name,
-          visible: typeof o.visible === "boolean" ? o.visible : (_b = (_a2 = prev.get(o.path)) == null ? void 0 : _a2.visible) != null ? _b : false
+          visible: typeof o.visible === "boolean" ? o.visible : (_b2 = (_a3 = prev.get(o.path)) == null ? void 0 : _a3.visible) != null ? _b2 : false
         };
       });
       this.data.overlays = next;
@@ -17753,23 +15374,23 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     }).open();
   }
   async addBaseByPath(path, name) {
-    var _a;
+    var _a2;
     if (!this.data) return;
     const exists = this.getBasesNormalized().some((b) => b.path === path);
     if (exists) {
       new import_obsidian21.Notice("Base already exists.", 1500);
       return;
     }
-    this.data.bases = (_a = this.data.bases) != null ? _a : [];
+    this.data.bases = (_a2 = this.data.bases) != null ? _a2 : [];
     this.data.bases.push({ path, name: (name != null ? name : "") || void 0 });
     await this.saveDataSoon();
     void this.appendLayerToYaml("base", path, name != null ? name : "");
     new import_obsidian21.Notice("Base added.", 1200);
   }
   async addOverlayByPath(path, name) {
-    var _a;
+    var _a2;
     if (!this.data) return;
-    this.data.overlays = (_a = this.data.overlays) != null ? _a : [];
+    this.data.overlays = (_a2 = this.data.overlays) != null ? _a2 : [];
     if (this.data.overlays.some((o) => o.path === path)) {
       new import_obsidian21.Notice("Overlay already exists.", 1500);
       return;
@@ -17788,14 +15409,14 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     new import_obsidian21.Notice("Overlay added.", 1200);
   }
   confirmDeleteBase(path) {
-    var _a, _b;
+    var _a2, _b2;
     if (!this.data) return;
     const bases = this.getBasesNormalized();
     if (bases.length <= 1) {
       new import_obsidian21.Notice("Cannot delete the last base image.", 2500);
       return;
     }
-    const label = (_b = (_a = bases.find((b) => b.path === path)) == null ? void 0 : _a.name) != null ? _b : basename(path);
+    const label = (_b2 = (_a2 = bases.find((b) => b.path === path)) == null ? void 0 : _a2.name) != null ? _b2 : basename(path);
     new ConfirmModal(
       this.app,
       "Delete base image",
@@ -17806,7 +15427,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     ).open();
   }
   async deleteBaseByPath(path) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a2, _b2, _c, _d, _e, _f;
     if (!this.data) return;
     const basesBefore = this.getBasesNormalized();
     if (basesBefore.length <= 1) {
@@ -17816,7 +15437,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     const idx = basesBefore.findIndex((b) => b.path === path);
     if (idx < 0) return;
     const wasActive = this.getActiveBasePath() === path;
-    this.data.bases = ((_a = this.data.bases) != null ? _a : []).filter((it) => {
+    this.data.bases = ((_a2 = this.data.bases) != null ? _a2 : []).filter((it) => {
       if (typeof it === "string") return it !== path;
       if (it && typeof it === "object" && "path" in it) {
         const p = it.path;
@@ -17824,7 +15445,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       }
       return true;
     });
-    if ((_b = this.data.measurement) == null ? void 0 : _b.scales) {
+    if ((_b2 = this.data.measurement) == null ? void 0 : _b2.scales) {
       delete this.data.measurement.scales[path];
     }
     for (const l of this.data.layers) {
@@ -17848,10 +15469,10 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     new import_obsidian21.Notice("Base removed.", 1200);
   }
   confirmDeleteOverlay(path) {
-    var _a, _b;
+    var _a2, _b2;
     if (!this.data) return;
-    const o = ((_a = this.data.overlays) != null ? _a : []).find((x) => x.path === path);
-    const label = (_b = o == null ? void 0 : o.name) != null ? _b : basename(path);
+    const o = ((_a2 = this.data.overlays) != null ? _a2 : []).find((x2) => x2.path === path);
+    const label = (_b2 = o == null ? void 0 : o.name) != null ? _b2 : basename(path);
     new ConfirmModal(
       this.app,
       "Delete overlay",
@@ -17862,10 +15483,10 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     ).open();
   }
   async deleteOverlayByPath(path) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (!this.data) return;
-    const prevCount = ((_a = this.data.overlays) != null ? _a : []).length;
-    this.data.overlays = ((_b = this.data.overlays) != null ? _b : []).filter((o) => o.path !== path);
+    const prevCount = ((_a2 = this.data.overlays) != null ? _a2 : []).length;
+    this.data.overlays = ((_b2 = this.data.overlays) != null ? _b2 : []).filter((o) => o.path !== path);
     if (((_c = this.data.overlays) != null ? _c : []).length === prevCount) return;
     await this.saveDataSoon();
     if (this.isCanvas()) {
@@ -17884,8 +15505,8 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       const key = kind === "base" ? "imageBases" : "imageOverlays";
       const ok = await this.updateYamlList(key, path, { name });
       if (!ok) new import_obsidian21.Notice("Added, but YAML could not be updated.", 2500);
-    } catch (err) {
-      console.error("Zoom Map: failed to update YAML", err);
+    } catch (err2) {
+      console.error("Zoom Map: failed to update YAML", err2);
       new import_obsidian21.Notice("Added, but YAML update failed.", 2500);
     }
   }
@@ -17936,30 +15557,30 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     return foundBlock;
   }
   patchYamlListRemove(contentLines, key, removePath) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a2, _b2, _c, _d, _e, _f;
     const out = contentLines.slice();
     const keyRe = new RegExp(`^(\\s*)${key}\\s*:(.*)$`);
     let keyIdx = -1;
     let keyIndent = "";
     let keyPrefix = "";
-    for (let i = 0; i < out.length; i++) {
-      const info = splitQuotePrefix(out[i]);
+    for (let i2 = 0; i2 < out.length; i2++) {
+      const info = splitQuotePrefix(out[i2]);
       const m = keyRe.exec(info.rest);
       if (m) {
-        keyIdx = i;
-        keyIndent = (_a = m[1]) != null ? _a : "";
+        keyIdx = i2;
+        keyIndent = (_a2 = m[1]) != null ? _a2 : "";
         keyPrefix = info.prefix;
         break;
       }
     }
     if (keyIdx < 0) return { changed: false, out };
-    const isNextTopLevelKey = (ln) => {
-      var _a2, _b2;
-      const rest = stripQuotePrefix(ln);
+    const isNextTopLevelKey = (ln2) => {
+      var _a3, _b3;
+      const rest = stripQuotePrefix(ln2);
       const trimmed = rest.trim();
       if (!trimmed) return false;
       if (trimmed.startsWith("#")) return false;
-      const spaces = (_b2 = (_a2 = /^\s*/.exec(rest)) == null ? void 0 : _a2[0].length) != null ? _b2 : 0;
+      const spaces = (_b3 = (_a3 = /^\s*/.exec(rest)) == null ? void 0 : _a3[0].length) != null ? _b3 : 0;
       return spaces <= keyIndent.length && /^[A-Za-z0-9_-]+\s*:/.exec(trimmed) !== null;
     };
     let regionEnd = keyIdx + 1;
@@ -17974,8 +15595,8 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     };
     const removed = [];
     let changed = false;
-    for (let i = 0; i < region.length; i++) {
-      const line = region[i];
+    for (let i2 = 0; i2 < region.length; i2++) {
+      const line = region[i2];
       const trimmed = line.trimStart();
       if (!trimmed.startsWith("-")) {
         removed.push(line);
@@ -17984,11 +15605,11 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       const afterDash = trimmed.slice(1).trimStart();
       const objMatch = /^path\s*:\s*(.+)$/.exec(afterDash);
       if (objMatch) {
-        const rawVal2 = stripQuotes((_b = objMatch[1]) != null ? _b : "");
+        const rawVal2 = stripQuotes((_b2 = objMatch[1]) != null ? _b2 : "");
         if (rawVal2 === removePath) {
           changed = true;
           const baseIndent = (_d = (_c = /^\s*/.exec(line)) == null ? void 0 : _c[0].length) != null ? _d : 0;
-          let j = i + 1;
+          let j = i2 + 1;
           while (j < region.length) {
             const next = region[j];
             const nextIndent = (_f = (_e = /^\s*/.exec(next)) == null ? void 0 : _e[0].length) != null ? _f : 0;
@@ -17997,7 +15618,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
             if (nextTrim && nextIndent <= baseIndent) break;
             j++;
           }
-          i = j - 1;
+          i2 = j - 1;
           continue;
         }
         removed.push(line);
@@ -18015,7 +15636,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       ...removed,
       ...out.slice(regionEnd)
     ];
-    const remainingItems = removed.some((ln) => ln.trimStart().startsWith("-"));
+    const remainingItems = removed.some((ln2) => ln2.trimStart().startsWith("-"));
     if (!remainingItems) {
       nextOut[keyIdx] = `${keyPrefix}${keyIndent}${key}: []`;
     }
@@ -18023,35 +15644,35 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
   }
   findZoommapBlock(lines, approxLine) {
     let result = null;
-    for (let i = 0; i < lines.length; i++) {
-      const ln = stripQuotePrefix(lines[i]).trimStart().toLowerCase();
-      if (ln.startsWith("```zoommap")) {
-        let j = i + 1;
+    for (let i2 = 0; i2 < lines.length; i2++) {
+      const ln2 = stripQuotePrefix(lines[i2]).trimStart().toLowerCase();
+      if (ln2.startsWith("```zoommap")) {
+        let j = i2 + 1;
         while (j < lines.length && !stripQuotePrefix(lines[j]).trimStart().startsWith("```")) j++;
         if (j >= lines.length) break;
-        const block = { start: i, end: j };
-        if (typeof approxLine === "number" && i <= approxLine && approxLine <= j) return block;
+        const block = { start: i2, end: j };
+        if (typeof approxLine === "number" && i2 <= approxLine && approxLine <= j) return block;
         result != null ? result : result = block;
-        i = j;
+        i2 = j;
       }
     }
     return result;
   }
   patchYamlList(contentLines, key, path, opts) {
-    var _a, _b, _c, _d;
+    var _a2, _b2, _c, _d;
     const out = contentLines.slice();
     const keyRe = new RegExp(`^(\\s*)${key}\\s*:(.*)$`);
     let keyIdx = -1;
     let keyIndent = "";
     let after = "";
     let keyPrefix = "";
-    for (let i = 0; i < out.length; i++) {
-      const info = splitQuotePrefix(out[i]);
+    for (let i2 = 0; i2 < out.length; i2++) {
+      const info = splitQuotePrefix(out[i2]);
       const m = keyRe.exec(info.rest);
       if (m) {
-        keyIdx = i;
-        keyIndent = (_a = m[1]) != null ? _a : "";
-        after = ((_b = m[2]) != null ? _b : "").trim();
+        keyIdx = i2;
+        keyIndent = (_a2 = m[1]) != null ? _a2 : "";
+        after = ((_b2 = m[2]) != null ? _b2 : "").trim();
         keyPrefix = info.prefix;
         break;
       }
@@ -18066,13 +15687,13 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       if (/^\[\s*\]$/.exec(after)) out[keyIdx] = `${keyPrefix}${keyIndent}${key}:`;
       let insertAt = keyIdx + 1;
       let scan = keyIdx + 1;
-      const isNextTopLevelKey = (ln) => {
-        var _a2, _b2;
-        const rest = stripQuotePrefix(ln);
+      const isNextTopLevelKey = (ln2) => {
+        var _a3, _b3;
+        const rest = stripQuotePrefix(ln2);
         const trimmed = rest.trim();
         if (!trimmed) return false;
         if (trimmed.startsWith("#")) return false;
-        const spaces = (_b2 = (_a2 = /^\s*/.exec(rest)) == null ? void 0 : _a2[0].length) != null ? _b2 : 0;
+        const spaces = (_b3 = (_a3 = /^\s*/.exec(rest)) == null ? void 0 : _a3[0].length) != null ? _b3 : 0;
         return spaces <= keyIndent.length && /^[A-Za-z0-9_-]+\s*:/.exec(trimmed) !== null;
       };
       while (scan < out.length && !isNextTopLevelKey(out[scan])) scan++;
@@ -18087,7 +15708,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       out.splice(insertAt, 0, ...itemLines);
       return { changed: true, out };
     }
-    const blockPrefix = (_d = out.map((ln) => splitQuotePrefix(ln).prefix).find((p) => p.length > 0)) != null ? _d : "";
+    const blockPrefix = (_d = out.map((ln2) => splitQuotePrefix(ln2).prefix).find((p) => p.length > 0)) != null ? _d : "";
     const defaultIndent = this.detectYamlKeyIndent(out);
     out.push(`${blockPrefix}${defaultIndent}${key}:`);
     const itemIndent2 = `${defaultIndent}  `;
@@ -18096,10 +15717,10 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     return { changed: true, out };
   }
   detectYamlKeyIndent(lines) {
-    var _a;
-    for (const ln of lines) {
-      const m = /^(\s*)[A-Za-z0-9_-]+\s*:/.exec(stripQuotePrefix(ln));
-      if (m) return (_a = m[1]) != null ? _a : "";
+    var _a2;
+    for (const ln2 of lines) {
+      const m = /^(\s*)[A-Za-z0-9_-]+\s*:/.exec(stripQuotePrefix(ln2));
+      if (m) return (_a2 = m[1]) != null ? _a2 : "";
     }
     return "";
   }
@@ -18120,7 +15741,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       return;
     }
     const layerIndex = this.data.layers.findIndex((l) => l.id === layer.id);
-    const affectedMarkers = this.data.markers.map((marker, index) => ({ marker, index })).filter((x) => x.marker.layer === layer.id);
+    const affectedMarkers = this.data.markers.map((marker, index) => ({ marker, index })).filter((x2) => x2.marker.layer === layer.id);
     this.pushDeleteUndo(
       decision.mode === "move" ? {
         kind: "marker-layer",
@@ -18128,13 +15749,13 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
         index: layerIndex,
         mode: "move",
         targetId: decision.targetId,
-        movedMarkerIds: affectedMarkers.map((x) => x.marker.id)
+        movedMarkerIds: affectedMarkers.map((x2) => x2.marker.id)
       } : {
         kind: "marker-layer",
         layer: cloneForUndo(layer),
         index: layerIndex,
         mode: "delete-markers",
-        markers: affectedMarkers.map((x) => ({ marker: cloneForUndo(x.marker), index: x.index }))
+        markers: affectedMarkers.map((x2) => ({ marker: cloneForUndo(x2.marker), index: x2.index }))
       },
       `Delete marker layer: ${layer.name}`
     );
@@ -18161,13 +15782,13 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
 };
 var ConfirmModal = class extends import_obsidian21.Modal {
   constructor(app, titleText, messageText, onConfirm, opts) {
-    var _a, _b;
+    var _a2, _b2;
     super(app);
     this.titleText = titleText;
     this.messageText = messageText;
     this.onConfirm = onConfirm;
-    this.confirmText = (_a = opts == null ? void 0 : opts.confirmText) != null ? _a : "Confirm";
-    this.cancelText = (_b = opts == null ? void 0 : opts.cancelText) != null ? _b : "Cancel";
+    this.confirmText = (_a2 = opts == null ? void 0 : opts.confirmText) != null ? _a2 : "Confirm";
+    this.cancelText = (_b2 = opts == null ? void 0 : opts.cancelText) != null ? _b2 : "Cancel";
   }
   onOpen() {
     const { contentEl } = this;
@@ -18209,7 +15830,7 @@ var ZMMenu = class {
     return this.root.contains(el) || this.submenus.some((s) => s.contains(el));
   }
   buildList(container, items) {
-    var _a;
+    var _a2;
     container.empty();
     for (const it of items) {
       if (it.type === "separator") {
@@ -18229,22 +15850,22 @@ var ZMMenu = class {
       }
       label.appendText(it.label);
       const right = row.createDiv({ cls: "zm-menu__right" });
-      if ((_a = it.children) == null ? void 0 : _a.length) {
+      if ((_a2 = it.children) == null ? void 0 : _a2.length) {
         const arrow = right.createDiv({ cls: "zm-menu__arrow" });
         arrow.setText("\u25B6");
         let submenuEl = null;
         const openSub = () => {
-          var _a2;
+          var _a3;
           if (submenuEl) return;
           submenuEl = this.doc.body.createDiv({ cls: "zm-submenu" });
           this.submenus.push(submenuEl);
           this.buildList(submenuEl, it.children);
           const rect = row.getBoundingClientRect();
-          const win = (_a2 = this.doc.defaultView) != null ? _a2 : window;
+          const win = (_a3 = this.doc.defaultView) != null ? _a3 : window;
           const pref = rect.right + 260 < win.innerWidth ? "right" : "left";
-          const x = pref === "right" ? rect.right : rect.left;
+          const x2 = pref === "right" ? rect.right : rect.left;
           const y = rect.top;
-          this.position(submenuEl, x, y, pref);
+          this.position(submenuEl, x2, y, pref);
         };
         const closeSub = () => {
           if (!submenuEl) return;
@@ -18272,10 +15893,10 @@ var ZMMenu = class {
           if (!it.action) return;
           try {
             void Promise.resolve(it.action(row, this)).catch(
-              (err) => console.error("Menu item action failed:", err)
+              (err2) => console.error("Menu item action failed:", err2)
             );
-          } catch (err) {
-            console.error("Menu item action failed:", err);
+          } catch (err2) {
+            console.error("Menu item action failed:", err2);
           }
         });
       }
@@ -18292,22 +15913,22 @@ var ZMMenu = class {
     }
   }
   position(el, clientX, clientY, prefer) {
-    var _a;
+    var _a2;
     const pad = 6;
     const rect = el.getBoundingClientRect();
-    let x = clientX;
+    let x2 = clientX;
     let y = clientY;
-    const win = (_a = this.doc.defaultView) != null ? _a : window;
+    const win = (_a2 = this.doc.defaultView) != null ? _a2 : window;
     const vw = win.innerWidth;
     const vh = win.innerHeight;
     if (prefer === "right") {
-      if (clientX + rect.width + pad > vw) x = Math.max(pad, vw - rect.width - pad);
+      if (clientX + rect.width + pad > vw) x2 = Math.max(pad, vw - rect.width - pad);
     } else {
-      x = clientX - rect.width;
-      if (x < pad) x = pad;
+      x2 = clientX - rect.width;
+      if (x2 < pad) x2 = pad;
     }
     if (clientY + rect.height + pad > vh) y = Math.max(pad, vh - rect.height - pad);
-    el.style.left = `${x}px`;
+    el.style.left = `${x2}px`;
     el.style.top = `${y}px`;
   }
 };
@@ -18320,8 +15941,8 @@ var JsonFileSuggestModal = class extends import_obsidian22.FuzzySuggestModal {
     this.appRef = app;
     this.onChoose = onChoose;
     this.files = this.appRef.vault.getFiles().filter((f) => {
-      var _a;
-      return ((_a = f.extension) == null ? void 0 : _a.toLowerCase()) === "json";
+      var _a2;
+      return ((_a2 = f.extension) == null ? void 0 : _a2.toLowerCase()) === "json";
     });
     this.setPlaceholder("Choose JSON file\u2026");
   }
@@ -18366,7 +15987,7 @@ var FaIconPickerModal = class extends import_obsidian23.Modal {
     this.onChoose = onChoose;
   }
   collectFiles() {
-    var _a;
+    var _a2;
     const result = [];
     const root = this.app.vault.getAbstractFileByPath(this.folder);
     if (!(root instanceof import_obsidian23.TFolder)) {
@@ -18381,7 +16002,7 @@ var FaIconPickerModal = class extends import_obsidian23.Modal {
         if (child instanceof import_obsidian23.TFolder) {
           stack.push(child);
         } else if (child instanceof import_obsidian23.TFile) {
-          if (((_a = child.extension) == null ? void 0 : _a.toLowerCase()) === "svg") {
+          if (((_a2 = child.extension) == null ? void 0 : _a2.toLowerCase()) === "svg") {
             result.push(child);
           }
         }
@@ -18423,8 +16044,8 @@ var FaIconPickerModal = class extends import_obsidian23.Modal {
     this.statusEl = null;
     this.listEl.empty();
     const selectedStillVisible = this.selected !== null && this.currentMatches.some((f) => {
-      var _a;
-      return f.path === ((_a = this.selected) == null ? void 0 : _a.path);
+      var _a2;
+      return f.path === ((_a2 = this.selected) == null ? void 0 : _a2.path);
     });
     if (!selectedStillVisible) {
       this.selected = null;
@@ -18490,8 +16111,8 @@ var FaIconPickerModal = class extends import_obsidian23.Modal {
       }
       const maxTarget = Math.min(this.desiredRenderCount, this.currentMatches.length);
       const end = Math.min(this.renderedCount + this.renderChunkSize, maxTarget);
-      for (let i = this.renderedCount; i < end; i += 1) {
-        this.appendCell(this.currentMatches[i]);
+      for (let i2 = this.renderedCount; i2 < end; i2 += 1) {
+        this.appendCell(this.currentMatches[i2]);
       }
       this.renderedCount = end;
       this.updateStatus();
@@ -18571,8 +16192,8 @@ var FaIconPickerModal = class extends import_obsidian23.Modal {
     const backButton = footer.createEl("button", { text: "Back" });
     backButton.onclick = () => this.close();
     this.searchInput.addEventListener("input", () => {
-      var _a, _b;
-      this.scheduleRender((_b = (_a = this.searchInput) == null ? void 0 : _a.value) != null ? _b : "");
+      var _a2, _b2;
+      this.scheduleRender((_b2 = (_a2 = this.searchInput) == null ? void 0 : _a2.value) != null ? _b2 : "");
     });
     this.renderList("");
   }
@@ -18625,9 +16246,9 @@ var PreferencesModal = class extends import_obsidian24.Modal {
       });
     });
     new import_obsidian24.Setting(contentEl).setName("Cache size in megabyte").setDesc("Maximum memory used for cached decoded images. Default: 512 megabyte.").addText((t) => {
-      var _a;
+      var _a2;
       t.inputEl.type = "number";
-      t.setValue(String((_a = this.plugin.settings.sessionImageCacheMb) != null ? _a : 512));
+      t.setValue(String((_a2 = this.plugin.settings.sessionImageCacheMb) != null ? _a2 : 512));
       mbInput = t.inputEl;
       t.onChange(async (v) => {
         const n = Number(String(v).replace(",", "."));
@@ -18670,11 +16291,11 @@ var PreferencesModal = class extends import_obsidian24.Modal {
       });
     });
     new import_obsidian24.Setting(contentEl).setName("Max SVG raster scale").setDesc("Controls the maximum raster lod for SVG base images. Higher = sharper at high zoom, but more RAM and slower upgrades.").addDropdown((d) => {
-      var _a;
+      var _a2;
       d.addOption("2", "2\xD7 (low-end)");
       d.addOption("4", "4\xD7 (balanced)");
       d.addOption("8", "8\xD7 (high quality)");
-      const cur = String((_a = this.plugin.settings.svgRasterMaxScale) != null ? _a : 8);
+      const cur = String((_a2 = this.plugin.settings.svgRasterMaxScale) != null ? _a2 : 8);
       d.setValue(cur);
       d.onChange(async (v) => {
         const n = Number(v);
@@ -18738,9 +16359,9 @@ var PreferencesModal = class extends import_obsidian24.Modal {
       });
     });
     new import_obsidian24.Setting(contentEl).setName("Second screen note folder").setDesc("Folder where temporary map notes and marker snapshots for the second screen are written.").addText((t) => {
-      var _a;
+      var _a2;
       t.setPlaceholder("Zoommap/secondscreen");
-      t.setValue((_a = this.plugin.settings.secondScreenFolder) != null ? _a : "ZoomMap/SecondScreen");
+      t.setValue((_a2 = this.plugin.settings.secondScreenFolder) != null ? _a2 : "ZoomMap/SecondScreen");
       folderInput = t.inputEl;
       t.onChange(async (v) => {
         this.plugin.settings.secondScreenFolder = v.trim() || "ZoomMap/SecondScreen";
@@ -18787,14 +16408,14 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     this.icon = icon;
     this.onApplied = onApplied;
   }
-  isSvgIconProfile(i) {
-    var _a;
-    const src = ((_a = i.pathOrDataUrl) != null ? _a : "").toLowerCase();
+  isSvgIconProfile(i2) {
+    var _a2;
+    const src = ((_a2 = i2.pathOrDataUrl) != null ? _a2 : "").toLowerCase();
     return src.startsWith("data:image/svg+xml") || src.endsWith(".svg");
   }
   async loadSvgFromIconKey(iconKey) {
-    var _a, _b, _c;
-    const ico = (_b = ((_a = this.plugin.settings.icons) != null ? _a : []).find((i) => i.key === iconKey)) != null ? _b : null;
+    var _a2, _b2, _c;
+    const ico = (_b2 = ((_a2 = this.plugin.settings.icons) != null ? _a2 : []).find((i2) => i2.key === iconKey)) != null ? _b2 : null;
     if (!ico) return null;
     const src = (_c = ico.pathOrDataUrl) != null ? _c : "";
     if (!src || typeof src !== "string") return null;
@@ -18829,26 +16450,26 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     }
   }
   extractViewBox(svg) {
-    var _a;
+    var _a2;
     const svgEl = this.parseSvgRoot(svg);
     if (!svgEl) return null;
-    const vb = ((_a = svgEl.getAttribute("viewBox")) != null ? _a : "").trim();
-    const parts = vb.split(/[\s,]+/).map((x) => Number(x));
+    const vb = ((_a2 = svgEl.getAttribute("viewBox")) != null ? _a2 : "").trim();
+    const parts = vb.split(/[\s,]+/).map((x2) => Number(x2));
     if (parts.length === 4 && parts.every((n) => Number.isFinite(n))) {
       return { minX: parts[0], minY: parts[1], w: parts[2], h: parts[3] };
     }
     return null;
   }
   stripOuterSvg(svg) {
-    var _a, _b;
+    var _a2, _b2;
     const svgEl = this.parseSvgRoot(svg);
     if (!svgEl) return null;
-    const vb = ((_a = svgEl.getAttribute("viewBox")) != null ? _a : "").trim();
-    const inner = (_b = svgEl.innerHTML) != null ? _b : "";
+    const vb = ((_a2 = svgEl.getAttribute("viewBox")) != null ? _a2 : "").trim();
+    const inner = (_b2 = svgEl.innerHTML) != null ? _b2 : "";
     return { inner, viewBox: vb || void 0 };
   }
   readPersistedMeta(svg) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     try {
       const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
       const root = doc.querySelector("svg");
@@ -18891,9 +16512,9 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
       if (!oc && ow == null && oo == null) {
         const ol = root.querySelector("#zm-outline");
         if (ol instanceof SVGElement) {
-          const sc = ((_a = ol.getAttribute("stroke")) != null ? _a : "").trim();
+          const sc = ((_a2 = ol.getAttribute("stroke")) != null ? _a2 : "").trim();
           if (sc) this.outlineColor = sc;
-          const sw = Number(String((_b = ol.getAttribute("stroke-width")) != null ? _b : "").replace(",", "."));
+          const sw = Number(String((_b2 = ol.getAttribute("stroke-width")) != null ? _b2 : "").replace(",", "."));
           if (Number.isFinite(sw) && sw >= 0) this.outlineWidth = sw;
           const so = Number(String((_c = ol.getAttribute("stroke-opacity")) != null ? _c : "").replace(",", "."));
           if (Number.isFinite(so)) this.outlineOpacity = Math.min(1, Math.max(0, so));
@@ -18903,7 +16524,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     }
   }
   writePersistedMeta(svg) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     try {
       const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
       const root = doc.querySelector("svg");
@@ -18912,7 +16533,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
       root.setAttribute("data-zm-outline-width", String(this.outlineWidth));
       root.setAttribute("data-zm-outline-opacity", String(this.outlineOpacity));
       if (this.baseEnabled) {
-        root.setAttribute("data-zm-base-icon", ((_a = this.baseIconKey) != null ? _a : "").trim());
+        root.setAttribute("data-zm-base-icon", ((_a2 = this.baseIconKey) != null ? _a2 : "").trim());
         root.setAttribute("data-zm-base-scale", String(this.baseScalePct));
         root.setAttribute("data-zm-base-fill", this.baseFill);
         root.setAttribute("data-zm-base-stroke", this.baseStroke);
@@ -18926,7 +16547,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
         root.removeAttribute("data-zm-base-sw");
         root.removeAttribute("data-zm-base-so");
       }
-      root.setAttribute("data-zm-inner-dx", String((_b = this.innerOffsetXPx) != null ? _b : 0));
+      root.setAttribute("data-zm-inner-dx", String((_b2 = this.innerOffsetXPx) != null ? _b2 : 0));
       root.setAttribute("data-zm-inner-dy", String((_c = this.innerOffsetYPx) != null ? _c : 0));
       return new XMLSerializer().serializeToString(root);
     } catch (e) {
@@ -18941,24 +16562,24 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     this.svgSource = null;
   }
   parseViewBoxString(vb) {
-    const parts = (vb != null ? vb : "").trim().split(/[\s,]+/).map((x) => Number(x));
+    const parts = (vb != null ? vb : "").trim().split(/[\s,]+/).map((x2) => Number(x2));
     if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return null;
     const [minX, minY, w, h] = parts;
     if (w <= 0 || h <= 0) return null;
     return { minX, minY, w, h };
   }
   getOrigViewBox(svgEl) {
-    var _a, _b;
-    const orig = (_b = (_a = svgEl.getAttribute("data-zm-orig-viewbox")) != null ? _a : svgEl.getAttribute("viewBox")) != null ? _b : "";
+    var _a2, _b2;
+    const orig = (_b2 = (_a2 = svgEl.getAttribute("data-zm-orig-viewbox")) != null ? _a2 : svgEl.getAttribute("viewBox")) != null ? _b2 : "";
     return this.parseViewBoxString(orig);
   }
   applyViewBoxPaddingAbsolute(svg, pad) {
-    var _a, _b;
+    var _a2, _b2;
     try {
       const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
       const svgEl = doc.querySelector("svg");
       if (!svgEl) return svg;
-      const origStr = (_b = (_a = svgEl.getAttribute("data-zm-orig-viewbox")) != null ? _a : svgEl.getAttribute("viewBox")) != null ? _b : "";
+      const origStr = (_b2 = (_a2 = svgEl.getAttribute("data-zm-orig-viewbox")) != null ? _a2 : svgEl.getAttribute("viewBox")) != null ? _b2 : "";
       const orig = this.parseViewBoxString(origStr);
       if (!orig) return svg;
       if (!svgEl.getAttribute("data-zm-orig-viewbox")) {
@@ -18976,7 +16597,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     }
   }
   async renderAsync() {
-    var _a, _b, _c, _d, _e;
+    var _a2, _b2, _c, _d, _e;
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", { text: "SVG outline" });
@@ -19001,7 +16622,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     this.outlineColor = "#000000";
     this.outlineWidth = 2;
     this.shadowEnabled = !!this.icon.shadowEnabled;
-    this.shadowColor = ((_a = this.icon.shadowColor) != null ? _a : "#000000").trim() || "#000000";
+    this.shadowColor = ((_a2 = this.icon.shadowColor) != null ? _a2 : "#000000").trim() || "#000000";
     this.shadowBlurPx = typeof this.icon.shadowBlurPx === "number" && Number.isFinite(this.icon.shadowBlurPx) ? this.icon.shadowBlurPx : 6;
     this.shadowOffsetXPx = typeof this.icon.shadowOffsetXPx === "number" && Number.isFinite(this.icon.shadowOffsetXPx) ? this.icon.shadowOffsetXPx : 2;
     this.shadowOffsetYPx = typeof this.icon.shadowOffsetYPx === "number" && Number.isFinite(this.icon.shadowOffsetYPx) ? this.icon.shadowOffsetYPx : 2;
@@ -19016,7 +16637,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     }
     let defaultWidth = this.outlineWidth;
     if (!Number.isFinite(defaultWidth)) {
-      defaultWidth = Number((_c = (_b = widthMatch == null ? void 0 : widthMatch[1]) == null ? void 0 : _b.replace(",", ".")) != null ? _c : "2");
+      defaultWidth = Number((_c = (_b2 = widthMatch == null ? void 0 : widthMatch[1]) == null ? void 0 : _b2.replace(",", ".")) != null ? _c : "2");
     }
     if (!Number.isFinite(defaultWidth) || defaultWidth < 0) defaultWidth = 2;
     let defaultOpacity = this.outlineOpacity;
@@ -19088,15 +16709,15 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
       });
     });
     kindSetting = new import_obsidian25.Setting(contentEl).setName("Base shape").setDesc("Use existing SVG icon as the base.").addDropdown((d) => {
-      var _a2, _b2, _c2;
-      const svgIcons = ((_a2 = this.plugin.settings.icons) != null ? _a2 : []).filter((i) => this.isSvgIconProfile(i)).slice().sort((a, b) => {
-        var _a3, _b3;
-        return String((_a3 = a.key) != null ? _a3 : "").localeCompare(String((_b3 = b.key) != null ? _b3 : ""), void 0, { sensitivity: "base", numeric: true });
+      var _a3, _b3, _c2;
+      const svgIcons = ((_a3 = this.plugin.settings.icons) != null ? _a3 : []).filter((i2) => this.isSvgIconProfile(i2)).slice().sort((a, b) => {
+        var _a4, _b4;
+        return String((_a4 = a.key) != null ? _a4 : "").localeCompare(String((_b4 = b.key) != null ? _b4 : ""), void 0, { sensitivity: "base", numeric: true });
       });
       for (const ico of svgIcons) {
         d.addOption(`icon:${ico.key}`, ico.key);
       }
-      const fallback = (_c2 = (_b2 = svgIcons[0]) == null ? void 0 : _b2.key) != null ? _c2 : "";
+      const fallback = (_c2 = (_b3 = svgIcons[0]) == null ? void 0 : _b3.key) != null ? _c2 : "";
       const curKey = (this.baseIconKey || fallback).trim();
       this.baseIconKey = curKey;
       d.setValue(curKey ? `icon:${curKey}` : "");
@@ -19168,10 +16789,10 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
       };
     }
     innerOffsetXSetting = new import_obsidian25.Setting(contentEl).setName("Icon offset X (px)").setDesc("Moves the actual icon relative to the base. Negative = left, positive = right.").addText((t) => {
-      var _a2;
+      var _a3;
       t.inputEl.type = "number";
       t.setPlaceholder("0");
-      t.setValue(String((_a2 = this.innerOffsetXPx) != null ? _a2 : 0));
+      t.setValue(String((_a3 = this.innerOffsetXPx) != null ? _a3 : 0));
       t.onChange((v) => {
         const n = Number(String(v).replace(",", "."));
         if (!Number.isFinite(n)) return;
@@ -19179,10 +16800,10 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
       });
     });
     innerOffsetSetting = new import_obsidian25.Setting(contentEl).setName("Icon offset y (px)").setDesc("Moves the actual icon relative to the base. Negative = up, positive = down.").addText((t) => {
-      var _a2;
+      var _a3;
       t.inputEl.type = "number";
       t.setPlaceholder("0");
-      t.setValue(String((_a2 = this.innerOffsetYPx) != null ? _a2 : 0));
+      t.setValue(String((_a3 = this.innerOffsetYPx) != null ? _a3 : 0));
       t.onChange((v) => {
         const n = Number(String(v).replace(",", "."));
         if (!Number.isFinite(n)) return;
@@ -19285,15 +16906,15 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     return null;
   }
   async applyAndSave() {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     if (!this.svgSource) {
       new import_obsidian25.Notice("SVG content not loaded.", 2e3);
       return;
     }
     if (this.baseEnabled) {
-      const k = ((_a = this.baseIconKey) != null ? _a : "").trim();
-      const svgIcons = ((_b = this.plugin.settings.icons) != null ? _b : []).filter((i) => this.isSvgIconProfile(i));
-      const exists = svgIcons.some((i) => i.key === k);
+      const k = ((_a2 = this.baseIconKey) != null ? _a2 : "").trim();
+      const svgIcons = ((_b2 = this.plugin.settings.icons) != null ? _b2 : []).filter((i2) => this.isSvgIconProfile(i2));
+      const exists = svgIcons.some((i2) => i2.key === k);
       if (!k || !exists) {
         new import_obsidian25.Notice("Please choose a base icon (SVG) from the library.", 3e3);
         return;
@@ -19337,12 +16958,12 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     this.close();
   }
   applyOutline(svg, color, width, opacity) {
-    var _a, _b, _c, _d, _e;
+    var _a2, _b2, _c, _d, _e;
     let s = this.removeExistingZmOutline(svg);
     s = this.removeExistingZmBase(s);
     const outlinePad = Math.max(0, width) * 2;
     const basePad = this.baseEnabled ? this.computeBasePadFromOrigViewBox(s) : 0;
-    const offsetPad = Math.max(Math.abs((_a = this.innerOffsetXPx) != null ? _a : 0), Math.abs((_b = this.innerOffsetYPx) != null ? _b : 0));
+    const offsetPad = Math.max(Math.abs((_a2 = this.innerOffsetXPx) != null ? _a2 : 0), Math.abs((_b2 = this.innerOffsetYPx) != null ? _b2 : 0));
     const pad = Math.max(outlinePad, basePad, offsetPad);
     s = this.applyViewBoxPaddingAbsolute(s, pad);
     const openMatch = /<svg[^>]*>/i.exec(s);
@@ -19370,12 +16991,12 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     return this.writePersistedMeta(merged);
   }
   removeExistingZmBase(svg) {
-    var _a;
+    var _a2;
     try {
       const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
       const svgEl = doc.querySelector("svg");
       if (!svgEl) return svg;
-      (_a = svgEl.querySelector("#zm-base")) == null ? void 0 : _a.remove();
+      (_a2 = svgEl.querySelector("#zm-base")) == null ? void 0 : _a2.remove();
       return new XMLSerializer().serializeToString(svgEl);
     } catch (e) {
       return svg;
@@ -19394,7 +17015,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     return extra + strokePad;
   }
   buildBaseGroup(svg) {
-    var _a, _b, _c, _d;
+    var _a2, _b2, _c, _d;
     const svgEl = this.parseSvgRoot(svg);
     if (!svgEl) return "";
     const orig = this.getOrigViewBox(svgEl);
@@ -19409,8 +17030,8 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     const sw = Math.max(0, Number(this.baseStrokeWidth) || 0);
     const so = Math.min(1, Math.max(0, Number(this.baseStrokeOpacity) || 0));
     if (this.baseKind === "icon" && this.baseIconKey) {
-      const ico = ((_a = this.plugin.settings.icons) != null ? _a : []).find((i) => i.key === this.baseIconKey);
-      const src = (_b = ico == null ? void 0 : ico.pathOrDataUrl) != null ? _b : "";
+      const ico = ((_a2 = this.plugin.settings.icons) != null ? _a2 : []).find((i2) => i2.key === this.baseIconKey);
+      const src = (_b2 = ico == null ? void 0 : ico.pathOrDataUrl) != null ? _b2 : "";
       if (typeof src === "string" && src.startsWith("data:image/svg+xml")) {
         const idx = src.indexOf(",");
         if (idx >= 0) {
@@ -19418,7 +17039,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
             const baseSvg = decodeURIComponent(src.slice(idx + 1));
             const stripped = this.stripOuterSvg(baseSvg);
             const vb2 = (_c = stripped == null ? void 0 : stripped.viewBox) != null ? _c : "0 0 24 24";
-            const p2 = vb2.trim().split(/[\s,]+/).map((x) => Number(x));
+            const p2 = vb2.trim().split(/[\s,]+/).map((x2) => Number(x2));
             if (p2.length === 4 && p2.every((n) => Number.isFinite(n))) {
               const bw = p2[2], bh = p2[3];
               const target = 2 * r;
@@ -19459,17 +17080,17 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     }
   }
   applyViewBoxPaddingFromOriginal(svg, strokeWidth) {
-    var _a;
+    var _a2;
     try {
       const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
       const svgEl = doc.querySelector("svg");
       if (!svgEl) return svg;
-      const orig = (_a = svgEl.getAttribute("data-zm-orig-viewbox")) != null ? _a : svgEl.getAttribute("viewBox");
+      const orig = (_a2 = svgEl.getAttribute("data-zm-orig-viewbox")) != null ? _a2 : svgEl.getAttribute("viewBox");
       if (!orig) return svg;
       if (!svgEl.getAttribute("data-zm-orig-viewbox")) {
         svgEl.setAttribute("data-zm-orig-viewbox", orig);
       }
-      const parts = orig.trim().split(/[\s,]+/).map((x) => Number(x));
+      const parts = orig.trim().split(/[\s,]+/).map((x2) => Number(x2));
       if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return svg;
       const [minX, minY, w, h] = parts;
       if (w <= 0 || h <= 0) return svg;
@@ -19515,14 +17136,14 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
 };
 
 // src/imageCache.ts
-function isImageBitmapLike2(x) {
-  return typeof x === "object" && x !== null && "close" in x && typeof x.close === "function";
+function isImageBitmapLike2(x2) {
+  return typeof x2 === "object" && x2 !== null && "close" in x2 && typeof x2.close === "function";
 }
 function approxBytesForSource(src) {
-  var _a, _b;
+  var _a2, _b2;
   if (isImageBitmapLike2(src)) return src.width * src.height * 4;
-  const w = (_a = src.naturalWidth) != null ? _a : 0;
-  const h = (_b = src.naturalHeight) != null ? _b : 0;
+  const w = (_a2 = src.naturalWidth) != null ? _a2 : 0;
+  const h = (_b2 = src.naturalHeight) != null ? _b2 : 0;
   if (w > 0 && h > 0) return w * h * 4;
   return 0;
 }
@@ -19546,8 +17167,8 @@ var ImageCache = class {
     return this.maxBytes;
   }
   getRefCount(path) {
-    var _a;
-    return (_a = this.refs.get(path)) != null ? _a : 0;
+    var _a2;
+    return (_a2 = this.refs.get(path)) != null ? _a2 : 0;
   }
   getTotalBytes() {
     let total = 0;
@@ -19568,9 +17189,9 @@ var ImageCache = class {
    * - Loads and decodes at most once per session (per path), unless evicted.
    */
   async acquire(file) {
-    var _a;
+    var _a2;
     const key = file.path;
-    this.refs.set(key, ((_a = this.refs.get(key)) != null ? _a : 0) + 1);
+    this.refs.set(key, ((_a2 = this.refs.get(key)) != null ? _a2 : 0) + 1);
     const existing = this.entries.get(key);
     if (existing) {
       existing.lastUsed = Date.now();
@@ -19584,10 +17205,10 @@ var ImageCache = class {
       this.loading.delete(key);
       this.evictIfNeeded();
       return src;
-    }).catch((err) => {
+    }).catch((err2) => {
       this.loading.delete(key);
       this.release(key);
-      throw err;
+      throw err2;
     });
     this.loading.set(key, p);
     return p;
@@ -19597,8 +17218,8 @@ var ImageCache = class {
    * Eviction can only happen when refcount == 0 AND cache is above the high watermark.
    */
   release(path) {
-    var _a;
-    const cur = (_a = this.refs.get(path)) != null ? _a : 0;
+    var _a2;
+    const cur = (_a2 = this.refs.get(path)) != null ? _a2 : 0;
     if (cur <= 1) this.refs.delete(path);
     else this.refs.set(path, cur - 1);
     this.evictIfNeeded();
@@ -19625,8 +17246,8 @@ var ImageCache = class {
     const target = this.maxBytes * this.targetEvictRatio;
     let curTotal = total;
     const candidates = [...this.entries.entries()].filter(([path]) => {
-      var _a;
-      return ((_a = this.refs.get(path)) != null ? _a : 0) === 0;
+      var _a2;
+      return ((_a2 = this.refs.get(path)) != null ? _a2 : 0) === 0;
     }).sort((a, b) => a[1].lastUsed - b[1].lastUsed);
     for (const [path, e] of candidates) {
       if (curTotal <= target) break;
@@ -19645,8 +17266,984 @@ var ImageCache = class {
 };
 
 // src/mapShare.ts
-var import_jszip = __toESM(require_jszip_min());
 var import_obsidian27 = require("obsidian");
+
+// node_modules/fflate/esm/browser.js
+var u8 = Uint8Array;
+var u16 = Uint16Array;
+var i32 = Int32Array;
+var fleb = new u8([
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  1,
+  2,
+  2,
+  2,
+  2,
+  3,
+  3,
+  3,
+  3,
+  4,
+  4,
+  4,
+  4,
+  5,
+  5,
+  5,
+  5,
+  0,
+  /* unused */
+  0,
+  0,
+  /* impossible */
+  0
+]);
+var fdeb = new u8([
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  2,
+  2,
+  3,
+  3,
+  4,
+  4,
+  5,
+  5,
+  6,
+  6,
+  7,
+  7,
+  8,
+  8,
+  9,
+  9,
+  10,
+  10,
+  11,
+  11,
+  12,
+  12,
+  13,
+  13,
+  /* unused */
+  0,
+  0
+]);
+var clim = new u8([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
+var freb = function(eb, start) {
+  var b = new u16(31);
+  for (var i2 = 0; i2 < 31; ++i2) {
+    b[i2] = start += 1 << eb[i2 - 1];
+  }
+  var r = new i32(b[30]);
+  for (var i2 = 1; i2 < 30; ++i2) {
+    for (var j = b[i2]; j < b[i2 + 1]; ++j) {
+      r[j] = j - b[i2] << 5 | i2;
+    }
+  }
+  return { b, r };
+};
+var _a = freb(fleb, 2);
+var fl = _a.b;
+var revfl = _a.r;
+fl[28] = 258, revfl[258] = 28;
+var _b = freb(fdeb, 0);
+var fd = _b.b;
+var revfd = _b.r;
+var rev = new u16(32768);
+for (i = 0; i < 32768; ++i) {
+  x = (i & 43690) >> 1 | (i & 21845) << 1;
+  x = (x & 52428) >> 2 | (x & 13107) << 2;
+  x = (x & 61680) >> 4 | (x & 3855) << 4;
+  rev[i] = ((x & 65280) >> 8 | (x & 255) << 8) >> 1;
+}
+var x;
+var i;
+var hMap = (function(cd, mb, r) {
+  var s = cd.length;
+  var i2 = 0;
+  var l = new u16(mb);
+  for (; i2 < s; ++i2) {
+    if (cd[i2])
+      ++l[cd[i2] - 1];
+  }
+  var le = new u16(mb);
+  for (i2 = 1; i2 < mb; ++i2) {
+    le[i2] = le[i2 - 1] + l[i2 - 1] << 1;
+  }
+  var co;
+  if (r) {
+    co = new u16(1 << mb);
+    var rvb = 15 - mb;
+    for (i2 = 0; i2 < s; ++i2) {
+      if (cd[i2]) {
+        var sv = i2 << 4 | cd[i2];
+        var r_1 = mb - cd[i2];
+        var v = le[cd[i2] - 1]++ << r_1;
+        for (var m = v | (1 << r_1) - 1; v <= m; ++v) {
+          co[rev[v] >> rvb] = sv;
+        }
+      }
+    }
+  } else {
+    co = new u16(s);
+    for (i2 = 0; i2 < s; ++i2) {
+      if (cd[i2]) {
+        co[i2] = rev[le[cd[i2] - 1]++] >> 15 - cd[i2];
+      }
+    }
+  }
+  return co;
+});
+var flt = new u8(288);
+for (i = 0; i < 144; ++i)
+  flt[i] = 8;
+var i;
+for (i = 144; i < 256; ++i)
+  flt[i] = 9;
+var i;
+for (i = 256; i < 280; ++i)
+  flt[i] = 7;
+var i;
+for (i = 280; i < 288; ++i)
+  flt[i] = 8;
+var i;
+var fdt = new u8(32);
+for (i = 0; i < 32; ++i)
+  fdt[i] = 5;
+var i;
+var flm = /* @__PURE__ */ hMap(flt, 9, 0);
+var flrm = /* @__PURE__ */ hMap(flt, 9, 1);
+var fdm = /* @__PURE__ */ hMap(fdt, 5, 0);
+var fdrm = /* @__PURE__ */ hMap(fdt, 5, 1);
+var max = function(a) {
+  var m = a[0];
+  for (var i2 = 1; i2 < a.length; ++i2) {
+    if (a[i2] > m)
+      m = a[i2];
+  }
+  return m;
+};
+var bits = function(d, p, m) {
+  var o = p / 8 | 0;
+  return (d[o] | d[o + 1] << 8) >> (p & 7) & m;
+};
+var bits16 = function(d, p) {
+  var o = p / 8 | 0;
+  return (d[o] | d[o + 1] << 8 | d[o + 2] << 16) >> (p & 7);
+};
+var shft = function(p) {
+  return (p + 7) / 8 | 0;
+};
+var slc = function(v, s, e) {
+  if (s == null || s < 0)
+    s = 0;
+  if (e == null || e > v.length)
+    e = v.length;
+  return new u8(v.subarray(s, e));
+};
+var ec = [
+  "unexpected EOF",
+  "invalid block type",
+  "invalid length/literal",
+  "invalid distance",
+  "stream finished",
+  "no stream handler",
+  ,
+  // determined by compression function
+  "no callback",
+  "invalid UTF-8 data",
+  "extra field too long",
+  "date not in range 1980-2099",
+  "filename too long",
+  "stream finishing",
+  "invalid zip data"
+  // determined by unknown compression method
+];
+var err = function(ind, msg, nt) {
+  var e = new Error(msg || ec[ind]);
+  e.code = ind;
+  if (Error.captureStackTrace)
+    Error.captureStackTrace(e, err);
+  if (!nt)
+    throw e;
+  return e;
+};
+var inflt = function(dat, st, buf, dict) {
+  var sl = dat.length, dl = dict ? dict.length : 0;
+  if (!sl || st.f && !st.l)
+    return buf || new u8(0);
+  var noBuf = !buf;
+  var resize = noBuf || st.i != 2;
+  var noSt = st.i;
+  if (noBuf)
+    buf = new u8(sl * 3);
+  var cbuf = function(l2) {
+    var bl = buf.length;
+    if (l2 > bl) {
+      var nbuf = new u8(Math.max(bl * 2, l2));
+      nbuf.set(buf);
+      buf = nbuf;
+    }
+  };
+  var final = st.f || 0, pos = st.p || 0, bt = st.b || 0, lm = st.l, dm = st.d, lbt = st.m, dbt = st.n;
+  var tbts = sl * 8;
+  do {
+    if (!lm) {
+      final = bits(dat, pos, 1);
+      var type = bits(dat, pos + 1, 3);
+      pos += 3;
+      if (!type) {
+        var s = shft(pos) + 4, l = dat[s - 4] | dat[s - 3] << 8, t = s + l;
+        if (t > sl) {
+          if (noSt)
+            err(0);
+          break;
+        }
+        if (resize)
+          cbuf(bt + l);
+        buf.set(dat.subarray(s, t), bt);
+        st.b = bt += l, st.p = pos = t * 8, st.f = final;
+        continue;
+      } else if (type == 1)
+        lm = flrm, dm = fdrm, lbt = 9, dbt = 5;
+      else if (type == 2) {
+        var hLit = bits(dat, pos, 31) + 257, hcLen = bits(dat, pos + 10, 15) + 4;
+        var tl = hLit + bits(dat, pos + 5, 31) + 1;
+        pos += 14;
+        var ldt = new u8(tl);
+        var clt = new u8(19);
+        for (var i2 = 0; i2 < hcLen; ++i2) {
+          clt[clim[i2]] = bits(dat, pos + i2 * 3, 7);
+        }
+        pos += hcLen * 3;
+        var clb = max(clt), clbmsk = (1 << clb) - 1;
+        var clm = hMap(clt, clb, 1);
+        for (var i2 = 0; i2 < tl; ) {
+          var r = clm[bits(dat, pos, clbmsk)];
+          pos += r & 15;
+          var s = r >> 4;
+          if (s < 16) {
+            ldt[i2++] = s;
+          } else {
+            var c = 0, n = 0;
+            if (s == 16)
+              n = 3 + bits(dat, pos, 3), pos += 2, c = ldt[i2 - 1];
+            else if (s == 17)
+              n = 3 + bits(dat, pos, 7), pos += 3;
+            else if (s == 18)
+              n = 11 + bits(dat, pos, 127), pos += 7;
+            while (n--)
+              ldt[i2++] = c;
+          }
+        }
+        var lt = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
+        lbt = max(lt);
+        dbt = max(dt);
+        lm = hMap(lt, lbt, 1);
+        dm = hMap(dt, dbt, 1);
+      } else
+        err(1);
+      if (pos > tbts) {
+        if (noSt)
+          err(0);
+        break;
+      }
+    }
+    if (resize)
+      cbuf(bt + 131072);
+    var lms = (1 << lbt) - 1, dms = (1 << dbt) - 1;
+    var lpos = pos;
+    for (; ; lpos = pos) {
+      var c = lm[bits16(dat, pos) & lms], sym = c >> 4;
+      pos += c & 15;
+      if (pos > tbts) {
+        if (noSt)
+          err(0);
+        break;
+      }
+      if (!c)
+        err(2);
+      if (sym < 256)
+        buf[bt++] = sym;
+      else if (sym == 256) {
+        lpos = pos, lm = null;
+        break;
+      } else {
+        var add = sym - 254;
+        if (sym > 264) {
+          var i2 = sym - 257, b = fleb[i2];
+          add = bits(dat, pos, (1 << b) - 1) + fl[i2];
+          pos += b;
+        }
+        var d = dm[bits16(dat, pos) & dms], dsym = d >> 4;
+        if (!d)
+          err(3);
+        pos += d & 15;
+        var dt = fd[dsym];
+        if (dsym > 3) {
+          var b = fdeb[dsym];
+          dt += bits16(dat, pos) & (1 << b) - 1, pos += b;
+        }
+        if (pos > tbts) {
+          if (noSt)
+            err(0);
+          break;
+        }
+        if (resize)
+          cbuf(bt + 131072);
+        var end = bt + add;
+        if (bt < dt) {
+          var shift = dl - dt, dend = Math.min(dt, end);
+          if (shift + bt < 0)
+            err(3);
+          for (; bt < dend; ++bt)
+            buf[bt] = dict[shift + bt];
+        }
+        for (; bt < end; ++bt)
+          buf[bt] = buf[bt - dt];
+      }
+    }
+    st.l = lm, st.p = lpos, st.b = bt, st.f = final;
+    if (lm)
+      final = 1, st.m = lbt, st.d = dm, st.n = dbt;
+  } while (!final);
+  return bt != buf.length && noBuf ? slc(buf, 0, bt) : buf.subarray(0, bt);
+};
+var wbits = function(d, p, v) {
+  v <<= p & 7;
+  var o = p / 8 | 0;
+  d[o] |= v;
+  d[o + 1] |= v >> 8;
+};
+var wbits16 = function(d, p, v) {
+  v <<= p & 7;
+  var o = p / 8 | 0;
+  d[o] |= v;
+  d[o + 1] |= v >> 8;
+  d[o + 2] |= v >> 16;
+};
+var hTree = function(d, mb) {
+  var t = [];
+  for (var i2 = 0; i2 < d.length; ++i2) {
+    if (d[i2])
+      t.push({ s: i2, f: d[i2] });
+  }
+  var s = t.length;
+  var t2 = t.slice();
+  if (!s)
+    return { t: et, l: 0 };
+  if (s == 1) {
+    var v = new u8(t[0].s + 1);
+    v[t[0].s] = 1;
+    return { t: v, l: 1 };
+  }
+  t.sort(function(a, b) {
+    return a.f - b.f;
+  });
+  t.push({ s: -1, f: 25001 });
+  var l = t[0], r = t[1], i0 = 0, i1 = 1, i22 = 2;
+  t[0] = { s: -1, f: l.f + r.f, l, r };
+  while (i1 != s - 1) {
+    l = t[t[i0].f < t[i22].f ? i0++ : i22++];
+    r = t[i0 != i1 && t[i0].f < t[i22].f ? i0++ : i22++];
+    t[i1++] = { s: -1, f: l.f + r.f, l, r };
+  }
+  var maxSym = t2[0].s;
+  for (var i2 = 1; i2 < s; ++i2) {
+    if (t2[i2].s > maxSym)
+      maxSym = t2[i2].s;
+  }
+  var tr = new u16(maxSym + 1);
+  var mbt = ln(t[i1 - 1], tr, 0);
+  if (mbt > mb) {
+    var i2 = 0, dt = 0;
+    var lft = mbt - mb, cst = 1 << lft;
+    t2.sort(function(a, b) {
+      return tr[b.s] - tr[a.s] || a.f - b.f;
+    });
+    for (; i2 < s; ++i2) {
+      var i2_1 = t2[i2].s;
+      if (tr[i2_1] > mb) {
+        dt += cst - (1 << mbt - tr[i2_1]);
+        tr[i2_1] = mb;
+      } else
+        break;
+    }
+    dt >>= lft;
+    while (dt > 0) {
+      var i2_2 = t2[i2].s;
+      if (tr[i2_2] < mb)
+        dt -= 1 << mb - tr[i2_2]++ - 1;
+      else
+        ++i2;
+    }
+    for (; i2 >= 0 && dt; --i2) {
+      var i2_3 = t2[i2].s;
+      if (tr[i2_3] == mb) {
+        --tr[i2_3];
+        ++dt;
+      }
+    }
+    mbt = mb;
+  }
+  return { t: new u8(tr), l: mbt };
+};
+var ln = function(n, l, d) {
+  return n.s == -1 ? Math.max(ln(n.l, l, d + 1), ln(n.r, l, d + 1)) : l[n.s] = d;
+};
+var lc = function(c) {
+  var s = c.length;
+  while (s && !c[--s])
+    ;
+  var cl = new u16(++s);
+  var cli = 0, cln = c[0], cls = 1;
+  var w = function(v) {
+    cl[cli++] = v;
+  };
+  for (var i2 = 1; i2 <= s; ++i2) {
+    if (c[i2] == cln && i2 != s)
+      ++cls;
+    else {
+      if (!cln && cls > 2) {
+        for (; cls > 138; cls -= 138)
+          w(32754);
+        if (cls > 2) {
+          w(cls > 10 ? cls - 11 << 5 | 28690 : cls - 3 << 5 | 12305);
+          cls = 0;
+        }
+      } else if (cls > 3) {
+        w(cln), --cls;
+        for (; cls > 6; cls -= 6)
+          w(8304);
+        if (cls > 2)
+          w(cls - 3 << 5 | 8208), cls = 0;
+      }
+      while (cls--)
+        w(cln);
+      cls = 1;
+      cln = c[i2];
+    }
+  }
+  return { c: cl.subarray(0, cli), n: s };
+};
+var clen = function(cf, cl) {
+  var l = 0;
+  for (var i2 = 0; i2 < cl.length; ++i2)
+    l += cf[i2] * cl[i2];
+  return l;
+};
+var wfblk = function(out, pos, dat) {
+  var s = dat.length;
+  var o = shft(pos + 2);
+  out[o] = s & 255;
+  out[o + 1] = s >> 8;
+  out[o + 2] = out[o] ^ 255;
+  out[o + 3] = out[o + 1] ^ 255;
+  for (var i2 = 0; i2 < s; ++i2)
+    out[o + i2 + 4] = dat[i2];
+  return (o + 4 + s) * 8;
+};
+var wblk = function(dat, out, final, syms, lf, df, eb, li, bs, bl, p) {
+  wbits(out, p++, final);
+  ++lf[256];
+  var _a2 = hTree(lf, 15), dlt = _a2.t, mlb = _a2.l;
+  var _b2 = hTree(df, 15), ddt = _b2.t, mdb = _b2.l;
+  var _c = lc(dlt), lclt = _c.c, nlc = _c.n;
+  var _d = lc(ddt), lcdt = _d.c, ndc = _d.n;
+  var lcfreq = new u16(19);
+  for (var i2 = 0; i2 < lclt.length; ++i2)
+    ++lcfreq[lclt[i2] & 31];
+  for (var i2 = 0; i2 < lcdt.length; ++i2)
+    ++lcfreq[lcdt[i2] & 31];
+  var _e = hTree(lcfreq, 7), lct = _e.t, mlcb = _e.l;
+  var nlcc = 19;
+  for (; nlcc > 4 && !lct[clim[nlcc - 1]]; --nlcc)
+    ;
+  var flen = bl + 5 << 3;
+  var ftlen = clen(lf, flt) + clen(df, fdt) + eb;
+  var dtlen = clen(lf, dlt) + clen(df, ddt) + eb + 14 + 3 * nlcc + clen(lcfreq, lct) + 2 * lcfreq[16] + 3 * lcfreq[17] + 7 * lcfreq[18];
+  if (bs >= 0 && flen <= ftlen && flen <= dtlen)
+    return wfblk(out, p, dat.subarray(bs, bs + bl));
+  var lm, ll, dm, dl;
+  wbits(out, p, 1 + (dtlen < ftlen)), p += 2;
+  if (dtlen < ftlen) {
+    lm = hMap(dlt, mlb, 0), ll = dlt, dm = hMap(ddt, mdb, 0), dl = ddt;
+    var llm = hMap(lct, mlcb, 0);
+    wbits(out, p, nlc - 257);
+    wbits(out, p + 5, ndc - 1);
+    wbits(out, p + 10, nlcc - 4);
+    p += 14;
+    for (var i2 = 0; i2 < nlcc; ++i2)
+      wbits(out, p + 3 * i2, lct[clim[i2]]);
+    p += 3 * nlcc;
+    var lcts = [lclt, lcdt];
+    for (var it = 0; it < 2; ++it) {
+      var clct = lcts[it];
+      for (var i2 = 0; i2 < clct.length; ++i2) {
+        var len = clct[i2] & 31;
+        wbits(out, p, llm[len]), p += lct[len];
+        if (len > 15)
+          wbits(out, p, clct[i2] >> 5 & 127), p += clct[i2] >> 12;
+      }
+    }
+  } else {
+    lm = flm, ll = flt, dm = fdm, dl = fdt;
+  }
+  for (var i2 = 0; i2 < li; ++i2) {
+    var sym = syms[i2];
+    if (sym > 255) {
+      var len = sym >> 18 & 31;
+      wbits16(out, p, lm[len + 257]), p += ll[len + 257];
+      if (len > 7)
+        wbits(out, p, sym >> 23 & 31), p += fleb[len];
+      var dst = sym & 31;
+      wbits16(out, p, dm[dst]), p += dl[dst];
+      if (dst > 3)
+        wbits16(out, p, sym >> 5 & 8191), p += fdeb[dst];
+    } else {
+      wbits16(out, p, lm[sym]), p += ll[sym];
+    }
+  }
+  wbits16(out, p, lm[256]);
+  return p + ll[256];
+};
+var deo = /* @__PURE__ */ new i32([65540, 131080, 131088, 131104, 262176, 1048704, 1048832, 2114560, 2117632]);
+var et = /* @__PURE__ */ new u8(0);
+var dflt = function(dat, lvl, plvl, pre, post, st) {
+  var s = st.z || dat.length;
+  var o = new u8(pre + s + 5 * (1 + Math.ceil(s / 7e3)) + post);
+  var w = o.subarray(pre, o.length - post);
+  var lst = st.l;
+  var pos = (st.r || 0) & 7;
+  if (lvl) {
+    if (pos)
+      w[0] = st.r >> 3;
+    var opt = deo[lvl - 1];
+    var n = opt >> 13, c = opt & 8191;
+    var msk_1 = (1 << plvl) - 1;
+    var prev = st.p || new u16(32768), head = st.h || new u16(msk_1 + 1);
+    var bs1_1 = Math.ceil(plvl / 3), bs2_1 = 2 * bs1_1;
+    var hsh = function(i3) {
+      return (dat[i3] ^ dat[i3 + 1] << bs1_1 ^ dat[i3 + 2] << bs2_1) & msk_1;
+    };
+    var syms = new i32(25e3);
+    var lf = new u16(288), df = new u16(32);
+    var lc_1 = 0, eb = 0, i2 = st.i || 0, li = 0, wi = st.w || 0, bs = 0;
+    for (; i2 + 2 < s; ++i2) {
+      var hv = hsh(i2);
+      var imod = i2 & 32767, pimod = head[hv];
+      prev[imod] = pimod;
+      head[hv] = imod;
+      if (wi <= i2) {
+        var rem = s - i2;
+        if ((lc_1 > 7e3 || li > 24576) && (rem > 423 || !lst)) {
+          pos = wblk(dat, w, 0, syms, lf, df, eb, li, bs, i2 - bs, pos);
+          li = lc_1 = eb = 0, bs = i2;
+          for (var j = 0; j < 286; ++j)
+            lf[j] = 0;
+          for (var j = 0; j < 30; ++j)
+            df[j] = 0;
+        }
+        var l = 2, d = 0, ch_1 = c, dif = imod - pimod & 32767;
+        if (rem > 2 && hv == hsh(i2 - dif)) {
+          var maxn = Math.min(n, rem) - 1;
+          var maxd = Math.min(32767, i2);
+          var ml = Math.min(258, rem);
+          while (dif <= maxd && --ch_1 && imod != pimod) {
+            if (dat[i2 + l] == dat[i2 + l - dif]) {
+              var nl = 0;
+              for (; nl < ml && dat[i2 + nl] == dat[i2 + nl - dif]; ++nl)
+                ;
+              if (nl > l) {
+                l = nl, d = dif;
+                if (nl > maxn)
+                  break;
+                var mmd = Math.min(dif, nl - 2);
+                var md = 0;
+                for (var j = 0; j < mmd; ++j) {
+                  var ti = i2 - dif + j & 32767;
+                  var pti = prev[ti];
+                  var cd = ti - pti & 32767;
+                  if (cd > md)
+                    md = cd, pimod = ti;
+                }
+              }
+            }
+            imod = pimod, pimod = prev[imod];
+            dif += imod - pimod & 32767;
+          }
+        }
+        if (d) {
+          syms[li++] = 268435456 | revfl[l] << 18 | revfd[d];
+          var lin = revfl[l] & 31, din = revfd[d] & 31;
+          eb += fleb[lin] + fdeb[din];
+          ++lf[257 + lin];
+          ++df[din];
+          wi = i2 + l;
+          ++lc_1;
+        } else {
+          syms[li++] = dat[i2];
+          ++lf[dat[i2]];
+        }
+      }
+    }
+    for (i2 = Math.max(i2, wi); i2 < s; ++i2) {
+      syms[li++] = dat[i2];
+      ++lf[dat[i2]];
+    }
+    pos = wblk(dat, w, lst, syms, lf, df, eb, li, bs, i2 - bs, pos);
+    if (!lst) {
+      st.r = pos & 7 | w[pos / 8 | 0] << 3;
+      pos -= 7;
+      st.h = head, st.p = prev, st.i = i2, st.w = wi;
+    }
+  } else {
+    for (var i2 = st.w || 0; i2 < s + lst; i2 += 65535) {
+      var e = i2 + 65535;
+      if (e >= s) {
+        w[pos / 8 | 0] = lst;
+        e = s;
+      }
+      pos = wfblk(w, pos + 1, dat.subarray(i2, e));
+    }
+    st.i = s;
+  }
+  return slc(o, 0, pre + shft(pos) + post);
+};
+var crct = /* @__PURE__ */ (function() {
+  var t = new Int32Array(256);
+  for (var i2 = 0; i2 < 256; ++i2) {
+    var c = i2, k = 9;
+    while (--k)
+      c = (c & 1 && -306674912) ^ c >>> 1;
+    t[i2] = c;
+  }
+  return t;
+})();
+var crc = function() {
+  var c = -1;
+  return {
+    p: function(d) {
+      var cr = c;
+      for (var i2 = 0; i2 < d.length; ++i2)
+        cr = crct[cr & 255 ^ d[i2]] ^ cr >>> 8;
+      c = cr;
+    },
+    d: function() {
+      return ~c;
+    }
+  };
+};
+var dopt = function(dat, opt, pre, post, st) {
+  if (!st) {
+    st = { l: 1 };
+    if (opt.dictionary) {
+      var dict = opt.dictionary.subarray(-32768);
+      var newDat = new u8(dict.length + dat.length);
+      newDat.set(dict);
+      newDat.set(dat, dict.length);
+      dat = newDat;
+      st.w = dict.length;
+    }
+  }
+  return dflt(dat, opt.level == null ? 6 : opt.level, opt.mem == null ? st.l ? Math.ceil(Math.max(8, Math.min(13, Math.log(dat.length))) * 1.5) : 20 : 12 + opt.mem, pre, post, st);
+};
+var mrg = function(a, b) {
+  var o = {};
+  for (var k in a)
+    o[k] = a[k];
+  for (var k in b)
+    o[k] = b[k];
+  return o;
+};
+var b2 = function(d, b) {
+  return d[b] | d[b + 1] << 8;
+};
+var b4 = function(d, b) {
+  return (d[b] | d[b + 1] << 8 | d[b + 2] << 16 | d[b + 3] << 24) >>> 0;
+};
+var b8 = function(d, b) {
+  return b4(d, b) + b4(d, b + 4) * 4294967296;
+};
+var wbytes = function(d, b, v) {
+  for (; v; ++b)
+    d[b] = v, v >>>= 8;
+};
+function deflateSync(data, opts) {
+  return dopt(data, opts || {}, 0, 0);
+}
+function inflateSync(data, opts) {
+  return inflt(data, { i: 2 }, opts && opts.out, opts && opts.dictionary);
+}
+var fltn = function(d, p, t, o) {
+  for (var k in d) {
+    var val = d[k], n = p + k, op = o;
+    if (Array.isArray(val))
+      op = mrg(o, val[1]), val = val[0];
+    if (ArrayBuffer.isView(val))
+      t[n] = [val, op];
+    else {
+      t[n += "/"] = [new u8(0), op];
+      fltn(val, n, t, o);
+    }
+  }
+};
+var te = typeof TextEncoder != "undefined" && /* @__PURE__ */ new TextEncoder();
+var td = typeof TextDecoder != "undefined" && /* @__PURE__ */ new TextDecoder();
+var tds = 0;
+try {
+  td.decode(et, { stream: true });
+  tds = 1;
+} catch (e) {
+}
+var dutf8 = function(d) {
+  for (var r = "", i2 = 0; ; ) {
+    var c = d[i2++];
+    var eb = (c > 127) + (c > 223) + (c > 239);
+    if (i2 + eb > d.length)
+      return { s: r, r: slc(d, i2 - 1) };
+    if (!eb)
+      r += String.fromCharCode(c);
+    else if (eb == 3) {
+      c = ((c & 15) << 18 | (d[i2++] & 63) << 12 | (d[i2++] & 63) << 6 | d[i2++] & 63) - 65536, r += String.fromCharCode(55296 | c >> 10, 56320 | c & 1023);
+    } else if (eb & 1)
+      r += String.fromCharCode((c & 31) << 6 | d[i2++] & 63);
+    else
+      r += String.fromCharCode((c & 15) << 12 | (d[i2++] & 63) << 6 | d[i2++] & 63);
+  }
+};
+function strToU8(str, latin1) {
+  if (latin1) {
+    var ar_1 = new u8(str.length);
+    for (var i2 = 0; i2 < str.length; ++i2)
+      ar_1[i2] = str.charCodeAt(i2);
+    return ar_1;
+  }
+  if (te)
+    return te.encode(str);
+  var l = str.length;
+  var ar = new u8(str.length + (str.length >> 1));
+  var ai = 0;
+  var w = function(v) {
+    ar[ai++] = v;
+  };
+  for (var i2 = 0; i2 < l; ++i2) {
+    if (ai + 5 > ar.length) {
+      var n = new u8(ai + 8 + (l - i2 << 1));
+      n.set(ar);
+      ar = n;
+    }
+    var c = str.charCodeAt(i2);
+    if (c < 128 || latin1)
+      w(c);
+    else if (c < 2048)
+      w(192 | c >> 6), w(128 | c & 63);
+    else if (c > 55295 && c < 57344)
+      c = 65536 + (c & 1023 << 10) | str.charCodeAt(++i2) & 1023, w(240 | c >> 18), w(128 | c >> 12 & 63), w(128 | c >> 6 & 63), w(128 | c & 63);
+    else
+      w(224 | c >> 12), w(128 | c >> 6 & 63), w(128 | c & 63);
+  }
+  return slc(ar, 0, ai);
+}
+function strFromU8(dat, latin1) {
+  if (latin1) {
+    var r = "";
+    for (var i2 = 0; i2 < dat.length; i2 += 16384)
+      r += String.fromCharCode.apply(null, dat.subarray(i2, i2 + 16384));
+    return r;
+  } else if (td) {
+    return td.decode(dat);
+  } else {
+    var _a2 = dutf8(dat), s = _a2.s, r = _a2.r;
+    if (r.length)
+      err(8);
+    return s;
+  }
+}
+var slzh = function(d, b) {
+  return b + 30 + b2(d, b + 26) + b2(d, b + 28);
+};
+var zh = function(d, b, z) {
+  var fnl = b2(d, b + 28), efl = b2(d, b + 30), fn = strFromU8(d.subarray(b + 46, b + 46 + fnl), !(b2(d, b + 8) & 2048)), es = b + 46 + fnl;
+  var _a2 = z64hs(d, es, efl, z, b4(d, b + 20), b4(d, b + 24), b4(d, b + 42)), sc = _a2[0], su = _a2[1], off = _a2[2];
+  return [b2(d, b + 10), sc, su, fn, es + efl + b2(d, b + 32), off];
+};
+var z64hs = function(d, b, l, z, sc, su, off) {
+  var nsc = sc == 4294967295, nsu = su == 4294967295, noff = off == 4294967295, e = b + l;
+  var nf = nsc + nsu + noff;
+  if (z && nf) {
+    for (; b + 4 < e; b += 4 + b2(d, b + 2)) {
+      if (b2(d, b) == 1) {
+        return [
+          nsc ? b8(d, b + 4 + 8 * nsu) : sc,
+          nsu ? b8(d, b + 4) : su,
+          noff ? b8(d, b + 4 + 8 * (nsu + nsc)) : off,
+          1
+        ];
+      }
+    }
+    if (z < 2)
+      err(13);
+  }
+  return [sc, su, off, 0];
+};
+var exfl = function(ex) {
+  var le = 0;
+  if (ex) {
+    for (var k in ex) {
+      var l = ex[k].length;
+      if (l > 65535)
+        err(9);
+      le += l + 4;
+    }
+  }
+  return le;
+};
+var wzh = function(d, b, f, fn, u, c, ce, co) {
+  var fl2 = fn.length, ex = f.extra, col = co && co.length;
+  var exl = exfl(ex);
+  wbytes(d, b, ce != null ? 33639248 : 67324752), b += 4;
+  if (ce != null)
+    d[b++] = 20, d[b++] = f.os;
+  d[b] = 20, b += 2;
+  d[b++] = f.flag << 1 | (c < 0 && 8), d[b++] = u && 8;
+  d[b++] = f.compression & 255, d[b++] = f.compression >> 8;
+  var dt = new Date(f.mtime == null ? Date.now() : f.mtime), y = dt.getFullYear() - 1980;
+  if (y < 0 || y > 119)
+    err(10);
+  wbytes(d, b, y << 25 | dt.getMonth() + 1 << 21 | dt.getDate() << 16 | dt.getHours() << 11 | dt.getMinutes() << 5 | dt.getSeconds() >> 1), b += 4;
+  if (c != -1) {
+    wbytes(d, b, f.crc);
+    wbytes(d, b + 4, c < 0 ? -c - 2 : c);
+    wbytes(d, b + 8, f.size);
+  }
+  wbytes(d, b + 12, fl2);
+  wbytes(d, b + 14, exl), b += 16;
+  if (ce != null) {
+    wbytes(d, b, col);
+    wbytes(d, b + 6, f.attrs);
+    wbytes(d, b + 10, ce), b += 14;
+  }
+  d.set(fn, b);
+  b += fl2;
+  if (exl) {
+    for (var k in ex) {
+      var exf = ex[k], l = exf.length;
+      wbytes(d, b, +k);
+      wbytes(d, b + 2, l);
+      d.set(exf, b + 4), b += 4 + l;
+    }
+  }
+  if (col)
+    d.set(co, b), b += col;
+  return b;
+};
+var wzf = function(o, b, c, d, e) {
+  wbytes(o, b, 101010256);
+  wbytes(o, b + 8, c);
+  wbytes(o, b + 10, c);
+  wbytes(o, b + 12, d);
+  wbytes(o, b + 16, e);
+};
+function zipSync(data, opts) {
+  if (!opts)
+    opts = {};
+  var r = {};
+  var files = [];
+  fltn(data, "", r, opts);
+  var o = 0;
+  var tot = 0;
+  for (var fn in r) {
+    var _a2 = r[fn], file = _a2[0], p = _a2[1];
+    var compression = p.level == 0 ? 0 : 8;
+    var f = strToU8(fn), s = f.length;
+    var com = p.comment, m = com && strToU8(com), ms = m && m.length;
+    var exl = exfl(p.extra);
+    if (s > 65535)
+      err(11);
+    var d = compression ? deflateSync(file, p) : file, l = d.length;
+    var c = crc();
+    c.p(file);
+    files.push(mrg(p, {
+      size: file.length,
+      crc: c.d(),
+      c: d,
+      f,
+      m,
+      u: s != fn.length || m && com.length != ms,
+      o,
+      compression
+    }));
+    o += 30 + s + exl + l;
+    tot += 76 + 2 * (s + exl) + (ms || 0) + l;
+  }
+  var out = new u8(tot + 22), oe = o, cdl = tot - o;
+  for (var i2 = 0; i2 < files.length; ++i2) {
+    var f = files[i2];
+    wzh(out, f.o, f, f.f, f.u, f.c.length);
+    var badd = 30 + f.f.length + exfl(f.extra);
+    out.set(f.c, f.o + badd);
+    wzh(out, o, f, f.f, f.u, f.c.length, f.o, f.m), o += 16 + badd + (f.m ? f.m.length : 0);
+  }
+  wzf(out, o, files.length, cdl, oe);
+  return out;
+}
+function unzipSync(data, opts) {
+  var files = {};
+  var e = data.length - 22;
+  for (; b4(data, e) != 101010256; --e) {
+    if (!e || data.length - e > 65558)
+      err(13);
+  }
+  ;
+  var c = b2(data, e + 8);
+  if (!c)
+    return {};
+  var o = b4(data, e + 16);
+  var z = b4(data, e - 20) == 117853008;
+  if (z) {
+    var ze = b4(data, e - 12);
+    z = b4(data, ze) == 101075792;
+    if (z) {
+      c = b4(data, ze + 32);
+      o = b4(data, ze + 48);
+    }
+  }
+  var fltr = opts && opts.filter;
+  for (var i2 = 0; i2 < c; ++i2) {
+    var _a2 = zh(data, o, z), c_2 = _a2[0], sc = _a2[1], su = _a2[2], fn = _a2[3], no = _a2[4], off = _a2[5], b = slzh(data, off);
+    o = no;
+    if (!fltr || fltr({
+      name: fn,
+      size: sc,
+      originalSize: su,
+      compression: c_2
+    })) {
+      if (!c_2)
+        files[fn] = slc(data, b, b + sc);
+      else if (c_2 == 8)
+        files[fn] = inflateSync(data.subarray(b, b + sc), { out: new u8(su) });
+      else
+        err(14, "unknown compression type " + c_2);
+    }
+  }
+  return files;
+}
 
 // src/folderSuggest.ts
 var import_obsidian26 = require("obsidian");
@@ -19777,8 +18374,8 @@ function isZoomMapBundleV1(value) {
   return isRecord2(value) && value.version === 1 && typeof value.exportedAt === "string" && typeof value.bundleName === "string" && isRecord2(value.map) && Array.isArray(value.assets) && value.assets.every(isBundleAssetEntry);
 }
 function mimeFromPath(path) {
-  var _a, _b;
-  const ext = (_b = (_a = basename2(path).split(".").pop()) == null ? void 0 : _a.toLowerCase()) != null ? _b : "";
+  var _a2, _b2;
+  const ext = (_b2 = (_a2 = basename2(path).split(".").pop()) == null ? void 0 : _a2.toLowerCase()) != null ? _b2 : "";
   switch (ext) {
     case "png":
       return "image/png";
@@ -19799,8 +18396,8 @@ function arrayBufferToBase64(buf) {
   const bytes = new Uint8Array(buf);
   const chunkSize = 32768;
   let binary = "";
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, i + chunkSize);
+  for (let i2 = 0; i2 < bytes.length; i2 += chunkSize) {
+    const chunk = bytes.subarray(i2, i2 + chunkSize);
     binary += String.fromCharCode(...chunk);
   }
   return safeBtoa(binary);
@@ -19809,12 +18406,8 @@ function dataUrlFromBytes(path, buf) {
   return `data:${mimeFromPath(path)};base64,${arrayBufferToBase64(buf)}`;
 }
 function safeBtoa(binary) {
-  if (typeof globalThis.btoa === "function") {
-    return globalThis.btoa(binary);
-  }
-  const maybeBuffer = globalThis.Buffer;
-  if (maybeBuffer && typeof maybeBuffer.from === "function") {
-    return maybeBuffer.from(binary, "binary").toString("base64");
+  if (typeof window.btoa === "function") {
+    return window.btoa(binary);
   }
   throw new Error("No base64 encoder available in this runtime.");
 }
@@ -19871,11 +18464,11 @@ function buildRawLink(base, anchor, alias) {
   return out;
 }
 function quoteAwareInsertionText(editor, codeBlock, inlineBlock) {
-  var _a, _b;
+  var _a2, _b2;
   const cursor = editor.getCursor();
-  const line = (_a = editor.getLine(cursor.line)) != null ? _a : "";
+  const line = (_a2 = editor.getLine(cursor.line)) != null ? _a2 : "";
   const m = /^(\s*(?:>\s*)+)/.exec(line);
-  const quotePrefix = (_b = m == null ? void 0 : m[1]) != null ? _b : "";
+  const quotePrefix = (_b2 = m == null ? void 0 : m[1]) != null ? _b2 : "";
   const normalizedCode = `${codeBlock.trimEnd()}
 `;
   const normalizedInline = inlineBlock ? `${inlineBlock.trimEnd()}
@@ -19885,10 +18478,10 @@ function quoteAwareInsertionText(editor, codeBlock, inlineBlock) {
 ${normalizedInline}` : normalizedCode;
   }
   const cursorAfterPrefix = cursor.ch >= quotePrefix.length;
-  const quotedCode = normalizedCode.split("\n").map((ln, idx) => {
-    if (idx === normalizedCode.split("\n").length - 1 && ln === "") return "";
-    if (idx === 0 && cursorAfterPrefix) return ln;
-    return `${quotePrefix}${ln}`;
+  const quotedCode = normalizedCode.split("\n").map((ln2, idx) => {
+    if (idx === normalizedCode.split("\n").length - 1 && ln2 === "") return "";
+    if (idx === 0 && cursorAfterPrefix) return ln2;
+    return `${quotePrefix}${ln2}`;
   }).join("\n").trimEnd() + "\n";
   return normalizedInline ? `${quotedCode}
 ${normalizedInline}` : quotedCode;
@@ -19905,12 +18498,13 @@ function buildInlineStorageBlock(mapId, data) {
   ].join("\n");
 }
 function downloadZip(filename, bytes) {
+  var _a2;
   const blob = new Blob([bytes], { type: "application/zip" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
-  document.body.appendChild(a);
+  (_a2 = document.body) == null ? void 0 : _a2.appendChild(a);
   a.click();
   a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1e3);
@@ -19943,14 +18537,14 @@ async function uniqueVaultPath(app, desiredPath, reserved) {
   const dot = base.lastIndexOf(".");
   const stem = dot >= 0 ? base.slice(0, dot) : base;
   const ext = dot >= 0 ? base.slice(dot) : "";
-  let i = 1;
+  let i2 = 1;
   while (true) {
-    const candidate = (0, import_obsidian27.normalizePath)(`${dir}/${stem}-${i}${ext}`);
+    const candidate = (0, import_obsidian27.normalizePath)(`${dir}/${stem}-${i2}${ext}`);
     if (!app.vault.getAbstractFileByPath(candidate) && !(reserved == null ? void 0 : reserved.has(candidate))) {
       reserved == null ? void 0 : reserved.add(candidate);
       return candidate;
     }
-    i += 1;
+    i2 += 1;
   }
 }
 async function readVaultBinary(app, file) {
@@ -20033,9 +18627,9 @@ function uniqueCollectionItemId(prefix, taken, desired) {
   return candidate;
 }
 function bundleUsesCustomUnits(data) {
-  var _a, _b;
-  if (((_a = data.measurement) == null ? void 0 : _a.displayUnit) === "custom") return true;
-  if (((_b = data.markers) != null ? _b : []).some((m) => m.pingRadiusUnit === "custom")) return true;
+  var _a2, _b2;
+  if (((_a2 = data.measurement) == null ? void 0 : _a2.displayUnit) === "custom") return true;
+  if (((_b2 = data.markers) != null ? _b2 : []).some((m) => m.pingRadiusUnit === "custom")) return true;
   return false;
 }
 function isCustomFontValue(value) {
@@ -20047,23 +18641,23 @@ function isCustomFontValue(value) {
   return true;
 }
 function collectCustomFonts(data) {
-  var _a, _b;
+  var _a2, _b2;
   const out = /* @__PURE__ */ new Set();
   const addStyle = (style) => {
-    var _a2;
-    const family = ((_a2 = style == null ? void 0 : style.fontFamily) != null ? _a2 : "").trim();
+    var _a3;
+    const family = ((_a3 = style == null ? void 0 : style.fontFamily) != null ? _a3 : "").trim();
     if (family && isCustomFontValue(family)) out.add(family);
   };
-  for (const layer of (_a = data.textLayers) != null ? _a : []) {
+  for (const layer of (_a2 = data.textLayers) != null ? _a2 : []) {
     addStyle(layer.style);
-    for (const box of (_b = layer.boxes) != null ? _b : []) addStyle(box.style);
+    for (const box of (_b2 = layer.boxes) != null ? _b2 : []) addStyle(box.style);
   }
   return [...out].sort((a, b) => a.localeCompare(b));
 }
 function ensureCollectionArrays(col) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
-  (_a = col.bindings) != null ? _a : col.bindings = { basePaths: [] };
-  (_c = (_b = col.bindings).basePaths) != null ? _c : _b.basePaths = [];
+  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+  (_a2 = col.bindings) != null ? _a2 : col.bindings = { basePaths: [] };
+  (_c = (_b2 = col.bindings).basePaths) != null ? _c : _b2.basePaths = [];
   (_d = col.include) != null ? _d : col.include = {
     pinKeys: [],
     favorites: [],
@@ -20078,15 +18672,15 @@ function ensureCollectionArrays(col) {
   (_n = (_m = col.include).pingPins) != null ? _n : _m.pingPins = [];
 }
 function createSyntheticStickerPresets(data) {
-  var _a, _b;
+  var _a2, _b2;
   const seen = /* @__PURE__ */ new Set();
   const out = [];
-  for (const marker of (_a = data.markers) != null ? _a : []) {
+  for (const marker of (_a2 = data.markers) != null ? _a2 : []) {
     if (marker.type !== "sticker" || !marker.stickerPath) continue;
     const preset = {
       name: fileStem2(marker.stickerPath) || "Sticker",
       imagePath: marker.stickerPath,
-      size: Math.max(1, Math.round((_b = marker.stickerSize) != null ? _b : 64)),
+      size: Math.max(1, Math.round((_b2 = marker.stickerSize) != null ? _b2 : 64)),
       openEditor: false
     };
     const sig = normalizeStickerSignature(preset);
@@ -20097,26 +18691,26 @@ function createSyntheticStickerPresets(data) {
   return out;
 }
 function findSwapPreset(plugin, id) {
-  var _a, _b, _c;
-  const cols = (_a = plugin.settings.baseCollections) != null ? _a : [];
+  var _a2, _b2, _c;
+  const cols = (_a2 = plugin.settings.baseCollections) != null ? _a2 : [];
   for (const col of cols) {
-    const found = ((_c = (_b = col.include) == null ? void 0 : _b.swapPins) != null ? _c : []).find((sp) => sp.id === id);
+    const found = ((_c = (_b2 = col.include) == null ? void 0 : _b2.swapPins) != null ? _c : []).find((sp) => sp.id === id);
     if (found) return deepClone5(found);
   }
   return null;
 }
 function findPingPreset(plugin, id) {
-  var _a, _b, _c;
-  const cols = (_a = plugin.settings.baseCollections) != null ? _a : [];
+  var _a2, _b2, _c;
+  const cols = (_a2 = plugin.settings.baseCollections) != null ? _a2 : [];
   for (const col of cols) {
-    const found = ((_c = (_b = col.include) == null ? void 0 : _b.pingPins) != null ? _c : []).find((pp) => pp.id === id);
+    const found = ((_c = (_b2 = col.include) == null ? void 0 : _b2.pingPins) != null ? _c : []).find((pp) => pp.id === id);
     if (found) return deepClone5(found);
   }
   return null;
 }
 function findIconLike(plugin, key) {
-  var _a;
-  const existing = ((_a = plugin.settings.icons) != null ? _a : []).find((i) => i.key === key);
+  var _a2;
+  const existing = ((_a2 = plugin.settings.icons) != null ? _a2 : []).find((i2) => i2.key === key);
   if (existing) return deepClone5(existing);
   const builtin = plugin.builtinIcon();
   return {
@@ -20126,9 +18720,9 @@ function findIconLike(plugin, key) {
   };
 }
 async function serializeIconForBundle(app, plugin, sourcePath, iconKey) {
-  var _a;
+  var _a2;
   const icon = findIconLike(plugin, iconKey);
-  const src = (_a = icon.pathOrDataUrl) != null ? _a : "";
+  const src = (_a2 = icon.pathOrDataUrl) != null ? _a2 : "";
   if (isDataUrl(src)) return icon;
   const file = resolveFile(app, src, sourcePath);
   if (!file) return icon;
@@ -20139,15 +18733,15 @@ async function serializeIconForBundle(app, plugin, sourcePath, iconKey) {
   };
 }
 function collectUsedCollectionSubset(plugin, data, bundleName) {
-  var _a, _b, _c, _d, _e, _f;
+  var _a2, _b2, _c, _d, _e, _f;
   const pinKeys = /* @__PURE__ */ new Set();
   const swapPins = [];
   const pingPins = [];
   const seenSwap = /* @__PURE__ */ new Set();
   const seenPing = /* @__PURE__ */ new Set();
-  for (const marker of (_a = data.markers) != null ? _a : []) {
+  for (const marker of (_a2 = data.markers) != null ? _a2 : []) {
     if (marker.type !== "sticker") {
-      const key = ((_c = (_b = marker.iconKey) != null ? _b : plugin.settings.defaultIconKey) != null ? _c : "").trim();
+      const key = ((_c = (_b2 = marker.iconKey) != null ? _b2 : plugin.settings.defaultIconKey) != null ? _c : "").trim();
       if (key) pinKeys.add(key);
     }
     if (marker.type === "swap" && marker.swapKey && !seenSwap.has(marker.swapKey)) {
@@ -20181,12 +18775,12 @@ function collectUsedCollectionSubset(plugin, data, bundleName) {
   };
 }
 function collectUsedIconKeys(plugin, data, subset, fallbackDefaultIconKey) {
-  var _a, _b, _c, _d, _e, _f, _g, _h;
+  var _a2, _b2, _c, _d, _e, _f, _g, _h;
   const keys = /* @__PURE__ */ new Set();
   let needsFallbackDefault = false;
-  for (const marker of (_a = data.markers) != null ? _a : []) {
+  for (const marker of (_a2 = data.markers) != null ? _a2 : []) {
     if (marker.type === "sticker") continue;
-    const key = ((_b = marker.iconKey) != null ? _b : "").trim();
+    const key = ((_b2 = marker.iconKey) != null ? _b2 : "").trim();
     if (key) keys.add(key);
     else needsFallbackDefault = true;
   }
@@ -20208,14 +18802,14 @@ function collectUsedIconKeys(plugin, data, subset, fallbackDefaultIconKey) {
   return [...keys].sort((a, b) => a.localeCompare(b));
 }
 function collectConfiguredAssetPaths(ctx) {
-  var _a, _b, _c;
+  var _a2, _b2, _c;
   const markerData = ctx.markerData;
   const basePaths = normalizeBases(markerData.bases).map((b) => b.path);
   const overlayPaths = normalizeOverlays(markerData.overlays).map((o) => o.path);
-  const stickerPaths = ((_a = markerData.markers) != null ? _a : []).filter((m) => m.type === "sticker" && typeof m.stickerPath === "string").map((m) => m.stickerPath);
-  const drawingPaths = ((_b = markerData.drawings) != null ? _b : []).map((d) => {
-    var _a2;
-    return (_a2 = d.bakedPath) != null ? _a2 : "";
+  const stickerPaths = ((_a2 = markerData.markers) != null ? _a2 : []).filter((m) => m.type === "sticker" && typeof m.stickerPath === "string").map((m) => m.stickerPath);
+  const drawingPaths = ((_b2 = markerData.drawings) != null ? _b2 : []).map((d) => {
+    var _a3;
+    return (_a3 = d.bakedPath) != null ? _a3 : "";
   }).filter((p) => !!p);
   let framePath;
   const yamlObj = (_c = ctx.yamlObject) != null ? _c : {};
@@ -20230,17 +18824,17 @@ function collectConfiguredAssetPaths(ctx) {
   };
 }
 function collectDirectResolvedNoteLinks(app, file, options) {
-  var _a, _b, _c, _d;
+  var _a2, _b2, _c, _d;
   const resolvedLinks = {};
   const notePaths = /* @__PURE__ */ new Set();
   const mediaAssetPaths = /* @__PURE__ */ new Map();
   const cache = thisSafeFileCache(app, file);
   const rawLinks = /* @__PURE__ */ new Set();
-  for (const entry of (_a = cache == null ? void 0 : cache.links) != null ? _a : []) {
+  for (const entry of (_a2 = cache == null ? void 0 : cache.links) != null ? _a2 : []) {
     const raw = typeof entry.link === "string" ? entry.link.trim() : "";
     if (raw) rawLinks.add(raw);
   }
-  for (const entry of (_b = cache == null ? void 0 : cache.embeds) != null ? _b : []) {
+  for (const entry of (_b2 = cache == null ? void 0 : cache.embeds) != null ? _b2 : []) {
     const raw = typeof entry.link === "string" ? entry.link.trim() : "";
     if (raw) rawLinks.add(raw);
   }
@@ -20266,11 +18860,11 @@ function collectDirectResolvedNoteLinks(app, file, options) {
   return { resolvedLinks, notePaths, mediaAssetPaths };
 }
 function thisSafeFileCache(app, file) {
-  var _a;
-  return (_a = app.metadataCache.getFileCache(file)) != null ? _a : null;
+  var _a2;
+  return (_a2 = app.metadataCache.getFileCache(file)) != null ? _a2 : null;
 }
 function collectRecursiveLinkedNotes(app, seedPaths, options) {
-  var _a;
+  var _a2;
   const linkedNotePaths = /* @__PURE__ */ new Set();
   const noteResolvedLinks = {};
   const mediaAssetPaths = /* @__PURE__ */ new Map();
@@ -20280,7 +18874,7 @@ function collectRecursiveLinkedNotes(app, seedPaths, options) {
     if (!path || linkedNotePaths.has(path)) continue;
     const af = app.vault.getAbstractFileByPath(path);
     if (!(af instanceof import_obsidian27.TFile)) continue;
-    if (((_a = af.extension) == null ? void 0 : _a.toLowerCase()) !== "md") continue;
+    if (((_a2 = af.extension) == null ? void 0 : _a2.toLowerCase()) !== "md") continue;
     linkedNotePaths.add(af.path);
     const direct = collectDirectResolvedNoteLinks(app, af, options);
     if (Object.keys(direct.resolvedLinks).length > 0) {
@@ -20341,7 +18935,7 @@ function buildZipAssetPath(kind, originalPath) {
   return `${kind}/${safeRelativePath(originalPath)}`;
 }
 function parseBundleSummary(bundle) {
-  var _a, _b, _c, _d, _e;
+  var _a2, _b2, _c, _d, _e;
   const data = bundle.map.markerData;
   const noteImages = bundle.assets.filter((a) => a.kind === "note-image").length;
   const noteVideos = bundle.assets.filter((a) => a.kind === "note-video").length;
@@ -20350,8 +18944,8 @@ function parseBundleSummary(bundle) {
   return [
     `Storage: ${bundle.map.storageMode}`,
     `Bases: ${normalizeBases(data.bases).length}`,
-    `Overlays: ${((_a = data.overlays) != null ? _a : []).length}`,
-    `Markers: ${((_b = data.markers) != null ? _b : []).length}`,
+    `Overlays: ${((_a2 = data.overlays) != null ? _a2 : []).length}`,
+    `Markers: ${((_b2 = data.markers) != null ? _b2 : []).length}`,
     `Drawings: ${((_c = data.drawings) != null ? _c : []).length}`,
     `Text layers: ${((_d = data.textLayers) != null ? _d : []).length}`,
     `Icons: ${((_e = bundle.icons) != null ? _e : []).length}`,
@@ -20363,9 +18957,9 @@ function parseBundleSummary(bundle) {
   ];
 }
 function stripWikiLinkToText(raw) {
-  var _a;
+  var _a2;
   const parsed = splitRawLink(raw);
-  if ((_a = parsed.alias) == null ? void 0 : _a.trim()) return parsed.alias.trim();
+  if ((_a2 = parsed.alias) == null ? void 0 : _a2.trim()) return parsed.alias.trim();
   const path = parsed.path.trim();
   if (path) return path;
   return raw.trim();
@@ -20385,8 +18979,8 @@ function isExternalHref(href) {
 function rewriteImportedNoteText(app, text, originalSourcePath, sourceResolvedLinks, notePathMap, filePathMap, targetNotePath, stripUnresolved) {
   const resolvedLookup = sourceResolvedLinks != null ? sourceResolvedLinks : {};
   const rewriteViaImportedPath = (rawLink, fallbackText) => {
-    var _a, _b, _c;
-    const resolvedOriginalPath = (_b = (_a = resolvedLookup[rawLink.trim()]) != null ? _a : resolvedLookup[extractMarkdownHrefTarget(rawLink)]) != null ? _b : resolvedLookup[splitRawLink(rawLink).path];
+    var _a2, _b2, _c;
+    const resolvedOriginalPath = (_b2 = (_a2 = resolvedLookup[rawLink.trim()]) != null ? _a2 : resolvedLookup[extractMarkdownHrefTarget(rawLink)]) != null ? _b2 : resolvedLookup[splitRawLink(rawLink).path];
     if (!resolvedOriginalPath) return stripUnresolved ? fallbackText : null;
     const importedPath = (_c = notePathMap.get(resolvedOriginalPath)) != null ? _c : filePathMap.get(resolvedOriginalPath);
     if (!importedPath) return stripUnresolved ? fallbackText : null;
@@ -20414,7 +19008,7 @@ function rewriteImportedNoteText(app, text, originalSourcePath, sourceResolvedLi
   return out;
 }
 function buildExportSummaryLines(storageMode, prepared) {
-  var _a, _b, _c, _d;
+  var _a2, _b2, _c, _d;
   const markerData = prepared.markerData;
   let noteImages = 0;
   let noteVideos = 0;
@@ -20429,8 +19023,8 @@ function buildExportSummaryLines(storageMode, prepared) {
   return [
     `Storage: ${storageMode}`,
     `Bases: ${normalizeBases(markerData.bases).length}`,
-    `Overlays: ${((_a = markerData.overlays) != null ? _a : []).length}`,
-    `Markers: ${((_b = markerData.markers) != null ? _b : []).length}`,
+    `Overlays: ${((_a2 = markerData.overlays) != null ? _a2 : []).length}`,
+    `Markers: ${((_b2 = markerData.markers) != null ? _b2 : []).length}`,
     `Drawings: ${((_c = markerData.drawings) != null ? _c : []).length}`,
     `Text layers: ${((_d = markerData.textLayers) != null ? _d : []).length}`,
     `Icons: ${prepared.icons.length}`,
@@ -20442,7 +19036,7 @@ function buildExportSummaryLines(storageMode, prepared) {
   ];
 }
 function addResolvedLink(app, resolvedLinks, includedNotePaths, rawLink, fromPath, includeLinkedNotes) {
-  var _a;
+  var _a2;
   const raw = (rawLink != null ? rawLink : "").trim();
   if (!raw) return;
   const parsed = splitRawLink(raw);
@@ -20450,18 +19044,18 @@ function addResolvedLink(app, resolvedLinks, includedNotePaths, rawLink, fromPat
   const file = resolveFile(app, parsed.path, fromPath);
   if (!(file instanceof import_obsidian27.TFile)) return;
   resolvedLinks[raw] = file.path;
-  if (includeLinkedNotes && ((_a = file.extension) == null ? void 0 : _a.toLowerCase()) === "md") {
+  if (includeLinkedNotes && ((_a2 = file.extension) == null ? void 0 : _a2.toLowerCase()) === "md") {
     includedNotePaths.add(file.path);
   }
 }
 function collectResolvedLinksForExport(app, ctx, markerData, icons, subset, includeLinkedNotes) {
-  var _a, _b, _c;
+  var _a2, _b2, _c;
   const resolvedLinks = {};
   const linkedNotePaths = /* @__PURE__ */ new Set();
   if (!includeLinkedNotes) {
     return { resolvedLinks, linkedNotePaths };
   }
-  for (const m of (_a = markerData.markers) != null ? _a : []) {
+  for (const m of (_a2 = markerData.markers) != null ? _a2 : []) {
     addResolvedLink(app, resolvedLinks, linkedNotePaths, m.link, ctx.sourcePath, true);
     if (m.swapLinks) {
       for (const raw of Object.values(m.swapLinks)) {
@@ -20469,7 +19063,7 @@ function collectResolvedLinksForExport(app, ctx, markerData, icons, subset, incl
       }
     }
   }
-  for (const sp of (_b = subset.swapPins) != null ? _b : []) {
+  for (const sp of (_b2 = subset.swapPins) != null ? _b2 : []) {
     for (const fr of (_c = sp.frames) != null ? _c : []) {
       addResolvedLink(app, resolvedLinks, linkedNotePaths, fr.link, ctx.sourcePath, true);
     }
@@ -20493,38 +19087,38 @@ function rewriteLinkIfImported(app, rawLink, resolvedLinks, notePathMap, targetN
   return buildRawLink(linktext, parsed.anchor, parsed.alias);
 }
 function remapBaseBoundPath(path, basePathMap) {
-  var _a;
+  var _a2;
   if (!path) return void 0;
-  return (_a = basePathMap.get(path)) != null ? _a : path;
+  return (_a2 = basePathMap.get(path)) != null ? _a2 : path;
 }
 function remapBaseKeyedRecord(value, basePathMap) {
-  var _a;
+  var _a2;
   if (!value) return value;
   const out = {};
   for (const [key, val] of Object.entries(value)) {
-    out[(_a = basePathMap.get(key)) != null ? _a : key] = val;
+    out[(_a2 = basePathMap.get(key)) != null ? _a2 : key] = val;
   }
   return out;
 }
 function patchMarkerDataPaths(app, data, filePathMap, notePathMap, resolvedLinks, targetNotePath, defaultIconKeyMap) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i;
   const out = deepClone5(data);
   const basePathMap = /* @__PURE__ */ new Map();
   out.bases = normalizeBases(out.bases).map((b) => {
-    var _a2;
-    const nextPath = (_a2 = filePathMap.get(b.path)) != null ? _a2 : b.path;
+    var _a3;
+    const nextPath = (_a3 = filePathMap.get(b.path)) != null ? _a3 : b.path;
     basePathMap.set(b.path, nextPath);
     return { ...b, path: nextPath };
   });
-  if (out.activeBase) out.activeBase = (_a = filePathMap.get(out.activeBase)) != null ? _a : out.activeBase;
+  if (out.activeBase) out.activeBase = (_a2 = filePathMap.get(out.activeBase)) != null ? _a2 : out.activeBase;
   out.overlays = normalizeOverlays(out.overlays).map((o) => {
-    var _a2;
+    var _a3;
     return {
       ...o,
-      path: (_a2 = filePathMap.get(o.path)) != null ? _a2 : o.path
+      path: (_a3 = filePathMap.get(o.path)) != null ? _a3 : o.path
     };
   });
-  out.layers = ((_b = out.layers) != null ? _b : []).map((l) => ({
+  out.layers = ((_b2 = out.layers) != null ? _b2 : []).map((l) => ({
     ...l,
     boundBase: remapBaseBoundPath(l.boundBase, basePathMap)
   }));
@@ -20545,38 +19139,38 @@ function patchMarkerDataPaths(app, data, filePathMap, notePathMap, resolvedLinks
     out.measurement.customUnitPxPerUnit = (_g = remapBaseKeyedRecord(out.measurement.customUnitPxPerUnit, basePathMap)) != null ? _g : {};
   }
   out.drawings = ((_h = out.drawings) != null ? _h : []).map((d) => {
-    var _a2;
+    var _a3;
     return {
       ...d,
-      bakedPath: d.bakedPath ? (_a2 = filePathMap.get(d.bakedPath)) != null ? _a2 : d.bakedPath : d.bakedPath
+      bakedPath: d.bakedPath ? (_a3 = filePathMap.get(d.bakedPath)) != null ? _a3 : d.bakedPath : d.bakedPath
     };
   });
   out.markers = ((_i = out.markers) != null ? _i : []).map((m) => {
-    var _a2, _b2, _c2, _d2, _e2;
+    var _a3, _b3, _c2, _d2, _e2;
     const next = { ...m };
     if (next.iconKey && defaultIconKeyMap.has(next.iconKey)) {
       next.iconKey = defaultIconKeyMap.get(next.iconKey);
     }
     if (next.link) {
-      next.link = (_a2 = rewriteLinkIfImported(
+      next.link = (_a3 = rewriteLinkIfImported(
         app,
         next.link,
         resolvedLinks,
         notePathMap,
         targetNotePath
-      )) != null ? _a2 : next.link;
+      )) != null ? _a3 : next.link;
     }
     if (next.swapLinks) {
       const rewritten = {};
       for (const [idxRaw, rawLink] of Object.entries(next.swapLinks)) {
         const idx = Number(idxRaw);
-        rewritten[idx] = (_b2 = rewriteLinkIfImported(
+        rewritten[idx] = (_b3 = rewriteLinkIfImported(
           app,
           rawLink,
           resolvedLinks,
           notePathMap,
           targetNotePath
-        )) != null ? _b2 : rawLink;
+        )) != null ? _b3 : rawLink;
       }
       next.swapLinks = rewritten;
     }
@@ -20597,48 +19191,48 @@ function patchMarkerDataPaths(app, data, filePathMap, notePathMap, resolvedLinks
 function remapCollectionSubset(app, subset, iconKeyMap, filePathMap, notePathMap, resolvedLinks, targetNotePath, notesRoot) {
   const out = deepClone5(subset);
   out.pinKeys = out.pinKeys.map((k) => {
-    var _a;
-    return (_a = iconKeyMap.get(k)) != null ? _a : k;
+    var _a2;
+    return (_a2 = iconKeyMap.get(k)) != null ? _a2 : k;
   });
   out.stickers = out.stickers.map((s) => {
-    var _a;
+    var _a2;
     return {
       ...s,
-      imagePath: (_a = filePathMap.get(s.imagePath)) != null ? _a : s.imagePath
+      imagePath: (_a2 = filePathMap.get(s.imagePath)) != null ? _a2 : s.imagePath
     };
   });
   out.swapPins = out.swapPins.map((sp) => {
-    var _a;
+    var _a2;
     return {
       ...sp,
-      frames: ((_a = sp.frames) != null ? _a : []).map((fr) => {
-        var _a2, _b;
+      frames: ((_a2 = sp.frames) != null ? _a2 : []).map((fr) => {
+        var _a3, _b2;
         return {
           ...fr,
-          iconKey: (_a2 = iconKeyMap.get(fr.iconKey)) != null ? _a2 : fr.iconKey,
-          link: (_b = rewriteLinkIfImported(
+          iconKey: (_a3 = iconKeyMap.get(fr.iconKey)) != null ? _a3 : fr.iconKey,
+          link: (_b2 = rewriteLinkIfImported(
             app,
             fr.link,
             resolvedLinks,
             notePathMap,
             targetNotePath
-          )) != null ? _b : fr.link
+          )) != null ? _b2 : fr.link
         };
       })
     };
   });
   out.pingPins = out.pingPins.map((pp) => {
-    var _a;
+    var _a2;
     return {
       ...pp,
-      iconKey: pp.iconKey ? (_a = iconKeyMap.get(pp.iconKey)) != null ? _a : pp.iconKey : pp.iconKey,
+      iconKey: pp.iconKey ? (_a2 = iconKeyMap.get(pp.iconKey)) != null ? _a2 : pp.iconKey : pp.iconKey,
       noteFolder: notesRoot
     };
   });
   return out;
 }
 async function buildBundleBytes(app, plugin, ctx, options, preparedInput) {
-  var _a, _b;
+  var _a2, _b2;
   const prepared = preparedInput != null ? preparedInput : await prepareExportData(app, plugin, ctx, options);
   const markerData = prepared.markerData;
   const subset = prepared.subset;
@@ -20695,65 +19289,63 @@ async function buildBundleBytes(app, plugin, ctx, options, preparedInput) {
     noteResolvedLinks: prepared.noteResolvedLinks,
     resolvedLinks: prepared.resolvedLinks,
     warnings: {
-      hasDrawings: ((_a = markerData.drawings) != null ? _a : []).length > 0,
-      hasTextLayers: ((_b = markerData.textLayers) != null ? _b : []).length > 0,
+      hasDrawings: ((_a2 = markerData.drawings) != null ? _a2 : []).length > 0,
+      hasTextLayers: ((_b2 = markerData.textLayers) != null ? _b2 : []).length > 0,
       customFonts: collectCustomFonts(markerData),
       usesCustomUnits: bundleUsesCustomUnits(markerData)
     }
   };
-  const zip = new import_jszip.default();
-  zip.file(BUNDLE_JSON_PATH, JSON.stringify(bundle, null, 2));
+  const files = {};
+  files[BUNDLE_JSON_PATH] = strToU8(JSON.stringify(bundle, null, 2));
   for (const asset of assets) {
     const file = app.vault.getAbstractFileByPath(asset.originalPath);
     if (!(file instanceof import_obsidian27.TFile)) continue;
     if (asset.kind === "linked-note") {
-      zip.file(asset.zipPath, await app.vault.read(file));
+      files[asset.zipPath] = strToU8(await app.vault.read(file));
     } else {
-      zip.file(asset.zipPath, await readVaultBinary(app, file));
+      files[asset.zipPath] = await readVaultBinary(app, file);
     }
   }
-  return zip.generateAsync({
-    type: "uint8array",
-    compression: "DEFLATE",
-    compressionOptions: { level: 6 }
+  return zipSync(files, {
+    level: 6
   });
 }
 async function loadBundleFromFile(file) {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const zip = await import_jszip.default.loadAsync(bytes);
-  const meta = zip.file(BUNDLE_JSON_PATH);
+  const files = unzipSync(bytes);
+  const meta = files[BUNDLE_JSON_PATH];
   if (!meta) throw new Error("Bundle manifest not found.");
-  const parsedUnknown = JSON.parse(await meta.async("string"));
+  const parsedUnknown = JSON.parse(strFromU8(meta));
   if (!isZoomMapBundleV1(parsedUnknown)) {
     throw new Error("Unsupported or invalid map bundle.");
   }
   const parsed = parsedUnknown;
-  return { zip, bundle: parsed };
+  return { files, bundle: parsed };
 }
 function nextUniqueMapId(editor, baseId) {
   const content = editor.getValue();
   const seed = sanitizeFileName((baseId != null ? baseId : "").trim()) || `map-${Date.now().toString(36)}`;
   let candidate = seed;
-  let i = 1;
+  let i2 = 1;
   while (content.includes(`ZOOMMAP-DATA id=${candidate}`) || new RegExp(`(^|\\n)\\s*id\\s*:\\s*["']?${candidate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']?(\\n|$)`, "m").test(content)) {
-    candidate = `${seed}-${i}`;
-    i += 1;
+    candidate = `${seed}-${i2}`;
+    i2 += 1;
   }
   return candidate;
 }
 function existingCollectionOptions(plugin) {
-  var _a;
-  return ((_a = plugin.settings.baseCollections) != null ? _a : []).map((c) => ({
+  var _a2;
+  return ((_a2 = plugin.settings.baseCollections) != null ? _a2 : []).map((c) => ({
     id: c.id,
     name: c.name || "(unnamed collection)"
   }));
 }
 function ensureImportedIcons(app, plugin, icons, resolvedLinks, notePathMap, targetNotePath) {
-  var _a;
+  var _a2;
   const keyMap = /* @__PURE__ */ new Map();
   let changed = false;
-  const all = [...(_a = plugin.settings.icons) != null ? _a : []];
-  const existingByKey = new Map(all.map((i) => [i.key, i]));
+  const all = [...(_a2 = plugin.settings.icons) != null ? _a2 : []];
+  const existingByKey = new Map(all.map((i2) => [i2.key, i2]));
   for (const importedRaw of icons != null ? icons : []) {
     const imported = deepClone5(importedRaw);
     imported.defaultLink = rewriteLinkIfImported(
@@ -20770,10 +19362,10 @@ function ensureImportedIcons(app, plugin, icons, resolvedLinks, notePathMap, tar
         continue;
       }
       let nextKey = imported.key;
-      let i = 1;
+      let i2 = 1;
       while (existingByKey.has(nextKey)) {
-        nextKey = `${imported.key}-${i}`;
-        i += 1;
+        nextKey = `${imported.key}-${i2}`;
+        i2 += 1;
       }
       imported.key = nextKey;
     }
@@ -20786,14 +19378,14 @@ function ensureImportedIcons(app, plugin, icons, resolvedLinks, notePathMap, tar
   return { changed, keyMap };
 }
 function importCollectionSubset(plugin, subset, mode, importedBasePaths, mergeCollectionId, newCollectionName) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
   const warnings = [];
   const swapIdMap = /* @__PURE__ */ new Map();
   const pingIdMap = /* @__PURE__ */ new Map();
   if (!subset) {
     return { changed: false, warnings, swapIdMap, pingIdMap };
   }
-  const needsCollection = ((_b = (_a = subset.swapPins) == null ? void 0 : _a.length) != null ? _b : 0) > 0 || ((_d = (_c = subset.pingPins) == null ? void 0 : _c.length) != null ? _d : 0) > 0;
+  const needsCollection = ((_b2 = (_a2 = subset.swapPins) == null ? void 0 : _a2.length) != null ? _b2 : 0) > 0 || ((_d = (_c = subset.pingPins) == null ? void 0 : _c.length) != null ? _d : 0) > 0;
   if (mode === "none") {
     if (needsCollection) {
       warnings.push("Collections were skipped. Swap pins and party pins may not work until their presets are imported.");
@@ -20847,9 +19439,9 @@ function importCollectionSubset(plugin, subset, mode, importedBasePaths, mergeCo
     }
   }
   const takenIds = new Set(collections.flatMap((c) => {
-    var _a2, _b2, _c2, _d2;
+    var _a3, _b3, _c2, _d2;
     return [
-      ...((_b2 = (_a2 = c.include) == null ? void 0 : _a2.swapPins) != null ? _b2 : []).map((p) => p.id),
+      ...((_b3 = (_a3 = c.include) == null ? void 0 : _a3.swapPins) != null ? _b3 : []).map((p) => p.id),
       ...((_d2 = (_c2 = c.include) == null ? void 0 : _c2.pingPins) != null ? _d2 : []).map((p) => p.id)
     ];
   }));
@@ -20882,14 +19474,14 @@ function importCollectionSubset(plugin, subset, mode, importedBasePaths, mergeCo
   return { changed, warnings, swapIdMap, pingIdMap };
 }
 function remapImportedPresetIds(data, swapIdMap, pingIdMap) {
-  var _a;
+  var _a2;
   const out = deepClone5(data);
-  out.markers = ((_a = out.markers) != null ? _a : []).map((m) => {
-    var _a2, _b;
+  out.markers = ((_a2 = out.markers) != null ? _a2 : []).map((m) => {
+    var _a3, _b2;
     return {
       ...m,
-      swapKey: m.swapKey ? (_a2 = swapIdMap.get(m.swapKey)) != null ? _a2 : m.swapKey : m.swapKey,
-      pingPresetId: m.pingPresetId ? (_b = pingIdMap.get(m.pingPresetId)) != null ? _b : m.pingPresetId : m.pingPresetId
+      swapKey: m.swapKey ? (_a3 = swapIdMap.get(m.swapKey)) != null ? _a3 : m.swapKey : m.swapKey,
+      pingPresetId: m.pingPresetId ? (_b2 = pingIdMap.get(m.pingPresetId)) != null ? _b2 : m.pingPresetId : m.pingPresetId
     };
   });
   return out;
@@ -20898,7 +19490,7 @@ function collectImportedBasePaths(data) {
   return normalizeBases(data.bases).map((b) => b.path);
 }
 function rewriteYamlForImport(bundle, data, mapId, storageMode, markersPath, framePath) {
-  var _a, _b;
+  var _a2, _b2;
   let obj = {};
   if (bundle.map.yamlObject && typeof bundle.map.yamlObject === "object") {
     obj = deepClone5(bundle.map.yamlObject);
@@ -20914,7 +19506,7 @@ function rewriteYamlForImport(bundle, data, mapId, storageMode, markersPath, fra
   }
   const bases = normalizeBases(data.bases);
   const overlays = normalizeOverlays(data.overlays);
-  obj.image = (_b = (_a = bases[0]) == null ? void 0 : _a.path) != null ? _b : obj.image;
+  obj.image = (_b2 = (_a2 = bases[0]) == null ? void 0 : _a2.path) != null ? _b2 : obj.image;
   obj.imageBases = bases.map((b) => b.name ? { path: b.path, name: b.name } : { path: b.path });
   obj.imageOverlays = overlays.map((o) => ({
     path: o.path,
@@ -20937,8 +19529,8 @@ ${(0, import_obsidian27.stringifyYaml)(obj).trimEnd()}
 `;
 }
 async function importBundleToVault(app, plugin, loaded, options) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
-  const { bundle, zip } = loaded;
+  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+  const { bundle, files } = loaded;
   const warnings = [];
   const writtenPaths = [];
   const effectiveStorage = options.storageMode === "match-export" ? bundle.map.storageMode : options.storageMode;
@@ -20948,20 +19540,20 @@ async function importBundleToVault(app, plugin, loaded, options) {
   if (bundle.warnings.hasTextLayers && !plugin.settings.enableTextLayers) {
     warnings.push("This bundle contains text layers, but text layers are disabled in your plugin settings.");
   }
-  if (((_a = bundle.warnings.customFonts) != null ? _a : []).length > 0) {
+  if (((_a2 = bundle.warnings.customFonts) != null ? _a2 : []).length > 0) {
     warnings.push(`Custom fonts used by this map are not installed automatically: ${bundle.warnings.customFonts.join(", ")}`);
   }
   if (bundle.warnings.usesCustomUnits) {
     warnings.push("The bundle uses custom travel/measurement units. Their travel-rule definitions are not imported automatically.");
   }
-  const previousIcons = deepClone5((_b = plugin.settings.icons) != null ? _b : []);
+  const previousIcons = deepClone5((_b2 = plugin.settings.icons) != null ? _b2 : []);
   const previousCollections = deepClone5((_c = plugin.settings.baseCollections) != null ? _c : []);
   const filePathMap = /* @__PURE__ */ new Map();
   const notePathMap = /* @__PURE__ */ new Map();
   const reservedPaths = /* @__PURE__ */ new Set();
   try {
     for (const asset of (_d = bundle.assets) != null ? _d : []) {
-      const entry = zip.file(asset.zipPath);
+      const entry = files[asset.zipPath];
       if (!entry) {
         throw new Error(`Missing asset in ZIP: ${asset.zipPath}`);
       }
@@ -21030,14 +19622,14 @@ async function importBundleToVault(app, plugin, loaded, options) {
       );
     }
     for (const asset of (_i = bundle.assets) != null ? _i : []) {
-      const entry = zip.file(asset.zipPath);
+      const entry = files[asset.zipPath];
       if (!entry) {
         throw new Error(`Missing asset in ZIP: ${asset.zipPath}`);
       }
       if (asset.kind === "linked-note") {
         const targetPath2 = notePathMap.get(asset.originalPath);
         if (!targetPath2) continue;
-        const rawText = await entry.async("string");
+        const rawText = strFromU8(entry);
         const rewrittenText = rewriteImportedNoteText(
           app,
           rawText,
@@ -21054,8 +19646,7 @@ async function importBundleToVault(app, plugin, loaded, options) {
       }
       const targetPath = filePathMap.get(asset.originalPath);
       if (!targetPath) continue;
-      const bytes = await entry.async("uint8array");
-      await writeVaultBinary(app, targetPath, bytes);
+      await writeVaultBinary(app, targetPath, entry);
       writtenPaths.push(targetPath);
     }
     if (markersPath) {
@@ -21080,16 +19671,16 @@ async function importBundleToVault(app, plugin, loaded, options) {
       inlineBlock: effectiveStorage === "note" ? buildInlineStorageBlock(options.mapId, data) : void 0,
       warnings
     };
-  } catch (err) {
+  } catch (err2) {
     plugin.settings.icons = previousIcons;
     plugin.settings.baseCollections = previousCollections;
-    for (let i = writtenPaths.length - 1; i >= 0; i -= 1) {
+    for (let i2 = writtenPaths.length - 1; i2 >= 0; i2 -= 1) {
       try {
-        await deleteVaultPathIfExists(app, writtenPaths[i]);
+        await deleteVaultPathIfExists(app, writtenPaths[i2]);
       } catch (e) {
       }
     }
-    throw err;
+    throw err2;
   }
 }
 var ExportMapBundleModal = class extends import_obsidian27.Modal {
@@ -21196,11 +19787,11 @@ var ExportMapBundleModal = class extends import_obsidian27.Modal {
       }
       this.updateSummaryMinHeight();
       this.setSummaryBusyState("");
-    } catch (err) {
+    } catch (err2) {
       if (token !== this.refreshSummaryToken || this.summaryBodyEl !== summaryBodyEl) return;
       summaryBodyEl.empty();
       summaryBodyEl.createEl("div", {
-        text: `Summary update failed: ${err instanceof Error ? err.message : String(err)}`
+        text: `Summary update failed: ${err2 instanceof Error ? err2.message : String(err2)}`
       }).addClass("zoommap-muted");
       this.updateSummaryMinHeight();
       this.setSummaryBusyState("");
@@ -21318,9 +19909,9 @@ var ExportMapBundleModal = class extends import_obsidian27.Modal {
       downloadZip(fileName, bytes);
       new import_obsidian27.Notice(`Export ready: ${fileName}`, 2500);
       this.close();
-    } catch (err) {
-      console.error(err);
-      new import_obsidian27.Notice(`Export failed: ${err instanceof Error ? err.message : String(err)}`, 5e3);
+    } catch (err2) {
+      console.error(err2);
+      new import_obsidian27.Notice(`Export failed: ${err2 instanceof Error ? err2.message : String(err2)}`, 5e3);
     }
   }
 };
@@ -21343,8 +19934,8 @@ var ImportMapBundleModal = class extends import_obsidian27.Modal {
     this.view = view;
   }
   getImportDefaults() {
-    var _a, _b, _c;
-    const safeBundleName = sanitizeFileName(((_a = this.loaded) == null ? void 0 : _a.bundle.bundleName) || fileStem2((_c = (_b = this.selectedFile) == null ? void 0 : _b.name) != null ? _c : "import")) || "import";
+    var _a2, _b2, _c;
+    const safeBundleName = sanitizeFileName(((_a2 = this.loaded) == null ? void 0 : _a2.bundle.bundleName) || fileStem2((_c = (_b2 = this.selectedFile) == null ? void 0 : _b2.name) != null ? _c : "import")) || "import";
     return {
       assetsRoot: `ZoomMap/Imports/${safeBundleName}/assets`,
       drawingsRoot: `ZoomMap/Imports/${safeBundleName}/drawings`,
@@ -21364,7 +19955,7 @@ var ImportMapBundleModal = class extends import_obsidian27.Modal {
     this.contentEl.empty();
   }
   render() {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", { text: "Import map package" });
@@ -21374,8 +19965,8 @@ var ImportMapBundleModal = class extends import_obsidian27.Modal {
     fileInput.type = "file";
     fileInput.accept = ".zip,application/zip";
     fileInput.addEventListener("change", () => {
-      var _a2, _b2;
-      const file = (_b2 = (_a2 = fileInput.files) == null ? void 0 : _a2[0]) != null ? _b2 : null;
+      var _a3, _b3;
+      const file = (_b3 = (_a3 = fileInput.files) == null ? void 0 : _a3[0]) != null ? _b3 : null;
       if (!file) return;
       void this.loadSelectedFile(file);
     });
@@ -21405,7 +19996,7 @@ var ImportMapBundleModal = class extends import_obsidian27.Modal {
     if (bundle.warnings.hasTextLayers && !this.plugin.settings.enableTextLayers) {
       warnings.push("This package contains text layers, but text layers are disabled in your settings.");
     }
-    if (((_a = bundle.warnings.customFonts) != null ? _a : []).length > 0) {
+    if (((_a2 = bundle.warnings.customFonts) != null ? _a2 : []).length > 0) {
       warnings.push(`Fonts are not installed automatically: ${bundle.warnings.customFonts.join(", ")}`);
     }
     if (bundle.warnings.usesCustomUnits) {
@@ -21498,7 +20089,7 @@ var ImportMapBundleModal = class extends import_obsidian27.Modal {
         });
       });
     }
-    const hasCollectionSubset = ((_d = (_c = (_b = bundle.collectionSubset) == null ? void 0 : _b.swapPins) == null ? void 0 : _c.length) != null ? _d : 0) > 0 || ((_g = (_f = (_e = bundle.collectionSubset) == null ? void 0 : _e.pingPins) == null ? void 0 : _f.length) != null ? _g : 0) > 0 || ((_j = (_i = (_h = bundle.collectionSubset) == null ? void 0 : _h.pinKeys) == null ? void 0 : _i.length) != null ? _j : 0) > 0 || ((_m = (_l = (_k = bundle.collectionSubset) == null ? void 0 : _k.stickers) == null ? void 0 : _l.length) != null ? _m : 0) > 0;
+    const hasCollectionSubset = ((_d = (_c = (_b2 = bundle.collectionSubset) == null ? void 0 : _b2.swapPins) == null ? void 0 : _c.length) != null ? _d : 0) > 0 || ((_g = (_f = (_e = bundle.collectionSubset) == null ? void 0 : _e.pingPins) == null ? void 0 : _f.length) != null ? _g : 0) > 0 || ((_j = (_i = (_h = bundle.collectionSubset) == null ? void 0 : _h.pinKeys) == null ? void 0 : _i.length) != null ? _j : 0) > 0 || ((_m = (_l = (_k = bundle.collectionSubset) == null ? void 0 : _k.stickers) == null ? void 0 : _l.length) != null ? _m : 0) > 0;
     if (hasCollectionSubset) {
       const collections = existingCollectionOptions(this.plugin);
       new import_obsidian27.Setting(contentEl).setName("Collection import").setDesc("Used items from collections can be merged into an existing collection or imported into a new one.").addDropdown((d) => {
@@ -21515,20 +20106,20 @@ var ImportMapBundleModal = class extends import_obsidian27.Modal {
       });
       if (this.collectionMode === "create") {
         new import_obsidian27.Setting(contentEl).setName("New collection name").addText((t) => {
-          var _a2, _b2;
-          t.setPlaceholder((_b2 = (_a2 = bundle.collectionSubset) == null ? void 0 : _a2.suggestedName) != null ? _b2 : "Imported map");
+          var _a3, _b3;
+          t.setPlaceholder((_b3 = (_a3 = bundle.collectionSubset) == null ? void 0 : _a3.suggestedName) != null ? _b3 : "Imported map");
           t.setValue(this.newCollectionName);
           t.onChange((v) => {
-            var _a3;
-            this.newCollectionName = v.trim() || ((_a3 = bundle.collectionSubset) == null ? void 0 : _a3.suggestedName) || "Imported map";
+            var _a4;
+            this.newCollectionName = v.trim() || ((_a4 = bundle.collectionSubset) == null ? void 0 : _a4.suggestedName) || "Imported map";
           });
         });
       }
       if (this.collectionMode === "merge") {
         new import_obsidian27.Setting(contentEl).setName("Target collection").addDropdown((d) => {
-          var _a2;
+          var _a3;
           for (const opt of collections) d.addOption(opt.id, opt.name);
-          d.setValue(this.mergeCollectionId || ((_a2 = collections[0]) == null ? void 0 : _a2.id) || "");
+          d.setValue(this.mergeCollectionId || ((_a3 = collections[0]) == null ? void 0 : _a3.id) || "");
           d.onChange((v) => {
             this.mergeCollectionId = v;
           });
@@ -21544,7 +20135,7 @@ var ImportMapBundleModal = class extends import_obsidian27.Modal {
     cancelBtn.onclick = () => this.close();
   }
   async loadSelectedFile(file) {
-    var _a, _b;
+    var _a2, _b2;
     try {
       this.selectedFile = file;
       this.loaded = await loadBundleFromFile(file);
@@ -21554,13 +20145,13 @@ var ImportMapBundleModal = class extends import_obsidian27.Modal {
       this.notesRoot = defaults.notesRoot;
       this.markersRoot = defaults.markersRoot;
       const safeBundleName = sanitizeFileName(this.loaded.bundle.bundleName || fileStem2(file.name)) || "import";
-      this.newCollectionName = ((_a = this.loaded.bundle.collectionSubset) == null ? void 0 : _a.suggestedName) || `Imported ${safeBundleName}`;
+      this.newCollectionName = ((_a2 = this.loaded.bundle.collectionSubset) == null ? void 0 : _a2.suggestedName) || `Imported ${safeBundleName}`;
       const firstCollection = existingCollectionOptions(this.plugin)[0];
-      this.mergeCollectionId = (_b = firstCollection == null ? void 0 : firstCollection.id) != null ? _b : "";
+      this.mergeCollectionId = (_b2 = firstCollection == null ? void 0 : firstCollection.id) != null ? _b2 : "";
       this.render();
-    } catch (err) {
-      console.error(err);
-      new import_obsidian27.Notice(`Import file could not be read: ${err instanceof Error ? err.message : String(err)}`, 5e3);
+    } catch (err2) {
+      console.error(err2);
+      new import_obsidian27.Notice(`Import file could not be read: ${err2 instanceof Error ? err2.message : String(err2)}`, 5e3);
     }
   }
   async runImport() {
@@ -21598,9 +20189,9 @@ var ImportMapBundleModal = class extends import_obsidian27.Modal {
         new import_obsidian27.Notice("Map package imported.", 2500);
       }
       this.close();
-    } catch (err) {
-      console.error(err);
-      new import_obsidian27.Notice(`Import failed: ${err instanceof Error ? err.message : String(err)}`, 6e3);
+    } catch (err2) {
+      console.error(err2);
+      new import_obsidian27.Notice(`Import failed: ${err2 instanceof Error ? err2.message : String(err2)}`, 6e3);
     }
   }
 };
@@ -21610,47 +20201,47 @@ var import_obsidian28 = require("obsidian");
 function genId(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
 }
-function deepClone6(x) {
-  if (typeof structuredClone === "function") return structuredClone(x);
-  return JSON.parse(JSON.stringify(x));
+function deepClone6(x2) {
+  if (typeof structuredClone === "function") return structuredClone(x2);
+  return JSON.parse(JSON.stringify(x2));
 }
-function isRecord3(x) {
-  return typeof x === "object" && x !== null && !Array.isArray(x);
+function isRecord3(x2) {
+  return typeof x2 === "object" && x2 !== null && !Array.isArray(x2);
 }
-function isTravelPerDayConfig(x) {
-  if (!isRecord3(x)) return false;
-  return typeof x.value === "number" && typeof x.unit === "string";
+function isTravelPerDayConfig(x2) {
+  if (!isRecord3(x2)) return false;
+  return typeof x2.value === "number" && typeof x2.unit === "string";
 }
-function isTravelPerDayPreset(x) {
-  if (!isRecord3(x)) return false;
-  return typeof x.id === "string" && typeof x.name === "string" && typeof x.value === "number" && typeof x.unit === "string";
+function isTravelPerDayPreset(x2) {
+  if (!isRecord3(x2)) return false;
+  return typeof x2.id === "string" && typeof x2.name === "string" && typeof x2.value === "number" && typeof x2.unit === "string";
 }
-function isCustomUnitDef(x) {
-  if (!isRecord3(x)) return false;
-  return typeof x.id === "string" && typeof x.name === "string" && typeof x.abbreviation === "string" && typeof x.metersPerUnit === "number";
+function isCustomUnitDef(x2) {
+  if (!isRecord3(x2)) return false;
+  return typeof x2.id === "string" && typeof x2.name === "string" && typeof x2.abbreviation === "string" && typeof x2.metersPerUnit === "number";
 }
-function isTravelTimePreset(x) {
-  if (!isRecord3(x)) return false;
-  if (typeof x.id !== "string" || typeof x.name !== "string") return false;
-  if (typeof x.distanceValue !== "number") return false;
-  if (typeof x.distanceUnit !== "string") return false;
-  if (typeof x.timeValue !== "number" || typeof x.timeUnit !== "string") return false;
+function isTravelTimePreset(x2) {
+  if (!isRecord3(x2)) return false;
+  if (typeof x2.id !== "string" || typeof x2.name !== "string") return false;
+  if (typeof x2.distanceValue !== "number") return false;
+  if (typeof x2.distanceUnit !== "string") return false;
+  if (typeof x2.timeValue !== "number" || typeof x2.timeUnit !== "string") return false;
   return true;
 }
-function isTerrainDef(x) {
-  if (!isRecord3(x)) return false;
-  return typeof x.id === "string" && typeof x.name === "string" && typeof x.factor === "number";
+function isTerrainDef(x2) {
+  if (!isRecord3(x2)) return false;
+  return typeof x2.id === "string" && typeof x2.name === "string" && typeof x2.factor === "number";
 }
-function isTravelRulesPack(x) {
-  if (!isRecord3(x)) return false;
-  if (typeof x.id !== "string" || typeof x.name !== "string") return false;
-  if (!Array.isArray(x.customUnits) || !x.customUnits.every(isCustomUnitDef)) return false;
-  if (!Array.isArray(x.terrains) || !x.terrains.every(isTerrainDef)) return false;
-  if (!Array.isArray(x.travelTimePresets) || !x.travelTimePresets.every(isTravelTimePreset)) return false;
-  const hasNew = Array.isArray(x.travelPerDayPresets) && x.travelPerDayPresets.every(isTravelPerDayPreset);
-  const hasOld = isTravelPerDayConfig(x.travelPerDay);
+function isTravelRulesPack(x2) {
+  if (!isRecord3(x2)) return false;
+  if (typeof x2.id !== "string" || typeof x2.name !== "string") return false;
+  if (!Array.isArray(x2.customUnits) || !x2.customUnits.every(isCustomUnitDef)) return false;
+  if (!Array.isArray(x2.terrains) || !x2.terrains.every(isTerrainDef)) return false;
+  if (!Array.isArray(x2.travelTimePresets) || !x2.travelTimePresets.every(isTravelTimePreset)) return false;
+  const hasNew = Array.isArray(x2.travelPerDayPresets) && x2.travelPerDayPresets.every(isTravelPerDayPreset);
+  const hasOld = isTravelPerDayConfig(x2.travelPerDay);
   if (!hasNew && !hasOld) return false;
-  if ("enabled" in x && typeof x.enabled !== "boolean") return false;
+  if ("enabled" in x2 && typeof x2.enabled !== "boolean") return false;
   return true;
 }
 async function ensureFolderPathExists2(app, folder) {
@@ -21695,22 +20286,22 @@ var TravelRulesManagerModal = class extends import_obsidian28.Modal {
     this.render();
   }
   onClose() {
-    var _a;
+    var _a2;
     this.contentEl.empty();
-    (_a = this.onDone) == null ? void 0 : _a.call(this);
+    (_a2 = this.onDone) == null ? void 0 : _a2.call(this);
   }
   render() {
-    var _a, _b;
+    var _a2, _b2;
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", { text: "Travel rules" });
-    const packs = (_b = (_a = this.plugin.settings).travelRulesPacks) != null ? _b : _a.travelRulesPacks = [];
+    const packs = (_b2 = (_a2 = this.plugin.settings).travelRulesPacks) != null ? _b2 : _a2.travelRulesPacks = [];
     const list = contentEl.createDiv();
     if (packs.length === 0) {
       list.createEl("div", { text: "No travel packs yet." });
     }
     packs.forEach((p, idx) => {
-      var _a2, _b2, _c, _d, _e, _f;
+      var _a3, _b3, _c, _d, _e, _f;
       const row = list.createDiv({ cls: "zoommap-travel-pack-row" });
       const enabled = row.createEl("input", { type: "checkbox" });
       enabled.addClass("zoommap-travel-pack-enabled");
@@ -21722,7 +20313,7 @@ var TravelRulesManagerModal = class extends import_obsidian28.Modal {
       const left = row.createDiv({ cls: "zoommap-travel-pack-left" });
       left.createEl("div", { text: p.name || "(unnamed pack)" }).addClass("zoommap-collections-name");
       left.createEl("div", {
-        text: `${(_b2 = (_a2 = p.customUnits) == null ? void 0 : _a2.length) != null ? _b2 : 0} custom units \u2022 ${(_d = (_c = p.terrains) == null ? void 0 : _c.length) != null ? _d : 0} terrains \u2022 ${(_f = (_e = p.travelTimePresets) == null ? void 0 : _e.length) != null ? _f : 0} travel presets`
+        text: `${(_b3 = (_a3 = p.customUnits) == null ? void 0 : _a3.length) != null ? _b3 : 0} custom units \u2022 ${(_d = (_c = p.terrains) == null ? void 0 : _c.length) != null ? _d : 0} terrains \u2022 ${(_f = (_e = p.travelTimePresets) == null ? void 0 : _e.length) != null ? _f : 0} travel presets`
       }).addClass("zoommap-collections-meta");
       const actions2 = row.createDiv({ cls: "zoommap-travel-pack-actions" });
       const edit = actions2.createEl("button", { text: "Edit" });
@@ -21801,19 +20392,19 @@ var TravelRulesManagerModal = class extends import_obsidian28.Modal {
     footer.createEl("button", { text: "Close" }).onclick = () => this.close();
   }
   async importFromFile(file) {
-    var _a, _b;
+    var _a2, _b2;
     try {
       const raw = await this.app.vault.read(file);
       const obj = JSON.parse(raw);
-      const packs = (_b = (_a = this.plugin.settings).travelRulesPacks) != null ? _b : _a.travelRulesPacks = [];
+      const packs = (_b2 = (_a2 = this.plugin.settings).travelRulesPacks) != null ? _b2 : _a2.travelRulesPacks = [];
       const existingIds = new Set(packs.map((p) => p.id));
       const addPack = (p) => {
-        var _a2, _b2, _c;
+        var _a3, _b3, _c;
         const next = deepClone6(p);
         if (!next.id || existingIds.has(next.id)) next.id = genId("trp");
         if (!next.name) next.name = `Imported pack ${packs.length + 1}`;
-        (_a2 = next.customUnits) != null ? _a2 : next.customUnits = [];
-        (_b2 = next.travelTimePresets) != null ? _b2 : next.travelTimePresets = [];
+        (_a3 = next.customUnits) != null ? _a3 : next.customUnits = [];
+        (_b3 = next.travelTimePresets) != null ? _b3 : next.travelTimePresets = [];
         (_c = next.travelPerDay) != null ? _c : next.travelPerDay = { value: 8, unit: "h" };
         packs.push(next);
         existingIds.add(next.id);
@@ -21851,12 +20442,12 @@ var TravelRulesManagerModal = class extends import_obsidian28.Modal {
 };
 var TravelRulesPackEditorModal = class extends import_obsidian28.Modal {
   constructor(app, plugin, pack, onDone) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j;
     super(app);
     this.plugin = plugin;
     this.original = pack;
     this.working = deepClone6(pack);
-    (_b = (_a = this.working).customUnits) != null ? _b : _a.customUnits = [];
+    (_b2 = (_a2 = this.working).customUnits) != null ? _b2 : _a2.customUnits = [];
     (_d = (_c = this.working).terrains) != null ? _d : _c.terrains = [];
     (_f = (_e = this.working).travelTimePresets) != null ? _f : _e.travelTimePresets = [];
     (_h = (_g = this.working).travelPerDayPresets) != null ? _h : _g.travelPerDayPresets = [{ id: genId("tpd"), name: "Default", value: 8, unit: "h" }];
@@ -21875,31 +20466,31 @@ var TravelRulesPackEditorModal = class extends import_obsidian28.Modal {
     contentEl.empty();
     contentEl.createEl("h2", { text: "Edit travel pack" });
     new import_obsidian28.Setting(contentEl).setName("Name").addText((t) => {
-      var _a;
-      t.setValue((_a = this.working.name) != null ? _a : "");
+      var _a2;
+      t.setValue((_a2 = this.working.name) != null ? _a2 : "");
       t.onChange((v) => this.working.name = v.trim() || this.working.name);
     });
     contentEl.createEl("h3", { text: "Max travel time presets" });
     const perDayWrap = contentEl.createDiv();
     const renderPerDayPresets = () => {
-      var _a, _b;
+      var _a2, _b2;
       perDayWrap.empty();
-      const list = (_b = (_a = this.working).travelPerDayPresets) != null ? _b : _a.travelPerDayPresets = [];
+      const list = (_b2 = (_a2 = this.working).travelPerDayPresets) != null ? _b2 : _a2.travelPerDayPresets = [];
       if (list.length === 0) {
         perDayWrap.createEl("div", { text: "No max travel time presets." }).addClass("zoommap-muted");
       }
       list.forEach((p, idx) => {
-        var _a2, _b2, _c;
+        var _a3, _b3, _c;
         const row = perDayWrap.createDiv({ cls: "zoommap-travel-perday-row" });
         const name = row.createEl("input", { type: "text" });
         name.placeholder = "Name";
-        name.value = (_a2 = p.name) != null ? _a2 : "";
+        name.value = (_a3 = p.name) != null ? _a3 : "";
         name.oninput = () => {
           p.name = name.value.trim();
         };
         const val = row.createEl("input", { type: "number" });
         val.placeholder = "8";
-        val.value = String((_b2 = p.value) != null ? _b2 : 8);
+        val.value = String((_b3 = p.value) != null ? _b3 : 8);
         val.oninput = () => {
           const n = Number(String(val.value).replace(",", "."));
           if (Number.isFinite(n) && n > 0) p.value = n;
@@ -21926,24 +20517,24 @@ var TravelRulesPackEditorModal = class extends import_obsidian28.Modal {
     contentEl.createEl("h3", { text: "Custom units" });
     const unitsWrap = contentEl.createDiv();
     const renderUnits = () => {
-      var _a, _b;
+      var _a2, _b2;
       unitsWrap.empty();
-      const units = (_b = (_a = this.working).customUnits) != null ? _b : _a.customUnits = [];
+      const units = (_b2 = (_a2 = this.working).customUnits) != null ? _b2 : _a2.customUnits = [];
       if (units.length === 0) {
         unitsWrap.createEl("div", { text: "No custom units." }).addClass("zoommap-muted");
       }
       units.forEach((u, idx) => {
-        var _a2, _b2;
+        var _a3, _b3;
         const row = unitsWrap.createDiv({ cls: "zoommap-custom-unit-row" });
         const nameInput = row.createEl("input", { type: "text" });
         nameInput.classList.add("zm-cu-name");
         nameInput.placeholder = "Name";
-        nameInput.value = (_a2 = u.name) != null ? _a2 : "";
+        nameInput.value = (_a3 = u.name) != null ? _a3 : "";
         nameInput.oninput = () => u.name = nameInput.value.trim();
         const abbrInput = row.createEl("input", { type: "text" });
         abbrInput.classList.add("zm-cu-abbr");
         abbrInput.placeholder = "Abbreviation";
-        abbrInput.value = (_b2 = u.abbreviation) != null ? _b2 : "";
+        abbrInput.value = (_b3 = u.abbreviation) != null ? _b3 : "";
         abbrInput.oninput = () => u.abbreviation = abbrInput.value.trim();
         const hint = row.createEl("div");
         hint.addClass("zoommap-muted");
@@ -21969,24 +20560,24 @@ var TravelRulesPackEditorModal = class extends import_obsidian28.Modal {
     contentEl.createEl("h3", { text: "Terrains" });
     const terrainsWrap = contentEl.createDiv();
     const renderTerrains = () => {
-      var _a, _b;
+      var _a2, _b2;
       terrainsWrap.empty();
-      const terrains = (_b = (_a = this.working).terrains) != null ? _b : _a.terrains = [];
+      const terrains = (_b2 = (_a2 = this.working).terrains) != null ? _b2 : _a2.terrains = [];
       if (terrains.length === 0) {
         terrainsWrap.createEl("div", { text: "No terrains." }).addClass("zoommap-muted");
       }
       terrains.forEach((t, idx) => {
-        var _a2, _b2;
+        var _a3, _b3;
         const row = terrainsWrap.createDiv({ cls: "zoommap-custom-unit-row" });
         const nameInput = row.createEl("input", { type: "text" });
         nameInput.classList.add("zm-cu-name");
         nameInput.placeholder = "Name";
-        nameInput.value = (_a2 = t.name) != null ? _a2 : "";
+        nameInput.value = (_a3 = t.name) != null ? _a3 : "";
         nameInput.oninput = () => t.name = nameInput.value.trim();
         const factorInput = row.createEl("input", { type: "number" });
         factorInput.classList.add("zm-cu-factor");
         factorInput.placeholder = "1";
-        factorInput.value = String((_b2 = t.factor) != null ? _b2 : 1);
+        factorInput.value = String((_b3 = t.factor) != null ? _b3 : 1);
         factorInput.oninput = () => {
           const n = Number(String(factorInput.value).replace(",", "."));
           if (Number.isFinite(n) && n > 0) t.factor = n;
@@ -22010,9 +20601,9 @@ var TravelRulesPackEditorModal = class extends import_obsidian28.Modal {
     contentEl.createEl("h3", { text: "Travel time presets" });
     const presetsWrap = contentEl.createDiv();
     const renderPresets = () => {
-      var _a, _b, _c;
+      var _a2, _b2, _c;
       presetsWrap.empty();
-      const presets = (_b = (_a = this.working).travelTimePresets) != null ? _b : _a.travelTimePresets = [];
+      const presets = (_b2 = (_a2 = this.working).travelTimePresets) != null ? _b2 : _a2.travelTimePresets = [];
       const customDefs = (_c = this.working.customUnits) != null ? _c : [];
       const head = presetsWrap.createDiv({ cls: "zm-travel-grid-head" });
       head.createSpan({ text: "Mode" });
@@ -22039,12 +20630,12 @@ var TravelRulesPackEditorModal = class extends import_obsidian28.Modal {
         }
       };
       presets.forEach((p, idx) => {
-        var _a2, _b2, _c2, _d, _e;
+        var _a3, _b3, _c2, _d, _e;
         const name = grid.createEl("input", { type: "text", cls: "zm-travel-name" });
-        name.value = (_a2 = p.name) != null ? _a2 : "";
+        name.value = (_a3 = p.name) != null ? _a3 : "";
         name.oninput = () => p.name = name.value.trim();
         const distVal = grid.createEl("input", { type: "number", cls: "zm-travel-num" });
-        distVal.value = String((_b2 = p.distanceValue) != null ? _b2 : 1);
+        distVal.value = String((_b3 = p.distanceValue) != null ? _b3 : 1);
         distVal.oninput = () => {
           const n = Number(distVal.value);
           if (Number.isFinite(n) && n > 0) p.distanceValue = n;
@@ -22103,11 +20694,11 @@ var TravelRulesPackEditorModal = class extends import_obsidian28.Modal {
     const saveBtn = footer.createEl("button", { text: "Save" });
     const cancelBtn = footer.createEl("button", { text: "Cancel" });
     saveBtn.onclick = () => {
-      var _a, _b, _c, _d;
+      var _a2, _b2, _c, _d;
       this.original.name = this.working.name;
       this.original.enabled = this.working.enabled;
-      this.original.customUnits = (_a = this.working.customUnits) != null ? _a : [];
-      this.original.terrains = (_b = this.working.terrains) != null ? _b : [];
+      this.original.customUnits = (_a2 = this.working.customUnits) != null ? _a2 : [];
+      this.original.terrains = (_b2 = this.working.terrains) != null ? _b2 : [];
       this.original.travelTimePresets = (_c = this.working.travelTimePresets) != null ? _c : [];
       this.original.travelPerDayPresets = (_d = this.working.travelPerDayPresets) != null ? _d : [];
       const first = this.original.travelPerDayPresets[0];
@@ -22136,8 +20727,8 @@ function toCssSize(v, fallback) {
   return fallback;
 }
 function folderOf3(path) {
-  const i = path.lastIndexOf("/");
-  return i >= 0 ? path.slice(0, i) : "";
+  const i2 = path.lastIndexOf("/");
+  return i2 >= 0 ? path.slice(0, i2) : "";
 }
 var DEFAULT_FA_ZIP_URL = "https://use.fontawesome.com/releases/v6.4.0/fontawesome-free-6.4.0-web.zip";
 var DEFAULT_RPG_ZIP_URL = "https://github.com/nagoshiashumari/rpg-awesome-raw/archive/refs/heads/master.zip";
@@ -22278,12 +20869,12 @@ function parseZoomYaml(value, fallback) {
   return fallback;
 }
 function parsePxNumber(value, fallback) {
-  var _a;
+  var _a2;
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
     const s = value.trim();
     if (!s) return fallback;
-    const m = (_a = /^(-?\d+(?:[.,]\d+)?)\s*px$/i.exec(s)) != null ? _a : /^(-?\d+(?:[.,]\d+)?)$/.exec(s);
+    const m = (_a2 = /^(-?\d+(?:[.,]\d+)?)\s*px$/i.exec(s)) != null ? _a2 : /^(-?\d+(?:[.,]\d+)?)$/.exec(s);
     if (m) {
       const n = Number(m[1].replace(",", "."));
       if (Number.isFinite(n)) return n;
@@ -22295,10 +20886,10 @@ function parseFrameInsetsYaml(v) {
   if (!v || typeof v !== "object") return void 0;
   const o = v;
   const unit = o.unit === "percent" ? "percent" : "framePx";
-  const parsePercent = (x) => {
-    if (typeof x === "number") return x;
-    if (typeof x === "string") {
-      let s = x.trim();
+  const parsePercent = (x2) => {
+    if (typeof x2 === "number") return x2;
+    if (typeof x2 === "string") {
+      let s = x2.trim();
       if (!s) return Number.NaN;
       if (s.endsWith("%")) s = s.slice(0, -1).trim();
       const n = Number(s.replace(",", "."));
@@ -22306,8 +20897,8 @@ function parseFrameInsetsYaml(v) {
     }
     return Number.NaN;
   };
-  const parseFramePx = (x) => {
-    return parsePxNumber(x, Number.NaN);
+  const parseFramePx = (x2) => {
+    return parsePxNumber(x2, Number.NaN);
   };
   const top = unit === "percent" ? parsePercent(o.top) : parseFramePx(o.top);
   const right = unit === "percent" ? parsePercent(o.right) : parseFramePx(o.right);
@@ -22372,10 +20963,10 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     this.pendingMapRestores.set(this.makeMapRestoreKey(sourcePath, mapId), state);
   }
   consumeMapRestore(sourcePath, mapId) {
-    var _a;
+    var _a2;
     if (!mapId.trim()) return null;
     const key = this.makeMapRestoreKey(sourcePath, mapId);
-    const state = (_a = this.pendingMapRestores.get(key)) != null ? _a : null;
+    const state = (_a2 = this.pendingMapRestores.get(key)) != null ? _a2 : null;
     if (state) this.pendingMapRestores.delete(key);
     return state;
   }
@@ -22416,7 +21007,7 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     body.style.removeProperty("--popover-max-height");
   }
   applyGlobalHoverPopoverSettings() {
-    var _a, _b;
+    var _a2, _b2;
     const doc = this.getUiDocument();
     const root = doc.documentElement;
     const body = doc.body;
@@ -22425,8 +21016,8 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
       this.clearGlobalHoverPopoverSettings();
       return;
     }
-    const maxW = Math.max(200, (_a = this.settings.hoverMaxWidth) != null ? _a : 360);
-    const maxH = Math.max(120, (_b = this.settings.hoverMaxHeight) != null ? _b : 260);
+    const maxW = Math.max(200, (_a2 = this.settings.hoverMaxWidth) != null ? _a2 : 360);
+    const maxH = Math.max(120, (_b2 = this.settings.hoverMaxHeight) != null ? _b2 : 260);
     body.classList.add("zm-global-hover-popover-size");
     root.style.setProperty("--zm-hover-popover-max-width", `${maxW}px`);
     root.style.setProperty("--zm-hover-popover-max-height", `${maxH}px`);
@@ -22469,23 +21060,23 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
           }
         };
         new ViewEditorModal(this.app, initialConfig, (res) => {
-          var _a, _b;
+          var _a2, _b2;
           if (res.action !== "save" || !res.config) return;
           const yaml = this.buildYamlFromViewConfig(res.config);
           const block = "```zoommap\n" + yaml + "\n```\n";
           const cur = editor.getCursor();
-          const curLineText = (_a = editor.getLine(cur.line)) != null ? _a : "";
+          const curLineText = (_a2 = editor.getLine(cur.line)) != null ? _a2 : "";
           const m = /^(\s*(?:>\s*)+)/.exec(curLineText);
-          const quotePrefix = (_b = m == null ? void 0 : m[1]) != null ? _b : "";
+          const quotePrefix = (_b2 = m == null ? void 0 : m[1]) != null ? _b2 : "";
           if (!quotePrefix) {
             editor.replaceRange(block, cur);
             return;
           }
           const cursorAfterPrefix = cur.ch >= quotePrefix.length;
           const lines = block.split("\n");
-          const quoted = lines.map((ln, idx) => {
-            if (idx === 0 && cursorAfterPrefix) return ln;
-            return quotePrefix + ln;
+          const quoted = lines.map((ln2, idx) => {
+            if (idx === 0 && cursorAfterPrefix) return ln2;
+            return quotePrefix + ln2;
           }).join("\n");
           editor.replaceRange(quoted, cur);
         }).open();
@@ -22537,7 +21128,7 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     this.registerMarkdownCodeBlockProcessor(
       "zoommap",
       async (src, el, ctx) => {
-        var _a, _b, _c, _d;
+        var _a2, _b2, _c, _d;
         let opts = {};
         try {
           const parsed = (0, import_obsidian29.parseYaml)(src);
@@ -22587,9 +21178,9 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
           el.createEl("div", { text: "Image is missing." });
           return;
         }
-        const responsive = !!((_a = opts.responsive) != null ? _a : opts.responsiv);
+        const responsive = !!((_a2 = opts.responsive) != null ? _a2 : opts.responsiv);
         const storageRaw = typeof opts.storage === "string" ? opts.storage.toLowerCase() : "";
-        const storageMode = storageRaw === "note" || storageRaw === "inline" || storageRaw === "in-note" ? "note" : storageRaw === "json" ? "json" : (_b = this.settings.storageDefault) != null ? _b : "json";
+        const storageMode = storageRaw === "note" || storageRaw === "inline" || storageRaw === "in-note" ? "note" : storageRaw === "json" ? "json" : (_b2 = this.settings.storageDefault) != null ? _b2 : "json";
         const sectionInfo = ctx.getSectionInfo(el);
         const defaultId = `map-${(_c = sectionInfo == null ? void 0 : sectionInfo.lineStart) != null ? _c : Date.now()}`;
         const idFromYaml = opts.id;
@@ -22670,10 +21261,10 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     this.addSettingTab(new ZoomMapSettingTab(this.app, this));
   }
   getIconDefaultLink(iconKey) {
-    var _a;
+    var _a2;
     const key = (iconKey != null ? iconKey : "").trim();
     if (!key) return void 0;
-    const icon = (_a = this.settings.icons) == null ? void 0 : _a.find((i) => i.key === key);
+    const icon = (_a2 = this.settings.icons) == null ? void 0 : _a2.find((i2) => i2.key === key);
     const raw = icon == null ? void 0 : icon.defaultLink;
     const trimmed = typeof raw === "string" ? raw.trim() : "";
     return trimmed.length ? trimmed : void 0;
@@ -22682,8 +21273,8 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     new ExportMapBundleModal(this.app, this, map).open();
   }
   getEnabledTravelPacks() {
-    var _a;
-    const packsRaw = (_a = this.settings.travelRulesPacks) != null ? _a : [];
+    var _a2;
+    const packsRaw = (_a2 = this.settings.travelRulesPacks) != null ? _a2 : [];
     const packs = packsRaw.filter((p) => {
       if (!p || typeof p !== "object") return false;
       if (Array.isArray(p)) return false;
@@ -22695,30 +21286,30 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
   getActiveCustomUnits() {
     const packs = this.getEnabledTravelPacks();
     return packs.flatMap((p) => {
-      var _a;
-      return (_a = p.customUnits) != null ? _a : [];
+      var _a2;
+      return (_a2 = p.customUnits) != null ? _a2 : [];
     });
   }
   getActiveTerrains() {
     const packs = this.getEnabledTravelPacks();
     return packs.flatMap((p) => {
-      var _a;
-      return (_a = p.terrains) != null ? _a : [];
+      var _a2;
+      return (_a2 = p.terrains) != null ? _a2 : [];
     });
   }
   getActiveTravelTimePresets() {
     const packs = this.getEnabledTravelPacks();
     return packs.flatMap((p) => {
-      var _a;
-      return (_a = p.travelTimePresets) != null ? _a : [];
+      var _a2;
+      return (_a2 = p.travelTimePresets) != null ? _a2 : [];
     });
   }
   getActiveTravelPerDayPresets() {
-    var _a;
+    var _a2;
     const packs = this.getEnabledTravelPacks();
     if (packs.length === 0) return null;
     const first = packs[0];
-    const presets = ((_a = first.travelPerDayPresets) != null ? _a : []).filter((x) => !!x && typeof x.id === "string");
+    const presets = ((_a2 = first.travelPerDayPresets) != null ? _a2 : []).filter((x2) => !!x2 && typeof x2.id === "string");
     return {
       presets,
       packName: first.name,
@@ -22726,14 +21317,14 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     };
   }
   onunload() {
-    var _a;
+    var _a2;
     this.clearGlobalHoverPopoverSettings();
-    (_a = this.imageCache) == null ? void 0 : _a.clear();
+    (_a2 = this.imageCache) == null ? void 0 : _a2.clear();
     this.imageCache = null;
   }
   builtinIcon() {
-    var _a;
-    return (_a = this.settings.icons[0]) != null ? _a : {
+    var _a2;
+    return (_a2 = this.settings.icons[0]) != null ? _a2 : {
       key: "builtin",
       pathOrDataUrl: svgPinDataUrl("#d23c3c"),
       size: 24,
@@ -22743,7 +21334,7 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     };
   }
   async loadSettings() {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __, _$, _aa;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __, _$, _aa;
     const savedUnknown = await this.loadData();
     const merged = { ...DEFAULT_SETTINGS };
     if (isPlainObject(savedUnknown)) {
@@ -22751,7 +21342,7 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     }
     this.settings = merged;
     const ext = this.settings;
-    (_b = (_a = this.settings).baseCollections) != null ? _b : _a.baseCollections = [];
+    (_b2 = (_a2 = this.settings).baseCollections) != null ? _b2 : _a2.baseCollections = [];
     (_c = ext.defaultWidthWrapped) != null ? _c : ext.defaultWidthWrapped = "50%";
     (_d = ext.libraryFilePath) != null ? _d : ext.libraryFilePath = "ZoomMap/library.json";
     (_e = ext.faFolderPath) != null ? _e : ext.faFolderPath = "ZoomMap/SVGs";
@@ -22822,14 +21413,14 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     this.applyImageCacheSettings();
   }
   applyImageCacheSettings() {
-    var _a, _b;
+    var _a2, _b2;
     const enabled = !!this.settings.enableSessionImageCache;
     if (!enabled) {
-      (_a = this.imageCache) == null ? void 0 : _a.clear();
+      (_a2 = this.imageCache) == null ? void 0 : _a2.clear();
       this.imageCache = null;
       return;
     }
-    const mbRaw = (_b = this.settings.sessionImageCacheMb) != null ? _b : 512;
+    const mbRaw = (_b2 = this.settings.sessionImageCacheMb) != null ? _b2 : 512;
     const mb = Number.isFinite(mbRaw) && mbRaw > 0 ? mbRaw : 512;
     const bytes = Math.round(mb * 1024 * 1024);
     if (!this.imageCache) {
@@ -22847,13 +21438,13 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     }
   }
   async saveLibraryToPath(path) {
-    var _a, _b, _c;
+    var _a2, _b2, _c;
     const p = (0, import_obsidian29.normalizePath)(path);
     const ext = this.settings;
     const payload = {
       version: 1,
-      icons: (_a = this.settings.icons) != null ? _a : [],
-      baseCollections: (_b = this.settings.baseCollections) != null ? _b : [],
+      icons: (_a2 = this.settings.icons) != null ? _a2 : [],
+      baseCollections: (_b2 = this.settings.baseCollections) != null ? _b2 : [],
       travelRulesPacks: (_c = this.settings.travelRulesPacks) != null ? _c : [],
       exportedAt: (/* @__PURE__ */ new Date()).toISOString()
     };
@@ -22882,8 +21473,8 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
         new import_obsidian29.Notice("Invalid library file.", 2500);
         return;
       }
-      const hasIcons = (x) => isPlainObject(x) && "icons" in x;
-      const hasBaseCollections = (x) => isPlainObject(x) && "baseCollections" in x;
+      const hasIcons = (x2) => isPlainObject(x2) && "icons" in x2;
+      const hasBaseCollections = (x2) => isPlainObject(x2) && "baseCollections" in x2;
       let icons = [];
       if (hasIcons(obj) && Array.isArray(obj.icons)) {
         icons = obj.icons;
@@ -22903,9 +21494,9 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     }
   }
   async downloadFontAwesomeZip() {
-    var _a;
+    var _a2;
     const ext = this.settings;
-    const folder = (0, import_obsidian29.normalizePath)(((_a = ext.faFolderPath) == null ? void 0 : _a.trim()) || "ZoomMap/SVGs");
+    const folder = (0, import_obsidian29.normalizePath)(((_a2 = ext.faFolderPath) == null ? void 0 : _a2.trim()) || "ZoomMap/SVGs");
     const zipPath = (0, import_obsidian29.normalizePath)(`${folder}/fontawesome-free.zip`);
     try {
       if (!this.app.vault.getAbstractFileByPath(folder)) {
@@ -22927,9 +21518,9 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     }
   }
   async downloadRpgAwesomeZip() {
-    var _a;
+    var _a2;
     const ext = this.settings;
-    const folder = (0, import_obsidian29.normalizePath)(((_a = ext.faFolderPath) == null ? void 0 : _a.trim()) || "ZoomMap/SVGs");
+    const folder = (0, import_obsidian29.normalizePath)(((_a2 = ext.faFolderPath) == null ? void 0 : _a2.trim()) || "ZoomMap/SVGs");
     const zipPath = (0, import_obsidian29.normalizePath)(`${folder}/rpg-awesome.zip`);
     try {
       if (!this.app.vault.getAbstractFileByPath(folder)) {
@@ -22951,14 +21542,14 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     }
   }
   rescanSvgFolder() {
-    var _a;
+    var _a2;
     const ext = this.settings;
-    const folder = (0, import_obsidian29.normalizePath)(((_a = ext.faFolderPath) == null ? void 0 : _a.trim()) || "ZoomMap/SVGs");
+    const folder = (0, import_obsidian29.normalizePath)(((_a2 = ext.faFolderPath) == null ? void 0 : _a2.trim()) || "ZoomMap/SVGs");
     const files = this.app.vault.getFiles();
     const prefix = folder.endsWith("/") ? folder : folder + "/";
     const count = files.filter((f) => {
-      var _a2;
-      if (((_a2 = f.extension) == null ? void 0 : _a2.toLowerCase()) !== "svg") return false;
+      var _a3;
+      if (((_a3 = f.extension) == null ? void 0 : _a3.toLowerCase()) !== "svg") return false;
       return f.path === folder || f.path.startsWith(prefix);
     }).length;
     new import_obsidian29.Notice(
@@ -22968,9 +21559,9 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     return count;
   }
   buildYamlFromViewConfig(cfg) {
-    var _a, _b, _c, _d;
+    var _a2, _b2, _c, _d;
     const obj = {};
-    const bases = ((_a = cfg.imageBases) != null ? _a : []).filter(
+    const bases = ((_a2 = cfg.imageBases) != null ? _a2 : []).filter(
       (b) => b.path && b.path.trim().length > 0
     );
     if (bases.length > 0) {
@@ -22978,7 +21569,7 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
         (b) => b.name ? { path: b.path, name: b.name } : { path: b.path }
       );
     }
-    const overlays = ((_b = cfg.overlays) != null ? _b : []).filter(
+    const overlays = ((_b2 = cfg.overlays) != null ? _b2 : []).filter(
       (o) => o.path && o.path.trim().length > 0
     );
     if (overlays.length > 0) {
@@ -23036,24 +21627,24 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
   }
 };
 function tintSvgMarkup2(svg, color) {
-  var _a;
+  var _a2;
   const c = color.trim();
   if (!c) return svg;
   try {
     const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
     const root = doc.querySelector("svg");
     if (!root) return svg;
-    const inner = (_a = root.querySelector("#zm-inner")) != null ? _a : root;
+    const inner = (_a2 = root.querySelector("#zm-inner")) != null ? _a2 : root;
     const base = root.querySelector("#zm-base");
     const outline = root.querySelector("#zm-outline");
     const shapes = inner.querySelectorAll("path, circle, rect, polygon, polyline, line, ellipse");
     let touched = false;
     shapes.forEach((el) => {
-      var _a2, _b;
+      var _a3, _b2;
       if (base && base.contains(el)) return;
       if (outline && outline.contains(el)) return;
-      const styleFill = (_a2 = el.style) == null ? void 0 : _a2.fill;
-      const styleStroke = (_b = el.style) == null ? void 0 : _b.stroke;
+      const styleFill = (_a3 = el.style) == null ? void 0 : _a3.fill;
+      const styleStroke = (_b2 = el.style) == null ? void 0 : _b2.stroke;
       const fillAttr = el.getAttribute("fill");
       const strokeAttr = el.getAttribute("stroke");
       const hasFill = typeof styleFill === "string" && styleFill && styleFill.toLowerCase() !== "none" || typeof fillAttr === "string" && fillAttr && fillAttr.toLowerCase() !== "none";
@@ -23084,18 +21675,18 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     this.plugin = plugin;
   }
   async addFontAwesomeIcon(file) {
-    var _a;
+    var _a2;
     try {
       const svg = await this.app.vault.read(file);
       const defaultColor = "#b0b0b0";
       const tinted = tintSvgMarkup2(svg, defaultColor);
       const dataUrl = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(tinted);
-      const icons = (_a = this.plugin.settings.icons) != null ? _a : [];
+      const icons = (_a2 = this.plugin.settings.icons) != null ? _a2 : [];
       let baseKey = file.name.replace(/\.svg$/i, "");
       baseKey = baseKey.replace(/\s+/g, "-");
       let key = baseKey;
       let idx = 1;
-      while (icons.some((i) => i.key === key)) {
+      while (icons.some((i2) => i2.key === key)) {
         key = `${baseKey}-${idx++}`;
       }
       icons.unshift({
@@ -23116,11 +21707,11 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     }
   }
   async recolorIconSvg(icon, color) {
-    var _a;
+    var _a2;
     const c = color.trim();
     if (!c) return;
     let svg = null;
-    const src = (_a = icon.pathOrDataUrl) != null ? _a : "";
+    const src = (_a2 = icon.pathOrDataUrl) != null ? _a2 : "";
     if (typeof src === "string" && src.startsWith("data:image/svg+xml")) {
       const idx = src.indexOf(",");
       if (idx >= 0) {
@@ -23172,7 +21763,7 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     }
   }
   display() {
-    var _a;
+    var _a2;
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("zoommap-settings");
@@ -23182,10 +21773,10 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     );
     new import_obsidian29.Setting(containerEl).setName("Storage").setHeading();
     new import_obsidian29.Setting(containerEl).setName("Storage location by default").setDesc("Store marker data in JSON beside image, or inline in the note.").addDropdown((d) => {
-      var _a2;
+      var _a3;
       d.addOption("json", "JSON file (beside image)");
       d.addOption("note", "Inside the note (hidden comment)");
-      d.setValue((_a2 = this.plugin.settings.storageDefault) != null ? _a2 : "json");
+      d.setValue((_a3 = this.plugin.settings.storageDefault) != null ? _a3 : "json");
       d.onChange((v) => {
         this.plugin.settings.storageDefault = v === "note" ? "note" : "json";
         void this.plugin.saveSettings();
@@ -23193,10 +21784,10 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     });
     new import_obsidian29.Setting(containerEl).setName("Layout").setHeading();
     new import_obsidian29.Setting(containerEl).setName("Default width when wrapped").setDesc("Initial width if wrap: true and no width is set in the code block.").addText((t) => {
-      var _a2;
+      var _a3;
       const ext = this.plugin.settings;
       t.setPlaceholder("50%");
-      t.setValue((_a2 = ext.defaultWidthWrapped) != null ? _a2 : "50%");
+      t.setValue((_a3 = ext.defaultWidthWrapped) != null ? _a3 : "50%");
       t.onChange((v) => {
         ext.defaultWidthWrapped = (v || "50%").trim();
         void this.plugin.saveSettings();
@@ -23213,11 +21804,11 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
       })
     );
     new import_obsidian29.Setting(containerEl).setName("Panning mouse button").setDesc("Which mouse button pans the map?").addDropdown((d) => {
-      var _a2;
+      var _a3;
       d.addOption("left", "Left");
       d.addOption("middle", "Middle");
       d.addOption("right", "Right");
-      d.setValue((_a2 = this.plugin.settings.panMouseButton) != null ? _a2 : "left");
+      d.setValue((_a3 = this.plugin.settings.panMouseButton) != null ? _a3 : "left");
       d.onChange((v) => {
         const next = v === "left" || v === "middle" || v === "right" ? v : "left";
         this.plugin.settings.panMouseButton = next;
@@ -23265,9 +21856,9 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     );
     new import_obsidian29.Setting(containerEl).setName("Ruler").setHeading();
     const applyStyleToAll = () => {
-      var _a2, _b;
-      const color = ((_a2 = this.plugin.settings.measureLineColor) != null ? _a2 : "var(--text-accent)").trim();
-      const widthPx = Math.max(1, (_b = this.plugin.settings.measureLineWidth) != null ? _b : 2);
+      var _a3, _b2;
+      const color = ((_a3 = this.plugin.settings.measureLineColor) != null ? _a3 : "var(--text-accent)").trim();
+      const widthPx = Math.max(1, (_b2 = this.plugin.settings.measureLineWidth) != null ? _b2 : 2);
       const uiDoc = this.plugin.app.workspace.containerEl.ownerDocument;
       const uiWin = uiDoc.defaultView;
       if (!uiWin) return;
@@ -23283,8 +21874,8 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     const colorRow = new import_obsidian29.Setting(containerEl).setName("Line color").setDesc("CSS color, e.g. #ff0055.");
     colorRow.addText(
       (t) => {
-        var _a2;
-        return t.setPlaceholder("Default").setValue((_a2 = this.plugin.settings.measureLineColor) != null ? _a2 : "var(--text-accent)").onChange((v) => {
+        var _a3;
+        return t.setPlaceholder("Default").setValue((_a3 = this.plugin.settings.measureLineColor) != null ? _a3 : "var(--text-accent)").onChange((v) => {
           this.plugin.settings.measureLineColor = (v == null ? void 0 : v.trim()) || "var(--text-accent)";
           void this.plugin.saveSettings();
           applyStyleToAll();
@@ -23301,7 +21892,7 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
       if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(val)) picker.value = val;
       else picker.value = "#ff0000";
     };
-    setPickerFromValue((_a = this.plugin.settings.measureLineColor) != null ? _a : "");
+    setPickerFromValue((_a2 = this.plugin.settings.measureLineColor) != null ? _a2 : "");
     picker.oninput = () => {
       this.plugin.settings.measureLineColor = picker.value;
       void this.plugin.saveSettings();
@@ -23309,8 +21900,8 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     };
     new import_obsidian29.Setting(containerEl).setName("Line width").setDesc("Stroke width in pixels.").addText(
       (t) => {
-        var _a2;
-        return t.setPlaceholder("2").setValue(String((_a2 = this.plugin.settings.measureLineWidth) != null ? _a2 : 2)).onChange((v) => {
+        var _a3;
+        return t.setPlaceholder("2").setValue(String((_a3 = this.plugin.settings.measureLineWidth) != null ? _a3 : 2)).onChange((v) => {
           const n = Number(v);
           if (Number.isFinite(n) && n > 0 && n <= 20) {
             this.plugin.settings.measureLineWidth = n;
@@ -23331,33 +21922,33 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     new import_obsidian29.Setting(containerEl).setName("Collections (base-bound)").setHeading();
     const collectionsWrap = containerEl.createDiv();
     const renderCollections = () => {
-      var _a2;
+      var _a3;
       collectionsWrap.empty();
       const hint = collectionsWrap.createEl("div", {
         text: "Collections bundle pins, favorites and stickers for specific base images. Create a 'global' collection without bindings for items that should be available everywhere."
       });
       hint.addClass("zoommap-collections-hint");
       const list = collectionsWrap.createDiv();
-      const cols = (_a2 = this.plugin.settings.baseCollections) != null ? _a2 : [];
+      const cols = (_a3 = this.plugin.settings.baseCollections) != null ? _a3 : [];
       if (cols.length === 0) {
         list.createEl("div", { text: "No collections yet." });
       } else {
         cols.forEach((c) => {
-          var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+          var _a4, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
           const row = list.createDiv({ cls: "zoommap-collections-row" });
           const left = row.createDiv();
           const name = left.createEl("div", { text: c.name || "(unnamed collection)" });
           name.addClass("zoommap-collections-name");
           const meta = left.createEl("div", {
-            text: `${(_c = (_b = (_a3 = c.bindings) == null ? void 0 : _a3.basePaths) == null ? void 0 : _b.length) != null ? _c : 0} bases \u2022 ${(_f = (_e = (_d = c.include) == null ? void 0 : _d.pinKeys) == null ? void 0 : _e.length) != null ? _f : 0} pins \u2022 ${(_i = (_h = (_g = c.include) == null ? void 0 : _g.favorites) == null ? void 0 : _h.length) != null ? _i : 0} favorites \u2022 ${(_l = (_k = (_j = c.include) == null ? void 0 : _j.stickers) == null ? void 0 : _k.length) != null ? _l : 0} stickers \u2022 ${(_o = (_n = (_m = c.include) == null ? void 0 : _m.swapPins) == null ? void 0 : _n.length) != null ? _o : 0} swap pins`
+            text: `${(_c = (_b2 = (_a4 = c.bindings) == null ? void 0 : _a4.basePaths) == null ? void 0 : _b2.length) != null ? _c : 0} bases \u2022 ${(_f = (_e = (_d = c.include) == null ? void 0 : _d.pinKeys) == null ? void 0 : _e.length) != null ? _f : 0} pins \u2022 ${(_i = (_h = (_g = c.include) == null ? void 0 : _g.favorites) == null ? void 0 : _h.length) != null ? _i : 0} favorites \u2022 ${(_l = (_k = (_j = c.include) == null ? void 0 : _j.stickers) == null ? void 0 : _k.length) != null ? _l : 0} stickers \u2022 ${(_o = (_n = (_m = c.include) == null ? void 0 : _m.swapPins) == null ? void 0 : _n.length) != null ? _o : 0} swap pins`
           });
           meta.addClass("zoommap-collections-meta");
           const edit = row.createEl("button", { text: "Edit" });
           edit.onclick = () => {
             new CollectionEditorModal(this.app, this.plugin, c, ({ updated, deleted }) => {
-              var _a4;
+              var _a5;
               if (deleted) {
-                const arr = (_a4 = this.plugin.settings.baseCollections) != null ? _a4 : [];
+                const arr = (_a5 = this.plugin.settings.baseCollections) != null ? _a5 : [];
                 const pos = arr.indexOf(c);
                 if (pos >= 0) arr.splice(pos, 1);
                 void this.plugin.saveSettings().then(() => {
@@ -23374,8 +21965,8 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
           };
           const del = row.createEl("button", { text: "Delete" });
           del.onclick = () => {
-            var _a4;
-            const arr = (_a4 = this.plugin.settings.baseCollections) != null ? _a4 : [];
+            var _a5;
+            const arr = (_a5 = this.plugin.settings.baseCollections) != null ? _a5 : [];
             const pos = arr.indexOf(c);
             if (pos >= 0) arr.splice(pos, 1);
             void this.plugin.saveSettings().then(() => {
@@ -23394,10 +21985,10 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
           include: { pinKeys: [], favorites: [], stickers: [], swapPins: [], pingPins: [] }
         };
         new CollectionEditorModal(this.app, this.plugin, fresh, ({ updated, deleted }) => {
-          var _a3;
+          var _a4;
           if (deleted) return;
           if (updated) {
-            this.plugin.settings.baseCollections = (_a3 = this.plugin.settings.baseCollections) != null ? _a3 : [];
+            this.plugin.settings.baseCollections = (_a4 = this.plugin.settings.baseCollections) != null ? _a4 : [];
             this.plugin.settings.baseCollections.push(fresh);
             void this.plugin.saveSettings().then(() => {
               renderCollections();
@@ -23410,10 +22001,10 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     new import_obsidian29.Setting(containerEl).setName("Marker icons (library)").setHeading();
     const libRow = new import_obsidian29.Setting(containerEl).setName("Library file (icons + collections)").setDesc("Save/load your icons and collections to/from a JSON file.");
     libRow.addText((t) => {
-      var _a2;
+      var _a3;
       const ext = this.plugin.settings;
       t.setPlaceholder("ZoomMap/library.json");
-      t.setValue((_a2 = ext.libraryFilePath) != null ? _a2 : "ZoomMap/library.json");
+      t.setValue((_a3 = ext.libraryFilePath) != null ? _a3 : "ZoomMap/library.json");
       t.onChange((v) => {
         this.plugin.settings.libraryFilePath = v.trim() || "ZoomMap/library.json";
         void this.plugin.saveSettings();
@@ -23431,9 +22022,9 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     );
     libRow.addButton(
       (b) => b.setButtonText("Save now").onClick(() => {
-        var _a2, _b;
+        var _a3, _b2;
         const ext = this.plugin.settings;
-        const p = (_b = (_a2 = ext.libraryFilePath) == null ? void 0 : _a2.trim()) != null ? _b : "ZoomMap/library.json";
+        const p = (_b2 = (_a3 = ext.libraryFilePath) == null ? void 0 : _a3.trim()) != null ? _b2 : "ZoomMap/library.json";
         void this.plugin.saveLibraryToPath(p);
       })
     );
@@ -23449,10 +22040,10 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     new import_obsidian29.Setting(containerEl).setName("SVG icon sources").setHeading();
     const svgFolderRow = new import_obsidian29.Setting(containerEl).setName("SVG icon folder in vault").setDesc("Folder that contains SVG packs.");
     svgFolderRow.addText((t) => {
-      var _a2;
+      var _a3;
       const ext = this.plugin.settings;
       t.setPlaceholder("e.g. ZoomMap/SVGs");
-      t.setValue((_a2 = ext.faFolderPath) != null ? _a2 : "ZoomMap/SVGs");
+      t.setValue((_a3 = ext.faFolderPath) != null ? _a3 : "ZoomMap/SVGs");
       t.onChange((v) => {
         ext.faFolderPath = (v || "ZoomMap/SVGs").trim();
         void this.plugin.saveSettings();
@@ -23460,9 +22051,9 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     });
     svgFolderRow.addButton(
       (b) => b.setButtonText("Ensure folder").onClick(() => {
-        var _a2;
+        var _a3;
         const ext = this.plugin.settings;
-        const folder = (0, import_obsidian29.normalizePath)(((_a2 = ext.faFolderPath) == null ? void 0 : _a2.trim()) || "ZoomMap/SVGs");
+        const folder = (0, import_obsidian29.normalizePath)(((_a3 = ext.faFolderPath) == null ? void 0 : _a3.trim()) || "ZoomMap/SVGs");
         if (!this.app.vault.getAbstractFileByPath(folder)) {
           void this.app.vault.createFolder(folder).then(() => {
             new import_obsidian29.Notice(`Created folder: ${folder}`, 2e3);
@@ -23489,14 +22080,14 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
       })
     );
     const buildLinkSuggestions = () => {
-      var _a2, _b, _c, _d;
+      var _a3, _b2, _c, _d;
       const files = this.app.vault.getFiles().filter((f) => {
-        var _a3;
-        return ((_a3 = f.extension) == null ? void 0 : _a3.toLowerCase()) === "md";
+        var _a4;
+        return ((_a4 = f.extension) == null ? void 0 : _a4.toLowerCase()) === "md";
       });
       const suggestions = [];
       const active = this.app.workspace.getActiveFile();
-      const fromPath = (_c = (_b = active == null ? void 0 : active.path) != null ? _b : (_a2 = files[0]) == null ? void 0 : _a2.path) != null ? _c : "";
+      const fromPath = (_c = (_b2 = active == null ? void 0 : active.path) != null ? _b2 : (_a3 = files[0]) == null ? void 0 : _a3.path) != null ? _c : "";
       for (const file of files) {
         const baseLink = this.app.metadataCache.fileToLinktext(file, fromPath);
         suggestions.push({ label: baseLink, value: baseLink });
@@ -23549,8 +22140,8 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
       updateList(getValue());
     };
     const isSvgIcon = (icon) => {
-      var _a2;
-      const src = (_a2 = icon.pathOrDataUrl) != null ? _a2 : "";
+      var _a3;
+      const src = (_a3 = icon.pathOrDataUrl) != null ? _a3 : "";
       if (typeof src !== "string") return false;
       const lower = src.toLowerCase();
       return lower.startsWith("data:image/svg+xml") || lower.endsWith(".svg");
@@ -23565,20 +22156,20 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     );
     addSvgSetting.addButton(
       (b) => b.setButtonText("Sort a\u2192z").onClick(() => {
-        var _a2;
-        const icons = (_a2 = this.plugin.settings.icons) != null ? _a2 : [];
+        var _a3;
+        const icons = (_a3 = this.plugin.settings.icons) != null ? _a3 : [];
         if (icons.length === 0) return;
-        const svgIcons = icons.filter((i) => isSvgIcon(i));
+        const svgIcons = icons.filter((i2) => isSvgIcon(i2));
         if (svgIcons.length <= 1) {
           new import_obsidian29.Notice("No SVG icons to sort.", 2e3);
           return;
         }
-        const keyOf = (i) => {
-          var _a3;
-          return String((_a3 = i.key) != null ? _a3 : "").trim();
+        const keyOf = (i2) => {
+          var _a4;
+          return String((_a4 = i2.key) != null ? _a4 : "").trim();
         };
         const sorted = [...svgIcons].sort(
-          (a, b2) => keyOf(a).localeCompare(keyOf(b2), void 0, { sensitivity: "base", numeric: true })
+          (a, b3) => keyOf(a).localeCompare(keyOf(b3), void 0, { sensitivity: "base", numeric: true })
         );
         let j = 0;
         const next = icons.map((ico) => isSvgIcon(ico) ? sorted[j++] : ico);
@@ -23591,9 +22182,9 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     );
     addSvgSetting.addButton(
       (b) => b.setButtonText("Add SVG icon").onClick(() => {
-        var _a2;
+        var _a3;
         const ext = this.plugin.settings;
-        const folder = ((_a2 = ext.faFolderPath) == null ? void 0 : _a2.trim()) || "ZoomMap/SVGs";
+        const folder = ((_a3 = ext.faFolderPath) == null ? void 0 : _a3.trim()) || "ZoomMap/SVGs";
         new FaIconPickerModal(this.app, folder, (file) => {
           void this.addFontAwesomeIcon(file);
         }).open();
@@ -23619,20 +22210,20 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     new import_obsidian29.Setting(containerEl).setName("Image icons").setHeading();
     new import_obsidian29.Setting(containerEl).setName("Add new icon or sort the list").setDesc("Create a new image-based icon entry, or sort the image icon list alphabetically.").addButton(
       (b) => b.setButtonText("Sort a\u2192z").onClick(() => {
-        var _a2;
-        const icons = (_a2 = this.plugin.settings.icons) != null ? _a2 : [];
+        var _a3;
+        const icons = (_a3 = this.plugin.settings.icons) != null ? _a3 : [];
         if (icons.length === 0) return;
-        const imgIcons = icons.filter((i) => !isSvgIcon(i));
+        const imgIcons = icons.filter((i2) => !isSvgIcon(i2));
         if (imgIcons.length <= 1) {
           new import_obsidian29.Notice("No image icons to sort.", 2e3);
           return;
         }
-        const keyOf = (i) => {
-          var _a3;
-          return String((_a3 = i.key) != null ? _a3 : "").trim();
+        const keyOf = (i2) => {
+          var _a4;
+          return String((_a4 = i2.key) != null ? _a4 : "").trim();
         };
         const sorted = [...imgIcons].sort(
-          (a, b2) => keyOf(a).localeCompare(keyOf(b2), void 0, { sensitivity: "base", numeric: true })
+          (a, b3) => keyOf(a).localeCompare(keyOf(b3), void 0, { sensitivity: "base", numeric: true })
         );
         let j = 0;
         const next = icons.map((ico) => isSvgIcon(ico) ? ico : sorted[j++]);
@@ -23679,7 +22270,7 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     const imgIconsGrid = containerEl.createDiv({ cls: "zm-icons-grid zm-grid zm-icons-grid--img" });
     let renderIcons;
     renderIcons = () => {
-      var _a2, _b, _c, _d, _e, _f, _g;
+      var _a3, _b2, _c, _d, _e, _f, _g;
       svgIconsGrid.empty();
       imgIconsGrid.empty();
       for (const icon of this.plugin.settings.icons) {
@@ -23702,7 +22293,7 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
           const previewCell = row.createDiv({ cls: "zoommap-settings__preview-cell" });
           const img = previewCell.createEl("img");
           img.addClass("zoommap-settings__icon-preview");
-          let src = (_a2 = icon.pathOrDataUrl) != null ? _a2 : "";
+          let src = (_a3 = icon.pathOrDataUrl) != null ? _a3 : "";
           if (typeof src === "string" && !src.startsWith("data:") && src) {
             const f = this.app.vault.getAbstractFileByPath(src);
             if (f instanceof import_obsidian29.TFile) {
@@ -23711,14 +22302,14 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
           }
           img.src = typeof src === "string" ? src : "";
           const applyRotationPreview = () => {
-            var _a3;
-            const deg = (_a3 = icon.rotationDeg) != null ? _a3 : 0;
+            var _a4;
+            const deg = (_a4 = icon.rotationDeg) != null ? _a4 : 0;
             setCssProps2(img, {
               transform: deg ? `rotate(${deg}deg)` : null
             });
           };
           applyRotationPreview();
-          const rawSrc = (_b = icon.pathOrDataUrl) != null ? _b : "";
+          const rawSrc = (_b2 = icon.pathOrDataUrl) != null ? _b2 : "";
           const isSvgData = typeof rawSrc === "string" && rawSrc.startsWith("data:image/svg+xml");
           let currentColor = "";
           if (isSvgData) {
@@ -23745,8 +22336,8 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
             const c = val.trim();
             if (!c) return;
             void this.recolorIconSvg(icon, c).then(() => {
-              var _a3;
-              const updated = (_a3 = icon.pathOrDataUrl) != null ? _a3 : "";
+              var _a4;
+              const updated = (_a4 = icon.pathOrDataUrl) != null ? _a4 : "";
               let out = updated;
               if (typeof out === "string" && !out.startsWith("data:") && out) {
                 const f = this.app.vault.getAbstractFileByPath(out);
@@ -23785,8 +22376,8 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
           attachLinkAutocomplete(
             linkInput,
             () => {
-              var _a3;
-              return (_a3 = icon.defaultLink) != null ? _a3 : "";
+              var _a4;
+              return (_a4 = icon.defaultLink) != null ? _a4 : "";
             },
             (val) => {
               icon.defaultLink = val;
@@ -23849,7 +22440,7 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
           del.classList.add("zm-icon-btn");
           (0, import_obsidian29.setIcon)(del, "trash");
           del.onclick = () => {
-            this.plugin.settings.icons = this.plugin.settings.icons.filter((i) => i !== icon);
+            this.plugin.settings.icons = this.plugin.settings.icons.filter((i2) => i2 !== icon);
             void this.plugin.saveSettings();
             renderIcons();
           };
@@ -23872,9 +22463,9 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
           const showPreview = !!this.plugin.settings.showImageIconPreviewInSettings;
           let previewImg = null;
           const refreshPreview = () => {
-            var _a3;
+            var _a4;
             if (!previewImg) return;
-            let src = ((_a3 = icon.pathOrDataUrl) != null ? _a3 : "").trim();
+            let src = ((_a4 = icon.pathOrDataUrl) != null ? _a4 : "").trim();
             if (!src) {
               previewImg.src = "";
               return;
@@ -23926,8 +22517,8 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
           attachLinkAutocomplete(
             linkInput,
             () => {
-              var _a3;
-              return (_a3 = icon.defaultLink) != null ? _a3 : "";
+              var _a4;
+              return (_a4 = icon.defaultLink) != null ? _a4 : "";
             },
             (val) => {
               icon.defaultLink = val;
@@ -23979,7 +22570,7 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
           del.classList.add("zm-icon-btn");
           (0, import_obsidian29.setIcon)(del, "trash");
           del.onclick = () => {
-            this.plugin.settings.icons = this.plugin.settings.icons.filter((i) => i !== icon);
+            this.plugin.settings.icons = this.plugin.settings.icons.filter((i2) => i2 !== icon);
             void this.plugin.saveSettings();
             renderIcons();
           };
@@ -23989,18 +22580,3 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     renderIcons();
   }
 };
-/*! Bundled license information:
-
-jszip/dist/jszip.min.js:
-  (*!
-  
-  JSZip v3.10.1 - A JavaScript class for generating and reading zip files
-  <http://stuartk.com/jszip>
-  
-  (c) 2009-2016 Stuart Knightley <stuart [at] stuartk.com>
-  Dual licenced under the MIT license or GPLv3. See https://raw.github.com/Stuk/jszip/main/LICENSE.markdown.
-  
-  JSZip uses the library pako released under the MIT license :
-  https://github.com/nodeca/pako/blob/main/LICENSE
-  *)
-*/
