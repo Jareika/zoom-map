@@ -1,6 +1,7 @@
-import { Modal, Setting } from "obsidian";
+import { Modal, Setting, TFile } from "obsidian";
 import type { App } from "obsidian";
 import type { Drawing, DrawingStyle, FillPatternKind, DrawLayer } from "./markerStore";
+import { MarkdownFileSuggestModal } from "./markdownFileSuggest";
 
 export interface DrawingEditorResult {
   action: "save" | "cancel" | "delete";
@@ -11,11 +12,17 @@ type DrawingEditorCallback = (result: DrawingEditorResult) => void;
 
 type DrawingLayerOption = Pick<DrawLayer, "id" | "name">;
 
+interface LinkSuggestion {
+  label: string;
+  value: string;
+}
+
 export class DrawingEditorModal extends Modal {
   private original: Drawing;
   private working: Drawing;
   private drawLayers: DrawingLayerOption[];
   private onResult: DrawingEditorCallback;
+  private allLinkSuggestions: LinkSuggestion[] = [];
 
   constructor(app: App, drawing: Drawing, drawLayers: DrawingLayerOption[], onResult: DrawingEditorCallback) {
     super(app);
@@ -81,7 +88,9 @@ export class DrawingEditorModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
+	const canBeRegion = this.working.kind !== "polyline";
     const isPolyline = this.working.kind === "polyline";
+	this.buildLinkSuggestions();
     contentEl.createEl("h2", { text: isPolyline ? "Edit polyline" : "Edit drawing" });
 
     const style = this.working.style;
@@ -373,6 +382,77 @@ export class DrawingEditorModal extends Modal {
         style.fillPatternOpacity = clamped / 100;
       });
     });
+	
+    if (canBeRegion) {
+      const regionHeading = contentEl.createDiv({
+        cls: "zoommap-drawing-editor__section-heading",
+      });
+      regionHeading.textContent = "Region interaction";
+	  
+	  let regionLinkInput: HTMLInputElement | null = null;
+
+      new Setting(contentEl)
+        .setName("Region link")
+        .setDesc("Optional wiki link that opens when the region is clicked.")
+        .addText((t) => {
+          t.setPlaceholder("Note or note#heading");
+          t.setValue(style.regionLink ?? "");
+		  regionLinkInput = t.inputEl;
+          t.onChange((v) => {
+            style.regionLink = v.trim() || undefined;
+          });
+
+          this.attachLinkAutocomplete(
+            t.inputEl,
+            () => style.regionLink ?? "",
+            (val) => {
+              style.regionLink = val.trim() || undefined;
+              t.inputEl.value = val;
+            },
+          );
+        })
+        .addButton((b) => {
+          b.setButtonText("Pick…").onClick(() => {
+            new MarkdownFileSuggestModal(this.app, (file: TFile) => {
+              const active = this.app.workspace.getActiveFile();
+              const fromPath = active?.path ?? file.path;
+              const link = this.app.metadataCache.fileToLinktext(file, fromPath);
+              style.regionLink = link;
+              if (regionLinkInput) regionLinkInput.value = link;
+            }).open();
+          });
+        });
+
+      new Setting(contentEl)
+        .setName("Region tooltip")
+        .setDesc("Optional tooltip shown when hovering the region.")
+        .addTextArea((a) => {
+          a.inputEl.rows = 3;
+          a.setPlaceholder("Region tooltip");
+          a.setValue(style.regionTooltip ?? "");
+          a.onChange((v) => {
+            style.regionTooltip = v.trim() || undefined;
+          });
+        });
+		
+      new Setting(contentEl)
+        .setName("Hover preview popover")
+        .setDesc("If disabled, the region link stays clickable but no hover preview popover is opened.")
+        .addToggle((tg) => {
+          tg.setValue(style.regionHoverPreview !== false).onChange((on) => {
+            style.regionHoverPreview = on ? true : false;
+          });
+        });
+
+      new Setting(contentEl)
+        .setName("Hide visual shape")
+        .setDesc("Makes the shape invisible, but keeps the region interactive for tooltip/link.")
+        .addToggle((tg) => {
+          tg.setValue(!!style.regionInvisible).onChange((on) => {
+            style.regionInvisible = on ? true : undefined;
+          });
+        });
+    }
 
     // Footer
     const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });
@@ -419,6 +499,95 @@ export class DrawingEditorModal extends Modal {
       return `#${r}${r}${g}${g}${b}${b}`;
     }
     return v;
+  }
+  
+  private buildLinkSuggestions(): void {
+    const files = this.app.vault
+      .getFiles()
+      .filter((f) => f.extension?.toLowerCase() === "md");
+
+    const suggestions: LinkSuggestion[] = [];
+    const active = this.app.workspace.getActiveFile();
+    const fromPath = active?.path ?? files[0]?.path ?? "";
+
+    for (const file of files) {
+      const base = this.app.metadataCache.fileToLinktext(file, fromPath);
+      suggestions.push({ label: base, value: base });
+
+      const cache = this.app.metadataCache.getCache(file.path);
+      const headings = cache?.headings ?? [];
+      for (const h of headings) {
+        const heading = h.heading;
+        const full = `${base}#${heading}`;
+        suggestions.push({
+          label: `${base} › ${heading}`,
+          value: full,
+        });
+      }
+    }
+
+    this.allLinkSuggestions = suggestions;
+  }
+
+  private attachLinkAutocomplete(
+    input: HTMLInputElement,
+    getValue: () => string,
+    setValue: (val: string) => void,
+  ): void {
+    const wrapper = input.parentElement;
+    if (!(wrapper instanceof HTMLElement)) return;
+
+    wrapper.classList.add("zoommap-link-input-wrapper");
+    const listEl = wrapper.createDiv({
+      cls: "zoommap-link-suggestions is-hidden",
+    });
+
+    const hide = () => listEl.classList.add("is-hidden");
+    const show = () => listEl.classList.remove("is-hidden");
+
+    const update = (query: string) => {
+      const q = query.trim().toLowerCase();
+      listEl.empty();
+
+      if (!q) {
+        hide();
+        return;
+      }
+
+      const matches = this.allLinkSuggestions
+        .filter(
+          (s) =>
+            s.value.toLowerCase().includes(q) ||
+            s.label.toLowerCase().includes(q),
+        )
+        .slice(0, 20);
+
+      if (!matches.length) {
+        hide();
+        return;
+      }
+
+      show();
+      for (const s of matches) {
+        const row = listEl.createDiv({
+          cls: "zoommap-link-suggestion-item",
+        });
+        row.setText(s.label);
+        row.addEventListener("mousedown", (ev) => {
+          ev.preventDefault();
+          setValue(s.value);
+          hide();
+        });
+      }
+    };
+
+    input.addEventListener("input", () => update(input.value));
+    input.addEventListener("focus", () => update(getValue()));
+    input.addEventListener("blur", () => {
+      window.setTimeout(hide, 150);
+    });
+
+    hide();
   }
   
   private renderLayerSetting(container: HTMLElement): void {
@@ -476,12 +645,20 @@ export class DrawingEditorModal extends Modal {
       delete style.fillPatternStrokeWidth;
       delete style.fillPatternOpacity;
       delete style.label;
+      delete style.regionLink;
+      delete style.regionTooltip;
+      delete style.regionInvisible;
+      delete style.regionHoverPreview;
       return;
     }
 
     const pattern: FillPatternKind =
       style.fillPattern ?? (style.fillColor ? "solid" : "none");
     style.fillPattern = pattern;
+	
+    if (style.regionHoverPreview !== false) {
+      style.regionHoverPreview = true;
+    }
 
     if (pattern === "none") {
       // No fill; keep values as-is.

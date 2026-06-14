@@ -677,6 +677,26 @@ body.zm-global-hover-popover-size .hover-popover .markdown-preview-section {
   pointer-events: none;
 }
 
+.zm-draw-hitboxes {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.zm-draw-hitbox {
+  position: absolute;
+  pointer-events: auto;
+  background: transparent;
+  cursor: pointer;
+}
+
+.zm-draw-hitbox--circle {
+  border-radius: 999px;
+}
+
 .zm-draw__svg {
   width: 100%;
   height: 100%;
@@ -686,6 +706,10 @@ body.zm-global-hover-popover-size .hover-popover .markdown-preview-section {
 .zm-draw__shape {
   vector-effect: non-scaling-stroke;
   pointer-events: auto;
+}
+
+.zm-draw__shape--interactive {
+  cursor: pointer;
 }
 
 /* Context menu */

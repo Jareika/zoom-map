@@ -20,8 +20,7 @@ import type {
   TextBox,
   TextBoxAutoConfig,
   TextLayerStyle,
-  DiceRollSpec,
-  SecondScreenViewState
+  DiceRollSpec
 } from "./markerStore";
 import type ZoomMapPlugin from "./main";
 import { MarkerEditorModal } from "./markerEditor";
@@ -190,6 +189,11 @@ export interface IconProfile {
   anchorY: number;
   defaultLink?: string;
   rotationDeg?: number;
+  shadowEnabled?: boolean;
+  shadowColor?: string;
+  shadowBlurPx?: number;
+  shadowOffsetXPx?: number;
+  shadowOffsetYPx?: number;
 }
 
 export interface CustomUnitDef {
@@ -287,6 +291,17 @@ export interface MapRestoreState {
   activeBase?: string;
   scale: number;
   center: { x: number; y: number };
+}
+
+export interface MapShareExportContext {
+  sourcePath: string;
+  mapId: string;
+  storageMode: "json" | "note";
+  markersPath: string;
+  yamlBlock: string;
+  yamlRaw: string;
+  yamlObject: Record<string, unknown> | null;
+  markerData: MarkerFileData;
 }
 
 interface Point { x: number; y: number; }
@@ -551,6 +566,7 @@ export class MapInstance extends Component {
   
   // Draw overlay (static shapes + draft)
   private drawEl!: HTMLDivElement;
+  private drawHitboxesEl!: HTMLDivElement;
   private drawSvg!: SVGSVGElement;
   private drawDefs!: SVGDefsElement;
   private drawStaticLayer!: SVGGElement;
@@ -665,6 +681,7 @@ export class MapInstance extends Component {
 
   private tooltipEl: HTMLDivElement | null = null;
   private tooltipHideTimer: number | null = null;
+  private drawingHoverAnchorEl: HTMLDivElement | null = null;
   
   private frameLayerEl: HTMLDivElement | null = null;
   private viewportFrameEl: HTMLImageElement | null = null;
@@ -718,6 +735,10 @@ export class MapInstance extends Component {
   private touchGestureStartY = 0;
   private readonly touchGestureLockThresholdPx = 8;
   private readonly touchGestureEdgeGuardPx = 28;
+  private lastTouchTapTs = 0;
+  private lastTouchTapClient: { x: number; y: number } | null = null;
+  private readonly touchDoubleTapMs = 350;
+  private readonly touchDoubleTapDistPx = 24;
 
   private currentBasePath: string | null = null;
 
@@ -2242,6 +2263,43 @@ export class MapInstance extends Component {
   public getMapId(): string {
     return this.cfg.mapId ?? "";
   }
+  
+  public async buildShareExportContext(): Promise<MapShareExportContext | null> {
+    if (!this.data) return null;
+
+    const af = this.app.vault.getAbstractFileByPath(this.cfg.sourcePath);
+    if (!(af instanceof TFile)) return null;
+
+    const text = await this.app.vault.read(af);
+    const lines = text.split("\n");
+    const blk = this.findZoommapBlockForThisMap(lines);
+    if (!blk) return null;
+
+    const yamlLines = lines
+      .slice(blk.start + 1, blk.end)
+      .map((ln) => stripQuotePrefix(ln));
+
+    const yamlRaw = yamlLines.join("\n").trimEnd();
+
+    let yamlObject: Record<string, unknown> | null = null;
+    try {
+      const parsed: unknown = parseYaml(yamlRaw);
+      if (this.isPlainObject(parsed)) yamlObject = parsed;
+    } catch {
+      yamlObject = null;
+    }
+
+    return {
+      sourcePath: this.cfg.sourcePath,
+      mapId: this.cfg.mapId ?? "",
+      storageMode: this.cfg.storageMode ?? "json",
+      markersPath: this.cfg.markersPath,
+      yamlBlock: `\`\`\`zoommap\n${yamlRaw}\n\`\`\``,
+      yamlRaw,
+      yamlObject,
+      markerData: cloneForUndo(sanitizeMarkerFileDataForSave(this.data)),
+    };
+  }
 
   public captureRestoreState(): MapRestoreState | null {
     if (!this.imgW || !this.imgH) return null;
@@ -3411,6 +3469,7 @@ export class MapInstance extends Component {
 	const doc = this.getOwnerDocument();
 
     this.drawEl = this.worldEl.createDiv({ cls: "zm-draw" });
+	this.drawHitboxesEl = this.worldEl.createDiv({ cls: "zm-draw-hitboxes" });
 
     this.drawSvg = doc.createElementNS(ns, "svg");
     this.drawSvg.classList.add("zm-draw__svg");
@@ -4868,6 +4927,7 @@ export class MapInstance extends Component {
       if (!isNodeLike(t)) return;
 
       if (this.textEditEl.contains(t)) return;
+	  if (t instanceof Element && t.closest(".zm-text-hitbox")) return;
 
       if (this.activeTextLayerId && this.activeTextBoxId) {
         const hb = this.textHitEl.querySelector(
@@ -6233,6 +6293,10 @@ export class MapInstance extends Component {
       this.finishDrawNewTextBox();
       return;
     }
+	
+    if (e) {
+      this.handleTouchTapOnPointerUp(e);
+    }
  
   if (this.draggingMarkerId) {
     const draggedId = this.draggingMarkerId;
@@ -6293,6 +6357,8 @@ this.viewDragDist = 0;
     this.pinchStartScale = this.scale;
     this.pinchPrevCenter = this.mid(pts[0], pts[1]);
     this.pinchStartDist = this.dist(pts[0], pts[1]);
+	
+	this.resetTouchDoubleTapState();
 
     this.draggingView = false;
     this.draggingMarkerId = null;
@@ -6445,6 +6511,94 @@ this.viewDragDist = 0;
       this.resetNativeTouchCapture();
     }
   };
+  
+  private resetTouchDoubleTapState(): void {
+    this.lastTouchTapTs = 0;
+    this.lastTouchTapClient = null;
+  }
+
+  private handleTouchTapOnPointerUp(e: PointerEvent): void {
+    if (e.pointerType !== "touch") return;
+
+    const target = e.target;
+    if (!(target instanceof Element)) {
+      this.resetTouchDoubleTapState();
+      return;
+    }
+
+    const targetEl = target;
+    if (!targetEl || !this.viewportEl.contains(targetEl)) {
+      this.resetTouchDoubleTapState();
+      return;
+    }
+
+    if (
+      targetEl.closest(".zm-marker") ||
+      targetEl.closest(".popover") ||
+      targetEl.closest(".hover-popover") ||
+      targetEl.closest(".zm-menu") ||
+      targetEl.closest(".zm-submenu") ||
+      targetEl.closest(".zm-tooltip")
+    ) {
+      this.resetTouchDoubleTapState();
+      return;
+    }
+
+    if (
+      this.draggingMarkerId ||
+      this.viewDragMoved ||
+      this.pinchActive ||
+      this.calibrating ||
+      this.drawingMode ||
+      this.textMode === "draw-box" ||
+      this.textMode === "draw-lines" ||
+      this.textMode === "move"
+    ) {
+      this.resetTouchDoubleTapState();
+      return;
+    }
+
+    const now = Date.now();
+    const prev = this.lastTouchTapClient;
+    const isDoubleTap =
+      !!prev &&
+      now - this.lastTouchTapTs <= this.touchDoubleTapMs &&
+      Math.hypot(prev.x - e.clientX, prev.y - e.clientY) <= this.touchDoubleTapDistPx;
+
+    if (!isDoubleTap) {
+      this.lastTouchTapTs = now;
+      this.lastTouchTapClient = { x: e.clientX, y: e.clientY };
+      return;
+    }
+
+    this.resetTouchDoubleTapState();
+    this.handleTouchDoubleTapAction(e.clientX, e.clientY);
+  }
+
+  private handleTouchDoubleTapAction(clientX: number, clientY: number): void {
+    if (!this.ready) return;
+
+    if (this.measuring) {
+      this.measuring = false;
+      this.clearMeasure();
+      this.updateMeasureHud();
+      new Notice("Measurement cleared.", 1200);
+      return;
+    }
+
+    if (this.cfg.displayOnly) return;
+    if (this.textMode === "edit") return;
+
+    const vpRect = this.viewportEl.getBoundingClientRect();
+    const vx = clientX - vpRect.left;
+    const vy = clientY - vpRect.top;
+    const wx = (vx - this.tx) / this.scale;
+    const wy = (vy - this.ty) / this.scale;
+    const nx = clamp(wx / this.imgW, 0, 1);
+    const ny = clamp(wy / this.imgH, 0, 1);
+
+    this.addMarkerInteractive(nx, ny);
+  }
 
   private onDblClickViewport(e: MouseEvent): void {
     if (!this.ready) return;
@@ -8522,6 +8676,13 @@ if (this.plugin.settings.enableTextLayers && this.data) {
               this.closeMenu();
             },
           },
+            {
+              label: "Export map package…",
+              action: () => {
+                this.closeMenu();
+                this.plugin.openExportMapBundleModal(this);
+              },
+            },
           ...(this.secondScreenFeatureEnabled()
             ? [
                 {
@@ -10439,6 +10600,118 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     return out;
   }
   
+  private canDrawingUseRegion(d: Drawing): boolean {
+    return d.kind === "polygon" || d.kind === "rect" || d.kind === "circle";
+  }
+
+  private showDrawingTooltip(clientX: number, clientY: number, body: string, title?: string): void {
+    const text = (body ?? "").trim();
+    const head = (title ?? "").trim();
+    if (!text && !head) return;
+
+    if (!this.tooltipEl) {
+      this.tooltipEl = this.hudClipEl.createDiv({ cls: "zm-tooltip" });
+      this.tooltipEl.addEventListener("mouseenter", () => this.cancelHideTooltip());
+      this.tooltipEl.addEventListener("mouseleave", () => this.hideTooltipSoon());
+    }
+
+    this.tooltipEl.style.maxWidth = `${this.plugin.settings.hoverMaxWidth ?? 360}px`;
+    this.tooltipEl.style.maxHeight = `${this.plugin.settings.hoverMaxHeight ?? 260}px`;
+
+    this.cancelHideTooltip();
+    this.tooltipEl.empty();
+
+    if (head) this.tooltipEl.createEl("div", { cls: "zm-tooltip__title", text: head });
+    if (text) this.tooltipEl.createEl("div", { cls: "zm-tooltip__body", text });
+
+    this.positionTooltip(clientX, clientY);
+    this.tooltipEl.classList.add("zm-tooltip-visible");
+  }
+
+  private onDrawingRegionEnter(ev: MouseEvent, d: Drawing): void {
+    if (this.measuring || this.calibrating) return;
+    const tooltip = (d.style?.regionTooltip ?? "").trim();
+    if (!tooltip) return;
+    this.showDrawingTooltip(ev.clientX, ev.clientY, tooltip);
+  }
+  
+  private triggerDrawingRegionHoverPopover(
+    ev: MouseEvent,
+    d: Drawing,
+    targetEl?: Element | null,
+  ): void {
+    if (this.measuring || this.calibrating) return;
+
+    const link = (d.style?.regionLink ?? "").trim();
+    if (!link) return;
+	if (d.style?.regionHoverPreview === false) return;
+
+    const forcePopover =
+      this.plugin.settings.forcePopoverWithoutModKey === true;
+    const wantsPopover = forcePopover || ev.ctrlKey || ev.metaKey;
+    if (!wantsPopover) return;
+
+    this.applyGlobalHoverPopoverStyleVars();
+
+    const eventForPopover = forcePopover
+      ? new MouseEvent("mousemove", {
+          clientX: ev.clientX,
+          clientY: ev.clientY,
+          bubbles: true,
+          cancelable: true,
+          ctrlKey: true,
+          metaKey: true,
+        })
+      : ev;
+	  
+    const hoverTarget =
+      targetEl instanceof HTMLElement
+        ? targetEl
+        : this.getDrawingHoverAnchor(ev.clientX, ev.clientY);
+	  
+    this.app.workspace.trigger("hover-link", {
+      event: eventForPopover,
+      source: "zoom-map",
+      hoverParent: this,
+      targetEl: hoverTarget,
+      linktext: link,
+      sourcePath: this.cfg.sourcePath,
+    });
+  }
+  
+  private getDrawingHoverAnchor(clientX: number, clientY: number): HTMLDivElement {
+	if (!this.drawingHoverAnchorEl) {
+	  this.drawingHoverAnchorEl = this.hudClipEl.createDiv();
+	  this.drawingHoverAnchorEl.setAttr("aria-hidden", "true");
+
+	  setCssProps(this.drawingHoverAnchorEl, {
+		position: "absolute",
+		width: "2px",
+		height: "2px",
+		pointerEvents: "none",
+		opacity: "0",
+		transform: "translate(-1px, -1px)",
+		left: "0px",
+		top: "0px",
+	  });
+	}
+
+    const rect = this.hudClipEl.getBoundingClientRect();
+    this.drawingHoverAnchorEl.style.left = `${clientX - rect.left}px`;
+    this.drawingHoverAnchorEl.style.top = `${clientY - rect.top}px`;
+    return this.drawingHoverAnchorEl;
+  }
+
+  private openDrawingRegionLink(d: Drawing, opts?: { newTab?: boolean }): void {
+    const link = (d.style?.regionLink ?? "").trim();
+    if (!link) return;
+    if (opts?.newTab) {
+      this.openLinkInNewTab(link);
+      return;
+    }
+    void this.app.workspace.openLinkText(link, this.cfg.sourcePath);
+  }
+  
   private renderDrawings(): void {
     if (!this.drawSvg || !this.drawStaticLayer || !this.drawDefs) return;
 
@@ -10451,6 +10724,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     while (this.drawDefs.firstChild) {
       this.drawDefs.removeChild(this.drawDefs.firstChild);
     }
+	this.drawHitboxesEl?.empty();
 
     if (
       !this.data ||
@@ -10479,6 +10753,10 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       if (!visibleDrawLayers.has(d.layerId)) continue;
 
       const style = d.style ?? {};
+      const regionLink = (style.regionLink ?? "").trim();
+      const regionTooltip = (style.regionTooltip ?? "").trim();
+      const regionInvisible = !!style.regionInvisible;
+      const interactiveRegion = this.canDrawingUseRegion(d) && (regionInvisible || !!regionLink || !!regionTooltip);
 
       let shape: SVGElement | null = null;
       let minX = 0;
@@ -10621,6 +10899,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       const handleCtx = (ev: MouseEvent) => {
         // During measuring / calibration, drawings should behave as if they
         // were not there. Let the event continue to the viewport handlers.
+		this.hideTooltipSoon(0);
         if (this.measuring || this.calibrating) {
           return;
         }
@@ -10634,9 +10913,9 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         d.kind === "polyline" ? "none" : (style.fillPattern ?? (style.fillColor ? "solid" : "none"));
 
       if (
-        patternKind === "striped" ||
+        !regionInvisible && (patternKind === "striped" ||
         patternKind === "cross" ||
-        patternKind === "wavy"
+        patternKind === "wavy")
       ) {
         const af = d.bakedPath
           ? this.app.vault.getAbstractFileByPath(d.bakedPath)
@@ -10654,9 +10933,9 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       let patternHref: string | null = null;
 
       if (
-        patternKind === "striped" ||
+        !regionInvisible && (patternKind === "striped" ||
         patternKind === "cross" ||
-        patternKind === "wavy"
+        patternKind === "wavy")
       ) {
         if (d.bakedPath) {
           const af = this.app.vault.getAbstractFileByPath(d.bakedPath);
@@ -10672,7 +10951,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         }
       }
 
-      if (patternHref) {
+      if (!regionInvisible && patternHref) {
         const img = doc.createElementNS(ns, "image");
         img.setAttribute("href", patternHref);
         img.setAttribute("x", String(minX));
@@ -10683,7 +10962,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         img.dataset.id = d.id;
         img.addEventListener("contextmenu", handleCtx);
         this.drawStaticLayer.appendChild(img);
-      } else if (patternKind !== "none") {
+      } else if (!regionInvisible && patternKind !== "none") {
         const fillColor = style.fillColor ?? "none";
         const fillOp =
           typeof style.fillOpacity === "number"
@@ -10753,32 +11032,108 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         outline.removeAttribute("marker-end");
       }
 
-      outline.addEventListener("contextmenu", handleCtx);
-      this.drawStaticLayer.appendChild(outline);
-	  
-      if (d.kind === "polyline" && style.distanceLabel && polylineMid && polylineLenPx > 0) {
-        const txt = this.formatPolylineDistance(polylineLenPx);
-        if (txt) {
-          const tEl = doc.createElementNS(ns, "text");
-          tEl.classList.add("zm-draw__label");
-          tEl.setAttribute("x", String(polylineMid.x));
-          tEl.setAttribute("y", String(polylineMid.y));
-          tEl.setAttribute("text-anchor", "middle");
-          tEl.setAttribute("dominant-baseline", "middle");
-          tEl.setAttribute("fill", strokeColor);
-          let ang = polylineMid.angleDeg;
-          // Keep text upright (avoid upside-down labels)
-          if (ang > 90 || ang < -90) ang += 180;
-          // normalize into [-180, 180]
-          while (ang > 180) ang -= 360;
-          while (ang < -180) ang += 360;
+      if (!regionInvisible) {
+        outline.addEventListener("contextmenu", handleCtx);
+        this.drawStaticLayer.appendChild(outline);
 
-          if (Math.abs(ang) > 0.01) {
-            tEl.setAttribute("transform", `rotate(${ang} ${polylineMid.x} ${polylineMid.y})`);
+        if (d.kind === "polyline" && style.distanceLabel && polylineMid && polylineLenPx > 0) {
+          const txt = this.formatPolylineDistance(polylineLenPx);
+          if (txt) {
+            const tEl = doc.createElementNS(ns, "text");
+            tEl.classList.add("zm-draw__label");
+            tEl.setAttribute("x", String(polylineMid.x));
+            tEl.setAttribute("y", String(polylineMid.y));
+            tEl.setAttribute("text-anchor", "middle");
+            tEl.setAttribute("dominant-baseline", "middle");
+            tEl.setAttribute("fill", strokeColor);
+            let ang = polylineMid.angleDeg;
+            if (ang > 90 || ang < -90) ang += 180;
+            while (ang > 180) ang -= 360;
+            while (ang < -180) ang += 360;
+
+            if (Math.abs(ang) > 0.01) {
+              tEl.setAttribute("transform", `rotate(${ang} ${polylineMid.x} ${polylineMid.y})`);
+            }
+            tEl.textContent = txt;
+            this.drawStaticLayer.appendChild(tEl);
           }
-          tEl.textContent = txt;
-          this.drawStaticLayer.appendChild(tEl);
         }
+      }
+
+      if (interactiveRegion && this.drawHitboxesEl) {
+        const hit = this.drawHitboxesEl.createDiv({ cls: "zm-draw-hitbox" });
+        hit.dataset.id = d.id;
+        hit.style.left = `${minX}px`;
+        hit.style.top = `${minY}px`;
+        hit.style.width = `${width}px`;
+        hit.style.height = `${height}px`;
+
+        if (d.kind === "circle") {
+          hit.classList.add("zm-draw-hitbox--circle");
+        } else if (d.kind === "polygon" && d.polygon?.length) {
+          const pts = d.polygon.map((p) => {
+            const ax = p.x * this.imgW;
+            const ay = p.y * this.imgH;
+            const px = ((ax - minX) / width) * 100;
+            const py = ((ay - minY) / height) * 100;
+            return `${px}% ${py}%`;
+          });
+          hit.style.clipPath = `polygon(${pts.join(", ")})`;
+        } else {
+          hit.style.removeProperty("clip-path");
+        }
+
+        hit.addEventListener("mouseenter", (ev: MouseEvent) => {
+          this.triggerDrawingRegionHoverPopover(ev, d, hit);
+          this.onDrawingRegionEnter(ev, d);
+        });
+
+        hit.addEventListener("mousemove", (ev: MouseEvent) => {
+          const forcePopover =
+            this.plugin.settings.forcePopoverWithoutModKey === true;
+
+          if (!forcePopover && (ev.ctrlKey || ev.metaKey)) {
+            this.triggerDrawingRegionHoverPopover(ev, d, hit);
+          }
+
+          if (
+            (d.style?.regionTooltip ?? "").trim() &&
+            this.tooltipEl?.classList.contains("zm-tooltip-visible")
+          ) {
+            this.positionTooltip(ev.clientX, ev.clientY);
+          }
+        });
+
+        hit.addEventListener("mouseleave", () => {
+          this.hideTooltipSoon();
+        });
+
+        hit.addEventListener("click", (ev: MouseEvent) => {
+          if (this.measuring || this.calibrating) return;
+          if (!regionLink) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          this.openDrawingRegionLink(d);
+        });
+
+        hit.addEventListener("mousedown", (ev: MouseEvent) => {
+          if (ev.button !== 1) return;
+          if (!this.plugin.settings.middleClickOpensLinkInNewTab) return;
+          if (!regionLink) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+        });
+
+        hit.addEventListener("auxclick", (ev: MouseEvent) => {
+          if (ev.button !== 1) return;
+          if (!this.plugin.settings.middleClickOpensLinkInNewTab) return;
+          if (!regionLink) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          this.openDrawingRegionLink(d, { newTab: true });
+        });
+
+        hit.addEventListener("contextmenu", handleCtx);
       }
     }
 
@@ -11596,6 +11951,11 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       this.drawEl.style.height = `${this.imgH}px`;
     }
 	
+    if (this.drawHitboxesEl) {
+      this.drawHitboxesEl.style.width = `${this.imgW}px`;
+      this.drawHitboxesEl.style.height = `${this.imgH}px`;
+    }
+	
 	if (this.textSvgWrap) {
       this.textSvgWrap.style.width = `${this.imgW}px`;
       this.textSvgWrap.style.height = `${this.imgH}px`;
@@ -11647,6 +12007,16 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         return revealedMarkerIds.has(m.id);
       })
       .sort((a, b) => rank(a) - rank(b));
+	  
+    const applyIconStyles = (
+      imgEl: HTMLImageElement,
+      info: ReturnType<MapInstance["getIconInfo"]>,
+    ) => {
+      if (info.rotationDeg) imgEl.style.transform = `rotate(${info.rotationDeg}deg)`;
+      else imgEl.style.removeProperty("transform");
+      if (info.shadowFilter) imgEl.style.filter = info.shadowFilter;
+      else imgEl.style.removeProperty("filter");
+    };
 
     const vpRect = this.viewportEl.getBoundingClientRect();
     const vw = vpRect.width || 1;
@@ -11718,7 +12088,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
           }
         }
 
-        const info = this.getIconInfo(effectiveKey);
+        const info = this.getIconInfo(effectiveKey, m.sizeOverride);
 
         let imgUrl = info.imgUrl;
         const markerColor = m.iconColor?.trim();
@@ -11733,6 +12103,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
           icon.src = imgUrl;
           icon.style.width = `${info.size}px`;
           icon.draggable = false;
+		  applyIconStyles(icon, info);
 		  
 		  if (info.rotationDeg) {
 		    icon.style.transform = `rotate(${info.rotationDeg}deg)`;
@@ -11746,6 +12117,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
           icon.src = imgUrl;
           icon.style.width = `${info.size}px`;
           icon.draggable = false;
+		  applyIconStyles(icon, info);
 		  
 		  if (info.rotationDeg) {
 		    icon.style.transform = `rotate(${info.rotationDeg}deg)`;
@@ -11762,6 +12134,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
           icon.src = imgUrl;
           icon.style.width = `${info.size}px`;
           icon.draggable = false;
+		  applyIconStyles(icon, info);
 		  
 		  if (info.rotationDeg) {
 		    icon.style.transform = `rotate(${info.rotationDeg}deg)`;
@@ -11786,7 +12159,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
           return m.iconKey ?? this.plugin.settings.defaultIconKey;
         })();
 
-        const info = this.getIconInfo(effectiveKey);
+        const info = this.getIconInfo(effectiveKey, m.sizeOverride);
 		const scaleLike = isScaleLikeSticker(m);
         const pos = m.tooltipLabelPosition === "above" ? "above" : "below";
         const gap = 6;
@@ -12521,20 +12894,30 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     }
   }
 
-  private getIconInfo(iconKey?: string): {
-  imgUrl: string;
-  size: number;
-  anchorX: number;
-  anchorY: number;
-  rotationDeg: number;
-} {
+  private getIconInfo(
+    iconKey?: string,
+    sizeOverride?: number,
+  ): {
+    imgUrl: string;
+    size: number;
+    anchorX: number;
+    anchorY: number;
+    rotationDeg: number;
+    shadowFilter: string;
+  } {
   const key = iconKey ?? this.plugin.settings.defaultIconKey;
   const profile =
     this.plugin.settings.icons.find((i) => i.key === key) ??
     this.plugin.builtinIcon();
 
   const baseSize = profile.size;
-  const overrideSize = this.data?.pinSizeOverrides?.[key];
+    const overrideSize =
+      typeof sizeOverride === "number" &&
+      Number.isFinite(sizeOverride) &&
+      sizeOverride > 0
+        ? Math.round(sizeOverride)
+        : this.data?.pinSizeOverrides?.[key];
+
   const size =
     overrideSize && Number.isFinite(overrideSize) && overrideSize > 0
       ? overrideSize
@@ -12542,6 +12925,18 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 
   const imgUrl = this.resolveResourceUrl(profile.pathOrDataUrl);
   const rotationDeg = profile.rotationDeg ?? 0;
+    const shadowFilter =
+      profile.shadowEnabled
+        ? `drop-shadow(${
+            Number.isFinite(profile.shadowOffsetXPx) ? profile.shadowOffsetXPx : 2
+          }px ${
+            Number.isFinite(profile.shadowOffsetYPx) ? profile.shadowOffsetYPx : 2
+          }px ${
+            Number.isFinite(profile.shadowBlurPx) ? Math.max(0, profile.shadowBlurPx!) : 6
+          }px ${
+            (profile.shadowColor ?? "#000000").trim() || "#000000"
+          })`
+        : "";
 
   return {
     imgUrl,
@@ -12549,6 +12944,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     anchorX: profile.anchorX,
     anchorY: profile.anchorY,
     rotationDeg,
+	shadowFilter,
   };
 }
   

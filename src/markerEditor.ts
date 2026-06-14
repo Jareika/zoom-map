@@ -669,6 +669,24 @@ export class MarkerEditorModal extends Modal {
         });
       });
     }
+	
+      new Setting(contentEl)
+        .setName("Size override (px)")
+        .setDesc("Overrides the icon default size and the map-wide pin size override for this marker only.")
+        .addText((t) => {
+          t.setPlaceholder("Use icon default");
+          t.inputEl.type = "number";
+          t.setValue(
+            typeof this.marker.sizeOverride === "number" && Number.isFinite(this.marker.sizeOverride)
+              ? String(this.marker.sizeOverride)
+              : "",
+          );
+          t.onChange((v) => {
+            const n = Number(String(v).replace(",", "."));
+            if (Number.isFinite(n) && n > 0) this.marker.sizeOverride = Math.round(n);
+            else delete this.marker.sizeOverride;
+          });
+        });
 
     // Preview
     const preview = contentEl.createDiv({ cls: "zoommap-modal-preview" });
@@ -685,7 +703,10 @@ export class MarkerEditorModal extends Modal {
           }
         }
         const size = Math.max(1, Math.round(this.marker.stickerSize ?? 64));
-        return { url, size };
+        return {
+          url,
+          size,
+        };
       }
 	  
       // Swap pins: preview the current frame icon
@@ -697,9 +718,13 @@ export class MarkerEditorModal extends Modal {
           const key = frame?.iconKey || this.plugin.settings.defaultIconKey;
           const baseIcon =
             this.plugin.settings.icons.find((i) => i.key === key) ?? this.plugin.builtinIcon();
-
+          const size =
+            typeof this.marker.sizeOverride === "number" &&
+            Number.isFinite(this.marker.sizeOverride) &&
+            this.marker.sizeOverride > 0
+              ? Math.round(this.marker.sizeOverride)
+              : baseIcon.size;
           let url = baseIcon.pathOrDataUrl;
-          const size = baseIcon.size;
 
           const color = this.marker.iconColor?.trim();
           if (color && url && url.startsWith("data:image/svg+xml")) {
@@ -730,9 +755,14 @@ export class MarkerEditorModal extends Modal {
         this.plugin.settings.icons.find(
           (i) => i.key === (this.marker.iconKey ?? this.plugin.settings.defaultIconKey),
         ) ?? this.plugin.builtinIcon();
+      const size =
+        typeof this.marker.sizeOverride === "number" &&
+        Number.isFinite(this.marker.sizeOverride) &&
+        this.marker.sizeOverride > 0
+          ? Math.round(this.marker.sizeOverride)
+          : baseIcon.size;
 
       let url = baseIcon.pathOrDataUrl;
-      const size = baseIcon.size;
 
       const color = this.marker.iconColor?.trim();
       if (color && url && url.startsWith("data:image/svg+xml")) {
@@ -799,12 +829,17 @@ export class MarkerEditorModal extends Modal {
 	    if (typeof this.marker.minZoom !== "number") delete this.marker.minZoom;
 	    if (typeof this.marker.maxZoom !== "number") delete this.marker.maxZoom;
 	    if (!this.marker.scaleLikeSticker) delete this.marker.scaleLikeSticker;
+		
 	    if (!this.marker.iconColor) delete this.marker.iconColor;
 	    if (!this.marker.tooltipAlwaysOn) delete this.marker.tooltipAlwaysOn;
         if (!this.marker.tooltipLabelAlways) delete this.marker.tooltipLabelAlways;
         if (this.marker.tooltipLabelAlways && !this.marker.tooltipLabelPosition) this.marker.tooltipLabelPosition = "below";
         if (!this.marker.tooltipLabelAlways) delete this.marker.tooltipLabelPosition;
-		
+        if (
+          typeof this.marker.sizeOverride !== "number" ||
+          !Number.isFinite(this.marker.sizeOverride) ||
+          this.marker.sizeOverride <= 0
+        ) delete this.marker.sizeOverride;	
         const normOffset = (x: unknown): number | undefined => {
           if (typeof x !== "number" || !Number.isFinite(x)) return undefined;
           if (Math.abs(x) < 1e-9) return undefined;

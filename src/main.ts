@@ -34,6 +34,7 @@ import { FaIconPickerModal } from "./faIconPickerModal";
 import { PreferencesModal } from "./preferencesModal";
 import { IconOutlineModal } from "./iconOutlineModal";
 import { ImageCache } from "./imageCache";
+import { ExportMapBundleModal, ImportMapBundleModal } from "./mapShare";
 import { TravelRulesManagerModal } from "./travelRulesModals";
 
 /* ---------------- Utils ---------------- */
@@ -581,6 +582,32 @@ export default class ZoomMapPlugin extends Plugin {
       }).open();
     },
   });
+  
+    this.addCommand({
+      id: "export-active-map-package",
+      name: "Export active map package…",
+      checkCallback: (checking) => {
+        const map = this.activeMap;
+        if (!map) return false;
+        if (!checking) this.openExportMapBundleModal(map);
+        return true;
+      },
+    });
+
+    this.addCommand({
+      id: "import-map-package",
+      name: "Import map package…",
+      editorCallback: (editor, view) => {
+        const mdView = view as MarkdownView;
+        const file = mdView.file;
+        if (!file) {
+          new Notice("Please open a note in edit mode first.", 2500);
+          return;
+        }
+
+        new ImportMapBundleModal(this.app, this, editor, mdView).open();
+      },
+    });
 
     this.addCommand({
       id: "toggle-measure-mode",
@@ -825,6 +852,10 @@ export default class ZoomMapPlugin extends Plugin {
     const raw = icon?.defaultLink;
     const trimmed = typeof raw === "string" ? raw.trim() : "";
     return trimmed.length ? trimmed : undefined;
+  }
+  
+  openExportMapBundleModal(map: MapInstance): void {
+    new ExportMapBundleModal(this.app, this, map).open();
   }
 
   private getEnabledTravelPacks(): TravelRulesPack[] {

@@ -75,16 +75,40 @@ function isTravelRulesPack(x: unknown): x is TravelRulesPack {
   return true;
 }
 
+async function ensureFolderPathExists(app: App, folder: string): Promise<void> {
+  const normalized = normalizePath(folder).trim();
+  if (!normalized) return;
+
+  const parts = normalized.split("/").filter(Boolean);
+  let current = "";
+  for (const part of parts) {
+    current = current ? `${current}/${part}` : part;
+    if (!app.vault.getAbstractFileByPath(current)) {
+      await app.vault.createFolder(current);
+    }
+  }
+}
+
+async function writeVaultText(app: App, path: string, text: string): Promise<void> {
+  const normalized = normalizePath(path);
+  await ensureFolderPathExists(app, normalized.split("/").slice(0, -1).join("/"));
+
+  const existing = app.vault.getAbstractFileByPath(normalized);
+  if (existing instanceof TFile) {
+    await app.vault.modify(existing, text);
+  } else {
+    await app.vault.create(normalized, text);
+  }
+}
+
 async function writeJsonToVault(app: App, path: string, payload: unknown): Promise<string> {
   const p = normalizePath(path);
-  const dir = p.split("/").slice(0, -1).join("/");
-  if (dir && !app.vault.getAbstractFileByPath(dir)) {
-    await app.vault.createFolder(dir);
-  }
-
   const json = JSON.stringify(payload, null, 2);
-  // @ts-expect-error write exists on adapters
-  await app.vault.adapter.write(p, json);
+  await writeVaultText(
+    app,
+    p,
+    json,
+  );
   return p;
 }
 

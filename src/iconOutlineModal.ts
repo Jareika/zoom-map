@@ -30,6 +30,12 @@ export class IconOutlineModal extends Modal {
   private outlineColor = "#000000";
   private outlineWidth = 2;
   private outlineOpacity = 1;
+  
+  private shadowEnabled = false;
+  private shadowColor = "#000000";
+  private shadowBlurPx = 6;
+  private shadowOffsetXPx = 2;
+  private shadowOffsetYPx = 2;
 
   constructor(
     app: App,
@@ -295,6 +301,14 @@ export class IconOutlineModal extends Modal {
     this.innerOffsetXPx = 0;
     this.outlineColor = "#000000";
     this.outlineWidth = 2;
+    this.shadowEnabled = !!this.icon.shadowEnabled;
+    this.shadowColor = (this.icon.shadowColor ?? "#000000").trim() || "#000000";
+    this.shadowBlurPx =
+      typeof this.icon.shadowBlurPx === "number" && Number.isFinite(this.icon.shadowBlurPx) ? this.icon.shadowBlurPx : 6;
+    this.shadowOffsetXPx =
+      typeof this.icon.shadowOffsetXPx === "number" && Number.isFinite(this.icon.shadowOffsetXPx) ? this.icon.shadowOffsetXPx : 2;
+    this.shadowOffsetYPx =
+      typeof this.icon.shadowOffsetYPx === "number" && Number.isFinite(this.icon.shadowOffsetYPx) ? this.icon.shadowOffsetYPx : 2;
     this.outlineOpacity = 1;
 
     this.readPersistedMeta(svg);
@@ -527,6 +541,86 @@ export class IconOutlineModal extends Modal {
     kindSetting.settingEl.toggle(this.baseEnabled);
     scaleSetting.settingEl.toggle(this.baseEnabled);
     fillSetting.settingEl.toggle(this.baseEnabled);
+	
+    contentEl.createEl("h3", { text: "Shadow" });
+
+    let shadowColorSetting: Setting | null = null;
+    let shadowBlurSetting: Setting | null = null;
+    let shadowOffsetXSetting: Setting | null = null;
+    let shadowOffsetYSetting: Setting | null = null;
+
+    const toggleShadowRows = () => {
+      const on = !!this.shadowEnabled;
+      shadowColorSetting?.settingEl.toggle(on);
+      shadowBlurSetting?.settingEl.toggle(on);
+      shadowOffsetXSetting?.settingEl.toggle(on);
+      shadowOffsetYSetting?.settingEl.toggle(on);
+    };
+
+    new Setting(contentEl)
+      .setName("Enable shadow")
+      .addToggle((tg) => {
+        tg.setValue(this.shadowEnabled).onChange((on) => {
+          this.shadowEnabled = on;
+          toggleShadowRows();
+        });
+      });
+
+    shadowColorSetting = new Setting(contentEl).setName("Shadow color");
+    {
+      const txt = shadowColorSetting.controlEl.createEl("input", { type: "text" });
+      txt.classList.add("zoommap-drawing-editor__color-text");
+      txt.value = this.shadowColor;
+
+      const pick = shadowColorSetting.controlEl.createEl("input", { type: "color" });
+      pick.classList.add("zoommap-drawing-editor__color-picker");
+      pick.value = this.normalizeHex(this.shadowColor);
+
+      txt.oninput = () => {
+        const val = txt.value.trim() || "#000000";
+        this.shadowColor = val;
+        if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(val)) pick.value = this.normalizeHex(val);
+      };
+      pick.oninput = () => {
+        this.shadowColor = pick.value;
+        txt.value = pick.value;
+      };
+    }
+
+    shadowBlurSetting = new Setting(contentEl)
+      .setName("Shadow blur (px)")
+      .addText((t) => {
+        t.inputEl.type = "number";
+        t.setValue(String(this.shadowBlurPx));
+        t.onChange((v) => {
+          const n = Number(String(v).replace(",", "."));
+          if (Number.isFinite(n) && n >= 0) this.shadowBlurPx = n;
+        });
+      });
+
+    shadowOffsetXSetting = new Setting(contentEl)
+      .setName("Shadow offset x (px)")
+      .addText((t) => {
+        t.inputEl.type = "number";
+        t.setValue(String(this.shadowOffsetXPx));
+        t.onChange((v) => {
+          const n = Number(String(v).replace(",", "."));
+          if (Number.isFinite(n)) this.shadowOffsetXPx = n;
+        });
+      });
+
+    shadowOffsetYSetting = new Setting(contentEl)
+      .setName("Shadow offset y (px)")
+      .addText((t) => {
+        t.inputEl.type = "number";
+        t.setValue(String(this.shadowOffsetYPx));
+        t.onChange((v) => {
+          const n = Number(String(v).replace(",", "."));
+          if (Number.isFinite(n)) this.shadowOffsetYPx = n;
+        });
+      });
+
+    toggleShadowRows();
     strokeSetting.settingEl.toggle(this.baseEnabled);
 	innerOffsetSetting.settingEl.toggle(this.baseEnabled);
 	innerOffsetXSetting.settingEl.toggle(this.baseEnabled);
@@ -591,6 +685,20 @@ export class IconOutlineModal extends Modal {
     if (!Number.isFinite(opacity)) opacity = 100;
     if (opacity > 1.001) opacity = opacity / 100;
     opacity = Math.min(1, Math.max(0, opacity));
+	
+    if (this.shadowEnabled) {
+      this.icon.shadowEnabled = true;
+      this.icon.shadowColor = (this.shadowColor ?? "").trim() || "#000000";
+      this.icon.shadowBlurPx = Math.max(0, Number(this.shadowBlurPx) || 0);
+      this.icon.shadowOffsetXPx = Number.isFinite(this.shadowOffsetXPx) ? this.shadowOffsetXPx : 2;
+      this.icon.shadowOffsetYPx = Number.isFinite(this.shadowOffsetYPx) ? this.shadowOffsetYPx : 2;
+    } else {
+      delete this.icon.shadowEnabled;
+      delete this.icon.shadowColor;
+      delete this.icon.shadowBlurPx;
+      delete this.icon.shadowOffsetXPx;
+      delete this.icon.shadowOffsetYPx;
+    }
 	
     this.outlineColor = color;
     this.outlineWidth = width;

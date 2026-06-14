@@ -68,6 +68,12 @@ export interface DrawingStyle {
   
   arrowEnd?: boolean;
   distanceLabel?: boolean;
+  
+  // Interactive regions for area drawings (polygon / rect / circle)
+  regionLink?: string;
+  regionTooltip?: string;
+  regionInvisible?: boolean;
+  regionHoverPreview?: boolean;
 }
 
 export interface Drawing {
@@ -197,6 +203,7 @@ export interface Marker {
   iconKey?: string;
   iconColor?: string; // per-pin SVG color override
   tooltip?: string;
+  sizeOverride?: number;
   tooltipAlwaysOn?: boolean;
   
   tooltipLabelAlways?: boolean;
