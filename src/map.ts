@@ -4932,7 +4932,7 @@ export class MapInstance extends Component {
       if (!isNodeLike(t)) return;
 
       if (this.textEditEl.contains(t)) return;
-	  if (t instanceof Element && t.closest(".zm-text-hitbox")) return;
+	  if (this.isOwnerElement(t) && t.closest(".zm-text-hitbox")) return;
 
       if (this.activeTextLayerId && this.activeTextBoxId) {
         const hb = this.textHitEl.querySelector(

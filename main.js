@@ -8308,7 +8308,7 @@ ${yamlRaw}
       const t = ev.target;
       if (!isNodeLike(t)) return;
       if (this.textEditEl.contains(t)) return;
-      if (t instanceof Element && t.closest(".zm-text-hitbox")) return;
+      if (this.isOwnerElement(t) && t.closest(".zm-text-hitbox")) return;
       if (this.activeTextLayerId && this.activeTextBoxId) {
         const hb = this.textHitEl.querySelector(
           `.zm-text-hitbox[data-layer-id="${this.activeTextLayerId}"][data-box-id="${this.activeTextBoxId}"]`
@@ -18361,6 +18361,41 @@ function toArrayBuffer(bytes) {
     bytes.byteOffset + bytes.byteLength
   );
 }
+function ensureUint8Array(value, context) {
+  if (value instanceof Uint8Array) return value;
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  if (ArrayBuffer.isView(value)) {
+    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  }
+  throw new Error(`${context} did not return Uint8Array data.`);
+}
+function utf8Encode(text) {
+  return ensureUint8Array(strToU8(text), "strToU8");
+}
+function utf8Decode(bytes) {
+  const out = strFromU8(bytes);
+  if (typeof out !== "string") {
+    throw new Error("strFromU8 did not return a string.");
+  }
+  return out;
+}
+function unzipFilesStrict(bytes) {
+  const raw = unzipSync(bytes);
+  if (!isRecord2(raw)) {
+    throw new Error("Invalid ZIP payload.");
+  }
+  const out = {};
+  for (const [path, value] of Object.entries(raw)) {
+    out[path] = ensureUint8Array(value, `unzipSync(${path})`);
+  }
+  return out;
+}
+function zipFilesStrict(files) {
+  return ensureUint8Array(
+    zipSync(files, { level: 6 }),
+    "zipSync"
+  );
+}
 function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -18499,15 +18534,26 @@ function buildInlineStorageBlock(mapId, data) {
 }
 function downloadZip(filename, bytes) {
   var _a2;
+  const doc = getActiveDocumentSafe();
   const blob = new Blob([bytes], { type: "application/zip" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
+  const a = doc.createElement("a");
   a.href = url;
   a.download = filename;
-  (_a2 = document.body) == null ? void 0 : _a2.appendChild(a);
+  (_a2 = doc.body) == null ? void 0 : _a2.appendChild(a);
   a.click();
   a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1e3);
+}
+function getActiveDocumentSafe() {
+  const docUnknown = import_obsidian27.activeDocument;
+  if (docUnknown && typeof docUnknown === "object" && "createElement" in docUnknown && typeof docUnknown.createElement === "function") {
+    return docUnknown;
+  }
+  if (typeof window !== "undefined" && window.document) {
+    return window.document;
+  }
+  throw new Error("No active document available.");
 }
 async function deleteVaultPathIfExists(app, path) {
   const existing = app.vault.getAbstractFileByPath((0, import_obsidian27.normalizePath)(path));
@@ -19296,26 +19342,24 @@ async function buildBundleBytes(app, plugin, ctx, options, preparedInput) {
     }
   };
   const files = {};
-  files[BUNDLE_JSON_PATH] = strToU8(JSON.stringify(bundle, null, 2));
+  files[BUNDLE_JSON_PATH] = utf8Encode(JSON.stringify(bundle, null, 2));
   for (const asset of assets) {
     const file = app.vault.getAbstractFileByPath(asset.originalPath);
     if (!(file instanceof import_obsidian27.TFile)) continue;
     if (asset.kind === "linked-note") {
-      files[asset.zipPath] = strToU8(await app.vault.read(file));
+      files[asset.zipPath] = utf8Encode(await app.vault.read(file));
     } else {
       files[asset.zipPath] = await readVaultBinary(app, file);
     }
   }
-  return zipSync(files, {
-    level: 6
-  });
+  return zipFilesStrict(files);
 }
 async function loadBundleFromFile(file) {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const files = unzipSync(bytes);
+  const files = unzipFilesStrict(bytes);
   const meta = files[BUNDLE_JSON_PATH];
   if (!meta) throw new Error("Bundle manifest not found.");
-  const parsedUnknown = JSON.parse(strFromU8(meta));
+  const parsedUnknown = JSON.parse(utf8Decode(meta));
   if (!isZoomMapBundleV1(parsedUnknown)) {
     throw new Error("Unsupported or invalid map bundle.");
   }

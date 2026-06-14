@@ -1,4 +1,5 @@
 import {
+  activeDocument,
   Modal,
   Notice,
   Setting,
@@ -247,6 +248,47 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   );
 }
 
+function ensureUint8Array(value: unknown, context: string): Uint8Array {
+  if (value instanceof Uint8Array) return value;
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  if (ArrayBuffer.isView(value)) {
+    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  }
+  throw new Error(`${context} did not return Uint8Array data.`);
+}
+
+function utf8Encode(text: string): Uint8Array {
+  return ensureUint8Array(strToU8(text), "strToU8");
+}
+
+function utf8Decode(bytes: Uint8Array): string {
+  const out: unknown = strFromU8(bytes);
+  if (typeof out !== "string") {
+    throw new Error("strFromU8 did not return a string.");
+  }
+  return out;
+}
+
+function unzipFilesStrict(bytes: Uint8Array): Record<string, Uint8Array> {
+  const raw: unknown = unzipSync(bytes);
+  if (!isRecord(raw)) {
+    throw new Error("Invalid ZIP payload.");
+  }
+
+  const out: Record<string, Uint8Array> = {};
+  for (const [path, value] of Object.entries(raw)) {
+    out[path] = ensureUint8Array(value, `unzipSync(${path})`);
+  }
+  return out;
+}
+
+function zipFilesStrict(files: Record<string, Uint8Array>): Uint8Array {
+  return ensureUint8Array(
+    zipSync(files, { level: 6 }),
+    "zipSync",
+  );
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -425,15 +467,35 @@ function buildInlineStorageBlock(mapId: string, data: MarkerFileData): string {
 }
 
 function downloadZip(filename: string, bytes: Uint8Array): void {
+  const doc = getActiveDocumentSafe();
   const blob = new Blob([bytes], { type: "application/zip" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
+  const a = doc.createElement("a");
   a.href = url;
   a.download = filename;
-  document.body?.appendChild(a);
+  doc.body?.appendChild(a);
   a.click();
   a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function getActiveDocumentSafe(): Document {
+  const docUnknown: unknown = activeDocument;
+
+  if (
+    docUnknown &&
+    typeof docUnknown === "object" &&
+    "createElement" in docUnknown &&
+    typeof (docUnknown as { createElement?: unknown }).createElement === "function"
+  ) {
+    return docUnknown as Document;
+  }
+
+  if (typeof window !== "undefined" && window.document) {
+    return window.document;
+  }
+
+  throw new Error("No active document available.");
 }
 
 async function deleteVaultPathIfExists(app: App, path: string): Promise<void> {
@@ -1476,31 +1538,29 @@ async function buildBundleBytes(
   };
 
   const files: Record<string, Uint8Array> = {};
-  files[BUNDLE_JSON_PATH] = strToU8(JSON.stringify(bundle, null, 2));
+  files[BUNDLE_JSON_PATH] = utf8Encode(JSON.stringify(bundle, null, 2));
 
   for (const asset of assets) {
     const file = app.vault.getAbstractFileByPath(asset.originalPath);
     if (!(file instanceof TFile)) continue;
 
     if (asset.kind === "linked-note") {
-      files[asset.zipPath] = strToU8(await app.vault.read(file));
+      files[asset.zipPath] = utf8Encode(await app.vault.read(file));
     } else {
       files[asset.zipPath] = await readVaultBinary(app, file);
     }
   }
 
-  return zipSync(files, {
-    level: 6,
-  });
+  return zipFilesStrict(files);
 }
 
 async function loadBundleFromFile(file: File): Promise<LoadedBundle> {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const files = unzipSync(bytes);
+  const files = unzipFilesStrict(bytes);
   const meta = files[BUNDLE_JSON_PATH];
   if (!meta) throw new Error("Bundle manifest not found.");
 
-  const parsedUnknown: unknown = JSON.parse(strFromU8(meta));
+  const parsedUnknown: unknown = JSON.parse(utf8Decode(meta));
   if (!isZoomMapBundleV1(parsedUnknown)) {
     throw new Error("Unsupported or invalid map bundle.");
   }
