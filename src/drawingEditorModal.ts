@@ -23,6 +23,7 @@ export class DrawingEditorModal extends Modal {
   private drawLayers: DrawingLayerOption[];
   private onResult: DrawingEditorCallback;
   private allLinkSuggestions: LinkSuggestion[] = [];
+  private allowClose = false;
 
   constructor(app: App, drawing: Drawing, drawLayers: DrawingLayerOption[], onResult: DrawingEditorCallback) {
     super(app);
@@ -83,6 +84,16 @@ export class DrawingEditorModal extends Modal {
     if (typeof s.fillPatternOpacity !== "number") {
       s.fillPatternOpacity = s.fillOpacity ?? 0.15;
     }
+  }
+  
+  close(): void {
+    if (!this.allowClose) return;
+    super.close();
+  }
+
+  private closeByAction(): void {
+    this.allowClose = true;
+    super.close();
   }
 
   onOpen(): void {
@@ -228,17 +239,17 @@ export class DrawingEditorModal extends Modal {
         this.working.polygon = this.original.polygon;
         this.working.polyline = this.original.polyline;
 
-        this.close();
+        this.closeByAction();
         this.onResult({ action: "save", drawing: this.working });
       };
 
       deleteBtn.onclick = () => {
-        this.close();
+        this.closeByAction();
         this.onResult({ action: "delete" });
       };
 
       cancelBtn.onclick = () => {
-        this.close();
+        this.closeByAction();
         this.onResult({ action: "cancel" });
       };
 
@@ -471,17 +482,17 @@ export class DrawingEditorModal extends Modal {
       this.working.polygon = this.original.polygon;
 	  this.working.polyline = this.original.polyline;
 
-      this.close();
+      this.closeByAction();
       this.onResult({ action: "save", drawing: this.working });
     };
 
     deleteBtn.onclick = () => {
-      this.close();
+      this.closeByAction();
       this.onResult({ action: "delete" });
     };
 
     cancelBtn.onclick = () => {
-      this.close();
+      this.closeByAction();
       this.onResult({ action: "cancel" });
     };
   }

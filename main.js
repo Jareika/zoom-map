@@ -1389,6 +1389,7 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
     var _a2, _b2, _c;
     super(app);
     this.allLinkSuggestions = [];
+    this.allowClose = false;
     this.original = drawing;
     this.drawLayers = Array.isArray(drawLayers) ? drawLayers.map((l) => ({ id: l.id, name: l.name })) : [];
     this.working = JSON.parse(JSON.stringify(drawing));
@@ -1430,6 +1431,14 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
     if (typeof s.fillPatternOpacity !== "number") {
       s.fillPatternOpacity = (_c = s.fillOpacity) != null ? _c : 0.15;
     }
+  }
+  close() {
+    if (!this.allowClose) return;
+    super.close();
+  }
+  closeByAction() {
+    this.allowClose = true;
+    super.close();
   }
   onOpen() {
     var _a2, _b2, _c, _d;
@@ -1550,15 +1559,15 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
         this.working.circle = this.original.circle;
         this.working.polygon = this.original.polygon;
         this.working.polyline = this.original.polyline;
-        this.close();
+        this.closeByAction();
         this.onResult({ action: "save", drawing: this.working });
       };
       deleteBtn2.onclick = () => {
-        this.close();
+        this.closeByAction();
         this.onResult({ action: "delete" });
       };
       cancelBtn2.onclick = () => {
-        this.close();
+        this.closeByAction();
         this.onResult({ action: "cancel" });
       };
       return;
@@ -1753,15 +1762,15 @@ var DrawingEditorModal = class extends import_obsidian6.Modal {
       this.working.circle = this.original.circle;
       this.working.polygon = this.original.polygon;
       this.working.polyline = this.original.polyline;
-      this.close();
+      this.closeByAction();
       this.onResult({ action: "save", drawing: this.working });
     };
     deleteBtn.onclick = () => {
-      this.close();
+      this.closeByAction();
       this.onResult({ action: "delete" });
     };
     cancelBtn.onclick = () => {
-      this.close();
+      this.closeByAction();
       this.onResult({ action: "cancel" });
     };
   }
