@@ -91,8 +91,7 @@ export class IconOutlineModal extends Modal {
   private parseSvgRoot(svg: string): SVGSVGElement | null {
     try {
       const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
-      const svgEl = doc.querySelector("svg");
-      return svgEl as unknown as SVGSVGElement | null;
+      return doc.querySelector<SVGSVGElement>("svg");
     } catch {
       return null;
     }
@@ -266,7 +265,7 @@ export class IconOutlineModal extends Modal {
     const preview = container.createDiv({
       cls: "zoommap-icon-outline-preview",
     });
-    preview.createEl("div", { text: "Preview" });
+    preview.createDiv({ text: "Preview" });
     this.previewImg = preview.createEl("img");
     this.previewImg.alt = "SVG icon preview";
     this.updatePreview();
@@ -320,7 +319,7 @@ export class IconOutlineModal extends Modal {
 
     const svg = await this.loadSvgSource();
     if (!svg) {
-      contentEl.createEl("div", {
+      contentEl.createDiv({
         text: "This icon is not an SVG or could not be loaded.",
       });
       return;

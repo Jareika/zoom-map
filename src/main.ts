@@ -647,7 +647,7 @@ export default class ZoomMapPlugin extends Plugin {
         try {
           const parsed: unknown = parseYaml(src);
           if (parsed && typeof parsed === "object") {
-            opts = parsed as Partial<YamlOptions>;
+            opts = parsed;
           }
         } catch (error) {
           console.error("Zoom Map: failed to parse zoommap block", error);
@@ -721,7 +721,7 @@ export default class ZoomMapPlugin extends Plugin {
         let image = typeof opts.image === "string" ? opts.image.trim() : "";
         if (!image && yamlBases.length > 0) image = yamlBases[0].path;
         if (!image) {
-          el.createEl("div", { text: "Image is missing." });
+          el.createDiv({ text: "Image is missing." });
           return;
         }
 
@@ -1710,7 +1710,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
     const renderCollections = () => {
       collectionsWrap.empty();
 
-      const hint = collectionsWrap.createEl("div", {
+      const hint = collectionsWrap.createDiv({
         text: "Collections bundle pins, favorites and stickers for specific base images. Create a 'global' collection without bindings for items that should be available everywhere.",
       });
       hint.addClass("zoommap-collections-hint");
@@ -1718,16 +1718,16 @@ class ZoomMapSettingTab extends PluginSettingTab {
       const list = collectionsWrap.createDiv();
       const cols = this.plugin.settings.baseCollections ?? [];
       if (cols.length === 0) {
-        list.createEl("div", { text: "No collections yet." });
+        list.createDiv({ text: "No collections yet." });
       } else {
         cols.forEach((c) => {
           const row = list.createDiv({ cls: "zoommap-collections-row" });
           const left = row.createDiv();
 
-          const name = left.createEl("div", { text: c.name || "(unnamed collection)" });
+          const name = left.createDiv({ text: c.name || "(unnamed collection)" });
           name.addClass("zoommap-collections-name");
 
-          const meta = left.createEl("div", {
+          const meta = left.createDiv({
             text:
               `${c.bindings?.basePaths?.length ?? 0} bases` +
               ` • ${c.include?.pinKeys?.length ?? 0} pins` +

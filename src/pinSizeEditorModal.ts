@@ -33,7 +33,7 @@ export class PinSizeEditorModal extends Modal {
     contentEl.empty();
     contentEl.createEl("h2", { text: "Pin sizes for this map" });
 
-    const info = contentEl.createEl("div", {
+    const info = contentEl.createDiv({
       text: "Set per-map sizes for pin icons. Leave the override empty to use the global default size from settings.",
     });
     info.addClass("zoommap-pin-size-info");
@@ -48,7 +48,7 @@ export class PinSizeEditorModal extends Modal {
 
       r.createEl("code", { text: row.iconKey, cls: "zoommap-pin-size-key" });
 
-      r.createEl("span", {
+      r.createSpan({
         text: `${row.baseSize}px default`,
         cls: "zoommap-pin-size-base",
       });
@@ -67,7 +67,7 @@ export class PinSizeEditorModal extends Modal {
         overrideInput.value = String(row.override);
       }
 
-      r.createEl("span", {
+      r.createSpan({
         text: "Pixels on this map",
         cls: "zoommap-pin-size-label",
       });

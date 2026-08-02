@@ -61,12 +61,12 @@ export class SwapLinksEditorModal extends Modal {
     // Header info
     const rawIndex = typeof this.marker.swapIndex === "number" ? this.marker.swapIndex : 0;
     const idx = normalizeFrameIndex(rawIndex, this.preset.frames.length);
-    contentEl.createEl("div", { text: `Preset: ${this.preset.name} • Current frame: ${idx + 1}/${this.preset.frames.length}` });
+    contentEl.createDiv({ text: `Preset: ${this.preset.name} • Current frame: ${idx + 1}/${this.preset.frames.length}` });
 
     this.buildLinkSuggestions();
 
     contentEl.createEl("h3", { text: "Per-frame link overrides" });
-    contentEl.createEl("div", {
+    contentEl.createDiv({
       text: "Leave a field empty to fall back to the preset link (or the icon default link).",
     }).addClass("zoommap-muted");
 

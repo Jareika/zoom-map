@@ -140,7 +140,7 @@ export class TravelRulesManagerModal extends Modal {
 
     const list = contentEl.createDiv();
     if (packs.length === 0) {
-      list.createEl("div", { text: "No travel packs yet." });
+      list.createDiv({ text: "No travel packs yet." });
     }
 
     packs.forEach((p, idx) => {
@@ -156,8 +156,8 @@ export class TravelRulesManagerModal extends Modal {
 
       const left = row.createDiv({ cls: "zoommap-travel-pack-left" });
 
-      left.createEl("div", { text: p.name || "(unnamed pack)" }).addClass("zoommap-collections-name");
-      left.createEl("div", {
+      left.createDiv({ text: p.name || "(unnamed pack)" }).addClass("zoommap-collections-name");
+      left.createDiv({
         text:
           `${p.customUnits?.length ?? 0} custom units` +
 		  ` • ${p.terrains?.length ?? 0} terrains` +
@@ -350,7 +350,7 @@ class TravelRulesPackEditorModal extends Modal {
       const list = (this.working.travelPerDayPresets ??= []);
 
       if (list.length === 0) {
-        perDayWrap.createEl("div", { text: "No max travel time presets." }).addClass("zoommap-muted");
+        perDayWrap.createDiv({ text: "No max travel time presets." }).addClass("zoommap-muted");
       }
 
       list.forEach((p, idx) => {
@@ -398,7 +398,7 @@ class TravelRulesPackEditorModal extends Modal {
       const units = (this.working.customUnits ??= []);
 
       if (units.length === 0) {
-        unitsWrap.createEl("div", { text: "No custom units." }).addClass("zoommap-muted");
+        unitsWrap.createDiv({ text: "No custom units." }).addClass("zoommap-muted");
       }
 
       units.forEach((u, idx) => {
@@ -416,7 +416,7 @@ class TravelRulesPackEditorModal extends Modal {
         abbrInput.value = u.abbreviation ?? "";
         abbrInput.oninput = () => (u.abbreviation = abbrInput.value.trim());
 
-        const hint = row.createEl("div");
+        const hint = row.createDiv();
         hint.addClass("zoommap-muted");
         hint.setText("Calibrate on map");
 
@@ -448,7 +448,7 @@ class TravelRulesPackEditorModal extends Modal {
       const terrains = (this.working.terrains ??= []);
 
       if (terrains.length === 0) {
-        terrainsWrap.createEl("div", { text: "No terrains." }).addClass("zoommap-muted");
+        terrainsWrap.createDiv({ text: "No terrains." }).addClass("zoommap-muted");
       }
 
       terrains.forEach((t, idx) => {
@@ -469,7 +469,7 @@ class TravelRulesPackEditorModal extends Modal {
           if (Number.isFinite(n) && n > 0) t.factor = n;
         };
 
-        const hint = row.createEl("div");
+        const hint = row.createDiv();
         hint.addClass("zoommap-muted");
         hint.setText("Speed factor");
 

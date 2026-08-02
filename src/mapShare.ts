@@ -177,7 +177,7 @@ function classifyNoteMediaKind(
 
 function deepClone<T>(value: T): T {
   if (typeof structuredClone === "function") return structuredClone(value);
-  return JSON.parse(JSON.stringify(value)) as T;
+  return JSON.parse(JSON.stringify(value));
 }
 
 function stableStringify(value: unknown): string {
@@ -2142,7 +2142,7 @@ export class ExportMapBundleModal extends Modal {
       summaryBodyEl.empty();
       const lines = buildExportSummaryLines(this.ctx.storageMode, prepared);
       for (const line of lines) {
-        summaryBodyEl.createEl("div", { text: line }).addClass("zoommap-muted");
+        summaryBodyEl.createDiv({ text: line }).addClass("zoommap-muted");
       }
       this.updateSummaryMinHeight();
       this.setSummaryBusyState("");
@@ -2150,8 +2150,7 @@ export class ExportMapBundleModal extends Modal {
       if (token !== this.refreshSummaryToken || this.summaryBodyEl !== summaryBodyEl) return;
 
       summaryBodyEl.empty();
-      summaryBodyEl
-        .createEl("div", {
+      summaryBodyEl.createDiv({
           text: `Summary update failed: ${err instanceof Error ? err.message : String(err)}`,
         })
         .addClass("zoommap-muted");
@@ -2167,7 +2166,7 @@ export class ExportMapBundleModal extends Modal {
 
     this.ctx = await this.map.buildShareExportContext();
     if (!this.ctx) {
-      contentEl.createEl("div", {
+      contentEl.createDiv({
         text: "Could not read the current zoommap block. Please save the note and try again.",
       });
       const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });
@@ -2383,7 +2382,7 @@ export class ImportMapBundleModal extends Modal {
     contentEl.createEl("h2", { text: "Import map package" });
 
     const pickerWrap = contentEl.createDiv();
-    pickerWrap.createEl("div", { text: "ZIP file" });
+    pickerWrap.createDiv({ text: "ZIP file" });
 
     const fileInput = pickerWrap.createEl("input");
     fileInput.type = "file";
@@ -2395,7 +2394,7 @@ export class ImportMapBundleModal extends Modal {
     });
 
     if (this.selectedFile) {
-      pickerWrap.createEl("div", { text: `Selected: ${this.selectedFile.name}` }).addClass("zoommap-muted");
+      pickerWrap.createDiv({ text: `Selected: ${this.selectedFile.name}` }).addClass("zoommap-muted");
     }
 
     if (!this.loaded) {
@@ -2413,7 +2412,7 @@ export class ImportMapBundleModal extends Modal {
 
     contentEl.createEl("h3", { text: "Summary" });
     for (const line of parseBundleSummary(bundle)) {
-      contentEl.createEl("div", { text: line }).addClass("zoommap-muted");
+      contentEl.createDiv({ text: line }).addClass("zoommap-muted");
     }
 
     const warningWrap = contentEl.createDiv();
@@ -2431,7 +2430,7 @@ export class ImportMapBundleModal extends Modal {
       warnings.push("Custom travel/measurement units are not imported automatically.");
     }
     for (const line of warnings) {
-      warningWrap.createEl("div", { text: `• ${line}` }).addClass("zoommap-muted");
+      warningWrap.createDiv({ text: `• ${line}` }).addClass("zoommap-muted");
     }
 
     contentEl.createEl("h3", { text: "Import options" });

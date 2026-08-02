@@ -64,7 +64,7 @@ export class SvgRasterExportModal extends Modal {
     contentEl.empty();
 
     contentEl.createEl("h2", { text: "Export SVG as webp base" });
-    contentEl.createEl("div", { text: `SVG: ${this.opts.svgPath}` });
+    contentEl.createDiv({ text: `SVG: ${this.opts.svgPath}` });
 
     new Setting(contentEl)
       .setName("Long edge")

@@ -14,7 +14,7 @@ import type {
 function deepClone<T>(x: T): T {
   if (typeof structuredClone === "function") return structuredClone(x);
   const json = JSON.stringify(x);
-  return JSON.parse(json) as unknown as T;
+  return JSON.parse(json) as T;
 }
 
 interface LinkSuggestion {
@@ -84,7 +84,7 @@ export class CollectionEditorModal extends Modal {
     const renderPaths = () => {
       pathsWrap.empty();
       if (!this.working.bindings.basePaths.length) {
-        pathsWrap.createEl("div", { text: "No base images bound." });
+        pathsWrap.createDiv({ text: "No base images bound." });
       } else {
         this.working.bindings.basePaths.forEach((p, idx) => {
           const row = pathsWrap.createDiv({
@@ -132,7 +132,7 @@ export class CollectionEditorModal extends Modal {
         .filter((ico) => ico.inCollections !== false || selected.has(ico.key))
         .sort((a, b) => String(a.key ?? "").localeCompare(String(b.key ?? ""), undefined, { sensitivity: "base", numeric: true }));
       if (lib.length === 0) {
-        const none = pinWrap.createEl("div", {
+        const none = pinWrap.createDiv({
           text: "No icons in library yet.",
         });
         none.addClass("zoommap-muted");
@@ -168,7 +168,7 @@ export class CollectionEditorModal extends Modal {
             }
           }
 
-          const label = cell.createEl("span", { text: ico.key });
+          const label = cell.createSpan({ text: ico.key });
           label.addClass("zoommap-collection-pin-label");
         });
       }
@@ -184,7 +184,7 @@ export class CollectionEditorModal extends Modal {
       const list = this.working.include.favorites;
 
       if (list.length === 0) {
-        const none = favWrap.createEl("div", {
+        const none = favWrap.createDiv({
           text: "No favorites in this collection.",
         });
         none.addClass("zoommap-muted");
@@ -268,7 +268,7 @@ export class CollectionEditorModal extends Modal {
       const list = this.working.include.stickers;
 
       if (list.length === 0) {
-        const none = stickerWrap.createEl("div", {
+        const none = stickerWrap.createDiv({
           text: "No stickers in this collection.",
         });
         none.addClass("zoommap-muted");
@@ -345,7 +345,7 @@ export class CollectionEditorModal extends Modal {
       const swaps = (this.working.include.swapPins ??= []);
 
       if (swaps.length === 0) {
-        const none = swapWrap.createEl("div", {
+        const none = swapWrap.createDiv({
           text: "No swap pins in this collection.",
         });
         none.addClass("zoommap-muted");
@@ -397,7 +397,7 @@ export class CollectionEditorModal extends Modal {
       const pings = (this.working.include.pingPins ??= []);
 
       if (pings.length === 0) {
-        pingWrap.createEl("div", { text: "No party pins in this collection." }).addClass("zoommap-muted");
+        pingWrap.createDiv({ text: "No party pins in this collection." }).addClass("zoommap-muted");
       }
 
       pings.forEach((pp, idx) => {
@@ -579,7 +579,7 @@ export class SwapFramesEditorModal extends Modal {
       const frames = (this.working.frames ??= []);
 
       if (frames.length === 0) {
-        const none = list.createEl("div", { text: "No frames yet." });
+        const none = list.createDiv({ text: "No frames yet." });
         none.addClass("zoommap-muted");
       }
 
@@ -905,7 +905,7 @@ class PingPresetEditorModal extends Modal {
         d.onChange((v) => { this.working.travelPackId = v || undefined; this.renderUnitSetting(); });
       });
 
-    contentEl.createEl("div", { text: "" });
+    contentEl.createDiv({ text: "" });
     this.renderUnitSetting();
 
     new Setting(contentEl)

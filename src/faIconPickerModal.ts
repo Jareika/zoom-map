@@ -124,7 +124,7 @@ export class FaIconPickerModal extends Modal {
     this.selectedEl = null;
 
     if (this.currentMatches.length === 0) {
-      this.listEl.createEl("div", {
+      this.listEl.createDiv({
         text: "No SVG icons found in this folder.",
       });
       return;
@@ -258,7 +258,7 @@ export class FaIconPickerModal extends Modal {
     contentEl.createEl("h2", { text: "Pick SVG icon" });
 
     if (!Array.isArray(this.files) || this.files.length === 0) {
-      contentEl.createEl("div", {
+      contentEl.createDiv({
         text: "No SVG icons found in the configured folder.",
       });
       return;

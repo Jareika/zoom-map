@@ -11,6 +11,10 @@ interface LinkSuggestion {
   value: string;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export interface MarkerEditorResult {
   action: "save" | "delete" | "cancel";
   marker?: Marker;
@@ -147,13 +151,15 @@ export class MarkerEditorModal extends Modal {
 
     for (const file of files) {
       const baseLink = this.app.metadataCache.fileToLinktext(file, fromPath);
-	  const cache = this.app.metadataCache.getCache(file.path);
+      const cache = this.app.metadataCache.getCache(file.path);
+      const frontmatter: unknown = cache?.frontmatter;
 
       suggestions.push({ label: baseLink, value: baseLink });
 
       const aliasesRaw =
-        cache?.frontmatter?.aliases ??
-        cache?.frontmatter?.alias;
+        isRecord(frontmatter)
+          ? frontmatter.aliases ?? frontmatter.alias
+          : undefined;
 
       const aliases = Array.isArray(aliasesRaw)
         ? aliasesRaw.filter((alias): alias is string => typeof alias === "string")
@@ -339,10 +345,10 @@ export class MarkerEditorModal extends Modal {
 
         const preset = this.marker.swapKey ? this.findSwapPresetById(this.marker.swapKey) : null;
         if (!preset) {
-          contentEl.createEl("div", { text: "Swap preset not found. Cannot edit per-frame links." });
+          contentEl.createDiv({ text: "Swap preset not found. Cannot edit per-frame links." });
         } else {
           const idx = this.normalizeSwapFrameIndex(this.marker, preset);
-          contentEl.createEl("div", { text: `Preset: ${preset.name} • Current frame: ${idx + 1}/${preset.frames.length}` });
+          contentEl.createDiv({ text: `Preset: ${preset.name} • Current frame: ${idx + 1}/${preset.frames.length}` });
 
           const overrides = (this.marker.swapLinks ??= {});
 

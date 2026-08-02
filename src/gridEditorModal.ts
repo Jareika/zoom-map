@@ -109,7 +109,7 @@ export class GridEditorModal extends Modal {
     });
 
     colorRow.addText((t) => {
-      t.setPlaceholder("#ffffff");
+      t.setPlaceholder(this.working.color);
       t.setValue(this.working.color);
       colorTextEl = t.inputEl;
       t.onChange((v) => {

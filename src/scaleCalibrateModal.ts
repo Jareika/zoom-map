@@ -54,7 +54,7 @@ export class ScaleCalibrateModal extends Modal {
     contentEl.empty();
     contentEl.createEl("h2", { text: "Calibrate scale" });
 
-    contentEl.createEl("div", {
+    contentEl.createDiv({
       text: `Measured pixel distance: ${this.pxDistance.toFixed(1)} px`,
     });
 

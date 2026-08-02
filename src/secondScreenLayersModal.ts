@@ -44,7 +44,7 @@ export class SecondScreenLayersModal extends Modal {
     this.showGrids = !!this.input.showGrids;
 
     contentEl.createEl("h2", { text: "Second screen layers" });
-    contentEl.createEl("div", {
+    contentEl.createDiv({
       text: "Choose which layers should be visible when the map is sent to the second screen.",
     });
 
@@ -103,7 +103,7 @@ export class SecondScreenLayersModal extends Modal {
       list.empty();
 
       if (items.length === 0) {
-        list.createEl("div", { text: "None." }).addClass("zoommap-muted");
+        list.createDiv({ text: "None." }).addClass("zoommap-muted");
         return;
       }
 
@@ -115,7 +115,7 @@ export class SecondScreenLayersModal extends Modal {
           item.selected = cb.checked;
         };
 
-        row.createEl("span", { text: item.name || "(unnamed)" });
+        row.createSpan({ text: item.name || "(unnamed)" });
       }
     };
 

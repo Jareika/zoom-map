@@ -4296,7 +4296,7 @@ export class MapInstance extends Component {
 	this.updateTextHitboxInteractivity();
 
     // Text width measurement (CSS variables supported)
-    this.textMeasureSpan = this.viewportEl.createEl("span", { cls: "zm-text-measure" });
+    this.textMeasureSpan = this.viewportEl.createSpan({ cls: "zm-text-measure" });
   }
   
   private updateTextHitboxInteractivity(): void {
@@ -10658,8 +10658,8 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     this.cancelHideTooltip();
     this.tooltipEl.empty();
 
-    if (head) this.tooltipEl.createEl("div", { cls: "zm-tooltip__title", text: head });
-    if (text) this.tooltipEl.createEl("div", { cls: "zm-tooltip__body", text });
+    if (head) this.tooltipEl.createDiv({ cls: "zm-tooltip__title", text: head });
+    if (text) this.tooltipEl.createDiv({ cls: "zm-tooltip__body", text });
 
     this.positionTooltip(clientX, clientY);
     this.tooltipEl.classList.add("zm-tooltip-visible");
@@ -12890,8 +12890,8 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     this.cancelHideTooltip();
     this.tooltipEl.empty();
 
-    if (title) this.tooltipEl.createEl("div", { cls: "zm-tooltip__title", text: title });
-    if (text) this.tooltipEl.createEl("div", { cls: "zm-tooltip__body", text });
+    if (title) this.tooltipEl.createDiv({ cls: "zm-tooltip__title", text: title });
+    if (text) this.tooltipEl.createDiv({ cls: "zm-tooltip__body", text });
 
     this.positionTooltip(ev.clientX, ev.clientY);
     this.tooltipEl.classList.add("zm-tooltip-visible");
@@ -14073,7 +14073,7 @@ class ConfirmModal extends Modal {
     contentEl.empty();
 
     contentEl.createEl("h2", { text: this.titleText });
-    contentEl.createEl("div", { text: this.messageText });
+    contentEl.createDiv({ text: this.messageText });
 
     const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });
     const confirm = footer.createEl("button", { text: this.confirmText });
