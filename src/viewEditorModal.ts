@@ -4,6 +4,7 @@ import { ImageFileSuggestModal } from "./iconFileSuggest";
 
 export type RenderMode = "dom" | "canvas";
 export type ResizeHandle = "left" | "right" | "both" | "native";
+export type ImageRenderingMode = "auto" | "pixelated" | "crisp-edges";
 export type AlignMode = "left" | "center" | "right";
 
 export interface ViewEditorConfig {
@@ -11,6 +12,7 @@ export interface ViewEditorConfig {
   overlays: { path: string; name?: string; visible?: boolean }[];
   markersPath: string;
   renderMode: RenderMode;
+  imageRendering?: ImageRenderingMode;
   minZoom: number;
   maxZoom: number;
   wrap: boolean;
@@ -64,6 +66,7 @@ export class ViewEditorModal extends Modal {
     this.cfg.height ||= "480px";
     this.cfg.renderMode ||= "dom";
     this.cfg.resizeHandle ||= "right";
+	this.cfg.imageRendering ||= "auto";
 
     if (typeof this.cfg.viewportFrame !== "string") this.cfg.viewportFrame = "";
     this.cfg.viewportFrameInsets ??= {
@@ -301,6 +304,21 @@ export class ViewEditorModal extends Modal {
         d.setValue(this.cfg.renderMode ?? "dom");
         d.onChange((v) => {
           this.cfg.renderMode = v as RenderMode;
+        });
+      });
+	  
+    new Setting(contentEl)
+      .setClass("zoommap-view-editor-row")
+      .setName("Image interpolation")
+      .setDesc("Auto is smooth. Pixelated/crisp edges are useful for pixel-art maps.")
+      .addDropdown((d) => {
+        d.addOption("auto", "Auto / smooth");
+        d.addOption("pixelated", "Pixelated");
+        d.addOption("crisp-edges", "Crisp edges");
+        d.setValue(this.cfg.imageRendering ?? "auto");
+        d.onChange((v) => {
+          this.cfg.imageRendering =
+            v === "pixelated" || v === "crisp-edges" ? v : "auto";
         });
       });
 

@@ -454,7 +454,7 @@ function tintSvgMarkup(svg, color) {
     const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
     const root = doc.querySelector("svg");
     if (!root) return svg;
-    const inner = (_a2 = root.querySelector("#zm-inner")) != null ? _a2 : root;
+    const inner = (_a2 = Array.from(root.children).find((child) => child.id === "zm-inner")) != null ? _a2 : root;
     const base = root.querySelector("#zm-base");
     const outline = root.querySelector("#zm-outline");
     const shapes = inner.querySelectorAll("path, circle, rect, polygon, polyline, line, ellipse");
@@ -530,7 +530,7 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
     if (Object.keys(links).length === 0) delete this.marker.swapLinks;
   }
   buildLinkSuggestions() {
-    var _a2, _b2, _c, _d;
+    var _a2, _b2, _c, _d, _e, _f, _g;
     const files = this.app.vault.getFiles().filter((f) => {
       var _a3;
       return ((_a3 = f.extension) == null ? void 0 : _a3.toLowerCase()) === "md";
@@ -540,9 +540,19 @@ var MarkerEditorModal = class extends import_obsidian2.Modal {
     const fromPath = (_c = (_b2 = active == null ? void 0 : active.path) != null ? _b2 : (_a2 = files[0]) == null ? void 0 : _a2.path) != null ? _c : "";
     for (const file of files) {
       const baseLink = this.app.metadataCache.fileToLinktext(file, fromPath);
-      suggestions.push({ label: baseLink, value: baseLink });
       const cache = this.app.metadataCache.getCache(file.path);
-      const headings = (_d = cache == null ? void 0 : cache.headings) != null ? _d : [];
+      suggestions.push({ label: baseLink, value: baseLink });
+      const aliasesRaw = (_f = (_d = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _d.aliases) != null ? _f : (_e = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _e.alias;
+      const aliases = Array.isArray(aliasesRaw) ? aliasesRaw.filter((alias) => typeof alias === "string") : typeof aliasesRaw === "string" ? [aliasesRaw] : [];
+      for (const alias of aliases) {
+        const trimmed = alias.trim();
+        if (!trimmed) continue;
+        suggestions.push({
+          label: `${trimmed} \u2192 ${baseLink}`,
+          value: baseLink
+        });
+      }
+      const headings = (_g = cache == null ? void 0 : cache.headings) != null ? _g : [];
       for (const h of headings) {
         const headingName = h.heading;
         const full = `${baseLink}#${headingName}`;
@@ -2187,7 +2197,7 @@ var PinSizeEditorModal = class extends import_obsidian10.Modal {
 var import_obsidian11 = require("obsidian");
 var ViewEditorModal = class extends import_obsidian11.Modal {
   constructor(app, initial, onResult, opts) {
-    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j;
+    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k;
     super(app);
     this.markersInputEl = null;
     this.cfg = JSON.parse(JSON.stringify(initial));
@@ -2202,8 +2212,9 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
     (_f = this.cfg).height || (_f.height = "480px");
     (_g = this.cfg).renderMode || (_g.renderMode = "dom");
     (_h = this.cfg).resizeHandle || (_h.resizeHandle = "right");
+    (_i = this.cfg).imageRendering || (_i.imageRendering = "auto");
     if (typeof this.cfg.viewportFrame !== "string") this.cfg.viewportFrame = "";
-    (_j = (_i = this.cfg).viewportFrameInsets) != null ? _j : _i.viewportFrameInsets = {
+    (_k = (_j = this.cfg).viewportFrameInsets) != null ? _k : _j.viewportFrameInsets = {
       unit: "framePx",
       top: 0,
       right: 0,
@@ -2390,6 +2401,16 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
       d.setValue((_a2 = this.cfg.renderMode) != null ? _a2 : "dom");
       d.onChange((v) => {
         this.cfg.renderMode = v;
+      });
+    });
+    new import_obsidian11.Setting(contentEl).setClass("zoommap-view-editor-row").setName("Image interpolation").setDesc("Auto is smooth. Pixelated/crisp edges are useful for pixel-art maps.").addDropdown((d) => {
+      var _a2;
+      d.addOption("auto", "Auto / smooth");
+      d.addOption("pixelated", "Pixelated");
+      d.addOption("crisp-edges", "Crisp edges");
+      d.setValue((_a2 = this.cfg.imageRendering) != null ? _a2 : "auto");
+      d.onChange((v) => {
+        this.cfg.imageRendering = v === "pixelated" || v === "crisp-edges" ? v : "auto";
       });
     });
     new import_obsidian11.Setting(contentEl).setClass("zoommap-view-editor-row").setName("Min zoom (%)").addText((t) => {
@@ -4724,7 +4745,7 @@ function tintSvgMarkupLocal(svg, color) {
     const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
     const root = doc.querySelector("svg");
     if (!root) return svg;
-    const inner = (_a2 = root.querySelector("#zm-inner")) != null ? _a2 : root;
+    const inner = (_a2 = Array.from(root.children).find((child) => child.id === "zm-inner")) != null ? _a2 : root;
     const base = root.querySelector("#zm-base");
     const outline = root.querySelector("#zm-outline");
     const shapes = inner.querySelectorAll("path, circle, rect, polygon, polyline, line, ellipse");
@@ -5184,7 +5205,7 @@ var MapInstance = class extends import_obsidian21.Component {
     return best;
   }
   openViewEditorFromMap() {
-    var _a2, _b2, _c, _d, _e, _f;
+    var _a2, _b2, _c, _d, _e, _f, _g;
     if (!this.data) return;
     const bases = this.getBasesNormalized();
     const overlays = (_a2 = this.data.overlays) != null ? _a2 : [];
@@ -5200,24 +5221,25 @@ var MapInstance = class extends import_obsidian21.Component {
       })),
       markersPath: this.cfg.storageMode === "json" ? this.cfg.markersPath : "",
       renderMode: this.cfg.renderMode,
+      imageRendering: (_b2 = this.cfg.imageRendering) != null ? _b2 : "auto",
       minZoom: this.cfg.minZoom,
       maxZoom: this.cfg.maxZoom,
       wrap: !!this.cfg.wrap,
       responsive: !!this.cfg.responsive,
-      width: curW > 0 ? `${curW}px` : (_b2 = this.cfg.width) != null ? _b2 : "",
-      height: curH > 0 ? `${curH}px` : (_c = this.cfg.height) != null ? _c : "",
+      width: curW > 0 ? `${curW}px` : (_c = this.cfg.width) != null ? _c : "",
+      height: curH > 0 ? `${curH}px` : (_d = this.cfg.height) != null ? _d : "",
       useWidth: !!this.cfg.widthFromYaml,
       useHeight: !!this.cfg.heightFromYaml,
       resizable: !!this.cfg.resizable,
-      resizeHandle: (_d = this.cfg.resizeHandle) != null ? _d : "right",
+      resizeHandle: (_e = this.cfg.resizeHandle) != null ? _e : "right",
       align: this.cfg.align,
       markerLayers: this.data.layers.map((l) => {
         var _a3;
         return (_a3 = l.name) != null ? _a3 : "Layer";
       }),
       id: this.cfg.mapId,
-      viewportFrame: (_e = this.cfg.viewportFrame) != null ? _e : "",
-      viewportFrameInsets: (_f = this.cfg.viewportFrameInsets) != null ? _f : {
+      viewportFrame: (_f = this.cfg.viewportFrame) != null ? _f : "",
+      viewportFrameInsets: (_g = this.cfg.viewportFrameInsets) != null ? _g : {
         unit: "framePx",
         top: 0,
         right: 0,
@@ -6359,6 +6381,11 @@ ${yamlRaw}
     this.applyMeasureStyle();
     this.updateZoomControlsVisibility();
   }
+  onIconLibraryChanged() {
+    this.tintedSvgCache.clear();
+    if (!this.ready) return;
+    this.renderMarkersOnly();
+  }
   onload() {
     this.plugin.registerMapInstance(this);
     void this.bootstrap().catch((err2) => {
@@ -6443,6 +6470,14 @@ ${yamlRaw}
     this.applyGlobalHoverPopoverStyleVars();
     if (this.isCanvas()) this.el.classList.add("zm-root--canvas-mode");
     if (this.cfg.responsive) this.el.classList.add("zm-root--responsive");
+    this.el.classList.toggle(
+      "zm-root--image-pixelated",
+      this.cfg.imageRendering === "pixelated"
+    );
+    this.el.classList.toggle(
+      "zm-root--image-crisp-edges",
+      this.cfg.imageRendering === "crisp-edges"
+    );
     if (this.cfg.responsive) {
       setCssProps(this.el, {
         width: "100%",
@@ -7081,8 +7116,9 @@ ${yamlRaw}
     ctx.clearRect(0, 0, this.vw, this.vh);
     ctx.translate(this.tx, this.ty);
     ctx.scale(this.scale, this.scale);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = this.scale < 0.18 ? "low" : "medium";
+    const crispPixels = this.cfg.imageRendering === "pixelated" || this.cfg.imageRendering === "crisp-edges";
+    ctx.imageSmoothingEnabled = !crispPixels;
+    ctx.imageSmoothingQuality = crispPixels || this.scale < 0.18 ? "low" : "medium";
     if (this.baseIsSvg && this.baseSource instanceof ImageBitmap) {
       const srcW = this.baseSource.width;
       const srcH = this.baseSource.height;
@@ -11613,14 +11649,7 @@ Total: ${local.total}`, 6e3);
         { label: "Zoom +", action: () => this.zoomAt(vx, vy, 1.2) },
         { label: "Zoom \u2212", action: () => this.zoomAt(vx, vy, 1 / 1.2) },
         { label: "Fit to window", action: () => this.fitToView() },
-        {
-          label: "Reset view",
-          action: () => this.applyTransform(
-            1,
-            (this.vw - this.imgW) / 2,
-            (this.vh - this.imgH) / 2
-          )
-        }
+        { label: "Reset view", action: () => this.resetToDefaultView() }
       );
     }
     {
@@ -11978,6 +12007,21 @@ Total: ${local.total}`, 6e3);
     const txNew = cx - wx * sNew;
     const tyNew = cy - wy * sNew;
     this.applyTransform(sNew, txNew, tyNew);
+  }
+  resetToDefaultView() {
+    if (this.cfg.initialViewRect) {
+      this.applyInitialViewRect(this.cfg.initialViewRect);
+      return;
+    }
+    if (this.cfg.initialZoom && this.cfg.initialCenter) {
+      this.applyInitialView(this.cfg.initialZoom, this.cfg.initialCenter);
+      return;
+    }
+    this.applyTransform(
+      1,
+      (this.vw - this.imgW) / 2,
+      (this.vh - this.imgH) / 2
+    );
   }
   fitToView() {
     const r = this.viewportEl.getBoundingClientRect();
@@ -15987,7 +16031,6 @@ var FaIconPickerModal = class extends import_obsidian23.Modal {
     this.searchDebounceTimer = null;
     this.currentQuery = "";
     this.initialVisibleLimit = 30;
-    this.searchResultLimit = 50;
     this.scrollLoadStep = 30;
     this.renderChunkSize = 12;
     this.debounceMs = 180;
@@ -16029,7 +16072,7 @@ var FaIconPickerModal = class extends import_obsidian23.Modal {
       const path = f.path.toLowerCase();
       return name.includes(q) || path.includes(q);
     });
-    return q ? matches.slice(0, this.searchResultLimit) : matches;
+    return matches;
   }
   scheduleRender(filter) {
     if (this.searchDebounceTimer !== null) {
@@ -16082,24 +16125,15 @@ var FaIconPickerModal = class extends import_obsidian23.Modal {
     const total = this.currentMatches.length;
     const rendered = this.renderedCount;
     const searching = this.currentQuery.length > 0;
-    if (searching) {
-      const limited = total >= this.searchResultLimit;
-      if (rendered < total) {
-        this.statusEl.setText(
-          limited ? `Showing ${rendered} of max. ${this.searchResultLimit} search results. Scroll to load more.` : `Showing ${rendered} of ${total} search results. Scroll to load more.`
-        );
-      } else {
-        this.statusEl.setText(
-          limited ? `Showing max. ${this.searchResultLimit} search results.` : `Showing ${total} search results.`
-        );
-      }
+    if (rendered < total) {
+      this.statusEl.setText(
+        searching ? `Showing ${rendered} of ${total} search results. Scroll to load more.` : `Showing ${rendered} of ${total} icons. Scroll to load more or use search.`
+      );
       return;
     }
-    if (rendered < total) {
-      this.statusEl.setText(`Showing ${rendered} of ${total} icons. Scroll to load more or use search.`);
-    } else {
-      this.statusEl.setText(`Showing ${total} icons.`);
-    }
+    this.statusEl.setText(
+      searching ? `Showing ${total} search results.` : `Showing ${total} icons.`
+    );
   }
   queueRenderTo(targetCount) {
     this.desiredRenderCount = Math.min(
@@ -16394,6 +16428,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
   constructor(app, plugin, icon, onApplied) {
     super(app);
     this.svgSource = null;
+    this.previewImg = null;
     // Base options
     this.baseEnabled = false;
     this.baseKind = "icon";
@@ -16569,6 +16604,36 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
   onClose() {
     this.contentEl.empty();
     this.svgSource = null;
+    this.previewImg = null;
+  }
+  updatePreview() {
+    var _a2;
+    if (!this.previewImg || !this.svgSource) return;
+    const svg = this.applyOutline(
+      this.svgSource,
+      this.outlineColor || "#000000",
+      Math.max(0, Number(this.outlineWidth) || 0),
+      Math.min(1, Math.max(0, Number(this.outlineOpacity) || 0))
+    );
+    this.previewImg.src = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
+    if (this.shadowEnabled) {
+      const color = ((_a2 = this.shadowColor) != null ? _a2 : "").trim() || "#000000";
+      const blur = Math.max(0, Number(this.shadowBlurPx) || 0);
+      const x2 = Number.isFinite(this.shadowOffsetXPx) ? this.shadowOffsetXPx : 2;
+      const y = Number.isFinite(this.shadowOffsetYPx) ? this.shadowOffsetYPx : 2;
+      this.previewImg.style.filter = `drop-shadow(${x2}px ${y}px ${blur}px ${color})`;
+    } else {
+      this.previewImg.style.removeProperty("filter");
+    }
+  }
+  addPreview(container) {
+    const preview = container.createDiv({
+      cls: "zoommap-icon-outline-preview"
+    });
+    preview.createEl("div", { text: "Preview" });
+    this.previewImg = preview.createEl("img");
+    this.previewImg.alt = "SVG icon preview";
+    this.updatePreview();
   }
   parseViewBoxString(vb) {
     const parts = (vb != null ? vb : "").trim().split(/[\s,]+/).map((x2) => Number(x2));
@@ -16674,11 +16739,13 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
         this.colorPicker.value = this.normalizeHex(val);
       }
       this.outlineColor = val || "#000000";
+      this.updatePreview();
     };
     this.colorPicker.oninput = () => {
       const hex = this.colorPicker.value;
       this.colorText.value = hex;
       this.outlineColor = hex;
+      this.updatePreview();
     };
     const widthSetting = new import_obsidian25.Setting(contentEl).setName("Stroke width");
     this.widthInput = widthSetting.controlEl.createEl("input", {
@@ -16689,6 +16756,11 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     this.widthInput.step = "0.5";
     this.widthInput.value = String(defaultWidth);
     this.outlineWidth = defaultWidth;
+    this.widthInput.oninput = () => {
+      const n = Number(String(this.widthInput.value).replace(",", "."));
+      this.outlineWidth = Number.isFinite(n) && n >= 0 ? n : 0;
+      this.updatePreview();
+    };
     const opacitySetting = new import_obsidian25.Setting(contentEl).setName("Opacity (%)");
     this.opacityInput = opacitySetting.controlEl.createEl("input", {
       type: "number"
@@ -16699,6 +16771,13 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     this.opacityInput.step = "5";
     this.opacityInput.value = String(Math.round(defaultOpacity * 100));
     this.outlineOpacity = defaultOpacity;
+    this.opacityInput.oninput = () => {
+      const n = Number(String(this.opacityInput.value).replace(",", "."));
+      const percent = Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 100;
+      this.outlineOpacity = percent / 100;
+      this.updatePreview();
+    };
+    this.addPreview(contentEl);
     contentEl.createEl("h3", { text: "SVG base (background)" });
     let kindSetting = null;
     let scaleSetting = null;
@@ -16715,6 +16794,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
         strokeSetting == null ? void 0 : strokeSetting.settingEl.toggle(on);
         innerOffsetSetting == null ? void 0 : innerOffsetSetting.settingEl.toggle(on);
         innerOffsetXSetting == null ? void 0 : innerOffsetXSetting.settingEl.toggle(on);
+        this.updatePreview();
       });
     });
     kindSetting = new import_obsidian25.Setting(contentEl).setName("Base shape").setDesc("Use existing SVG icon as the base.").addDropdown((d) => {
@@ -16732,6 +16812,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
       d.setValue(curKey ? `icon:${curKey}` : "");
       d.onChange((v) => {
         if (v.startsWith("icon:")) this.baseIconKey = v.slice("icon:".length);
+        this.updatePreview();
       });
     });
     scaleSetting = new import_obsidian25.Setting(contentEl).setName("Base scale (%)").addText((t) => {
@@ -16740,6 +16821,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
       t.onChange((v) => {
         const n = Number(String(v).replace(",", "."));
         if (Number.isFinite(n) && n >= 50 && n <= 400) this.baseScalePct = Math.round(n);
+        this.updatePreview();
       });
     });
     fillSetting = new import_obsidian25.Setting(contentEl).setName("Base fill");
@@ -16754,10 +16836,12 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
         const val = txt.value.trim() || "#ffffff";
         this.baseFill = val;
         if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(val)) pick.value = this.normalizeHex(val);
+        this.updatePreview();
       };
       pick.oninput = () => {
         this.baseFill = pick.value;
         txt.value = pick.value;
+        this.updatePreview();
       };
     }
     strokeSetting = new import_obsidian25.Setting(contentEl).setName("Base outline");
@@ -16781,20 +16865,24 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
         const val = strokeTxt.value.trim() || "#000000";
         this.baseStroke = val;
         if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(val)) strokePick.value = this.normalizeHex(val);
+        this.updatePreview();
       };
       strokePick.oninput = () => {
         this.baseStroke = strokePick.value;
         strokeTxt.value = strokePick.value;
+        this.updatePreview();
       };
       w.oninput = () => {
         const n = Number(String(w.value).replace(",", "."));
         if (Number.isFinite(n) && n >= 0) this.baseStrokeWidth = n;
+        this.updatePreview();
       };
       op.oninput = () => {
         const n = Number(String(op.value).replace(",", "."));
         if (!Number.isFinite(n)) return;
         const clamped = Math.min(100, Math.max(0, n));
         this.baseStrokeOpacity = clamped / 100;
+        this.updatePreview();
       };
     }
     innerOffsetXSetting = new import_obsidian25.Setting(contentEl).setName("Icon offset X (px)").setDesc("Moves the actual icon relative to the base. Negative = left, positive = right.").addText((t) => {
@@ -16806,6 +16894,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
         const n = Number(String(v).replace(",", "."));
         if (!Number.isFinite(n)) return;
         this.innerOffsetXPx = Math.max(-500, Math.min(500, n));
+        this.updatePreview();
       });
     });
     innerOffsetSetting = new import_obsidian25.Setting(contentEl).setName("Icon offset y (px)").setDesc("Moves the actual icon relative to the base. Negative = up, positive = down.").addText((t) => {
@@ -16817,6 +16906,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
         const n = Number(String(v).replace(",", "."));
         if (!Number.isFinite(n)) return;
         this.innerOffsetYPx = Math.max(-500, Math.min(500, n));
+        this.updatePreview();
       });
     });
     kindSetting.settingEl.toggle(this.baseEnabled);
@@ -16838,6 +16928,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
       tg.setValue(this.shadowEnabled).onChange((on) => {
         this.shadowEnabled = on;
         toggleShadowRows();
+        this.updatePreview();
       });
     });
     shadowColorSetting = new import_obsidian25.Setting(contentEl).setName("Shadow color");
@@ -16852,10 +16943,12 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
         const val = txt.value.trim() || "#000000";
         this.shadowColor = val;
         if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(val)) pick.value = this.normalizeHex(val);
+        this.updatePreview();
       };
       pick.oninput = () => {
         this.shadowColor = pick.value;
         txt.value = pick.value;
+        this.updatePreview();
       };
     }
     shadowBlurSetting = new import_obsidian25.Setting(contentEl).setName("Shadow blur (px)").addText((t) => {
@@ -16864,6 +16957,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
       t.onChange((v) => {
         const n = Number(String(v).replace(",", "."));
         if (Number.isFinite(n) && n >= 0) this.shadowBlurPx = n;
+        this.updatePreview();
       });
     });
     shadowOffsetXSetting = new import_obsidian25.Setting(contentEl).setName("Shadow offset x (px)").addText((t) => {
@@ -16872,6 +16966,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
       t.onChange((v) => {
         const n = Number(String(v).replace(",", "."));
         if (Number.isFinite(n)) this.shadowOffsetXPx = n;
+        this.updatePreview();
       });
     });
     shadowOffsetYSetting = new import_obsidian25.Setting(contentEl).setName("Shadow offset y (px)").addText((t) => {
@@ -16880,6 +16975,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
       t.onChange((v) => {
         const n = Number(String(v).replace(",", "."));
         if (Number.isFinite(n)) this.shadowOffsetYPx = n;
+        this.updatePreview();
       });
     });
     toggleShadowRows();
@@ -16961,6 +17057,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     const dataUrl = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(updatedSvg);
     this.icon.pathOrDataUrl = dataUrl;
     await this.plugin.saveSettings();
+    this.plugin.refreshMapIconVisuals();
     if (this.onApplied) {
       this.onApplied(dataUrl);
     }
@@ -21039,6 +21136,11 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
       inst.onPluginSettingsChanged();
     }
   }
+  refreshMapIconVisuals() {
+    for (const inst of this.mapInstances) {
+      inst.onIconLibraryChanged();
+    }
+  }
   getUiDocument() {
     return this.app.workspace.containerEl.ownerDocument;
   }
@@ -21090,6 +21192,7 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
           overlays: [],
           markersPath: "",
           renderMode: "dom",
+          imageRendering: "auto",
           minZoom: 0.25,
           maxZoom: 8,
           wrap: false,
@@ -21225,6 +21328,7 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
         const preferCanvas = !!this.settings.enableSessionImageCache && !!this.settings.preferCanvasImagesWhenCaching;
         const yamlRender = typeof opts.render === "string" ? opts.render.trim().toLowerCase() : "";
         const renderMode = yamlRender === "canvas" ? "canvas" : yamlRender === "dom" ? "dom" : preferCanvas ? "canvas" : "dom";
+        const imageRendering = opts.imageRendering === "pixelated" || opts.imageRendering === "crisp-edges" ? opts.imageRendering : "auto";
         let image = typeof opts.image === "string" ? opts.image.trim() : "";
         if (!image && yamlBases.length > 0) image = yamlBases[0].path;
         if (!image) {
@@ -21288,6 +21392,7 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
           wrap,
           extraClasses,
           renderMode,
+          imageRendering,
           yamlBases,
           yamlOverlays,
           yamlMetersPerPixel,
@@ -21612,7 +21717,7 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     return count;
   }
   buildYamlFromViewConfig(cfg) {
-    var _a2, _b2, _c, _d;
+    var _a2, _b2, _c, _d, _e;
     const obj = {};
     const bases = ((_a2 = cfg.imageBases) != null ? _a2 : []).filter(
       (b) => b.path && b.path.trim().length > 0
@@ -21659,11 +21764,12 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     obj.resizable = !!cfg.resizable;
     obj.resizeHandle = cfg.resizeHandle;
     obj.render = cfg.renderMode;
+    obj.imageRendering = (_d = cfg.imageRendering) != null ? _d : "auto";
     if (cfg.align) obj.align = cfg.align;
     if (cfg.id && cfg.id.trim().length > 0) {
       obj.id = cfg.id.trim();
     }
-    const frame = (_d = cfg.viewportFrame) == null ? void 0 : _d.trim();
+    const frame = (_e = cfg.viewportFrame) == null ? void 0 : _e.trim();
     if (frame) {
       obj.viewportFrame = frame;
       if (cfg.viewportFrameInsets) {
@@ -21687,7 +21793,7 @@ function tintSvgMarkup2(svg, color) {
     const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
     const root = doc.querySelector("svg");
     if (!root) return svg;
-    const inner = (_a2 = root.querySelector("#zm-inner")) != null ? _a2 : root;
+    const inner = (_a2 = Array.from(root.children).find((child) => child.id === "zm-inner")) != null ? _a2 : root;
     const base = root.querySelector("#zm-base");
     const outline = root.querySelector("#zm-outline");
     const shapes = inner.querySelectorAll("path, circle, rect, polygon, polyline, line, ellipse");
@@ -21725,6 +21831,8 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.svgFileCache = /* @__PURE__ */ new Map();
+    this.iconRecolorChains = /* @__PURE__ */ new Map();
+    this.iconRecolorTokens = /* @__PURE__ */ new Map();
     this.plugin = plugin;
   }
   async addFontAwesomeIcon(file) {
@@ -21762,7 +21870,7 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
   async recolorIconSvg(icon, color) {
     var _a2;
     const c = color.trim();
-    if (!c) return;
+    if (!c) return false;
     let svg = null;
     const src = (_a2 = icon.pathOrDataUrl) != null ? _a2 : "";
     if (typeof src === "string" && src.startsWith("data:image/svg+xml")) {
@@ -21792,11 +21900,32 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
         }
       }
     }
-    if (!svg) return;
+    if (!svg) return false;
     const tinted = tintSvgMarkup2(svg, c);
     const dataUrl = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(tinted);
     icon.pathOrDataUrl = dataUrl;
-    await this.plugin.saveSettings();
+    return true;
+  }
+  queueSvgIconRecolor(icon, color) {
+    var _a2, _b2;
+    const token = ((_a2 = this.iconRecolorTokens.get(icon)) != null ? _a2 : 0) + 1;
+    this.iconRecolorTokens.set(icon, token);
+    const previous = (_b2 = this.iconRecolorChains.get(icon)) != null ? _b2 : Promise.resolve(false);
+    const job = previous.catch(() => false).then(async () => {
+      if (this.iconRecolorTokens.get(icon) !== token) return false;
+      const changed = await this.recolorIconSvg(icon, color);
+      if (!changed || this.iconRecolorTokens.get(icon) !== token) return false;
+      await this.plugin.saveSettings();
+      this.plugin.refreshMapIconVisuals();
+      return true;
+    });
+    this.iconRecolorChains.set(icon, job);
+    void job.finally(() => {
+      if (this.iconRecolorChains.get(icon) === job) {
+        this.iconRecolorChains.delete(icon);
+      }
+    });
+    return job;
   }
   getSvgColorFromDataUrl(dataUrl) {
     if (typeof dataUrl !== "string") return null;
@@ -22388,8 +22517,9 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
           const applyColor = (val) => {
             const c = val.trim();
             if (!c) return;
-            void this.recolorIconSvg(icon, c).then(() => {
+            void this.queueSvgIconRecolor(icon, c).then((changed) => {
               var _a4;
+              if (!changed) return;
               const updated = (_a4 = icon.pathOrDataUrl) != null ? _a4 : "";
               let out = updated;
               if (typeof out === "string" && !out.startsWith("data:") && out) {
@@ -22413,7 +22543,7 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
               }
             }
           });
-          colorPicker.addEventListener("input", () => {
+          colorPicker.addEventListener("change", () => {
             const hex = colorPicker.value;
             colorInput.value = hex;
             applyColor(hex);
@@ -22446,6 +22576,7 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
           outlineBtn.onclick = () => {
             new IconOutlineModal(this.app, this.plugin, icon, (newDataUrl) => {
               img.src = newDataUrl;
+              this.plugin.refreshMapIconVisuals();
             }).open();
           };
           const size = row.createEl("input", { type: "number" });

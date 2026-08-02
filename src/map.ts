@@ -150,6 +150,7 @@ export interface ZoomMapConfig {
   wrap?: boolean;
   extraClasses?: string[];
   renderMode: "dom" | "canvas";
+  imageRendering?: "auto" | "pixelated" | "crisp-edges";
   yamlBases?: { path: string; name?: string }[];
   yamlOverlays?: { path: string; name?: string; visible?: boolean }[];
   yamlMetersPerPixel?: number;
@@ -470,7 +471,8 @@ function tintSvgMarkupLocal(svg: string, color: string): string {
     const root = doc.querySelector("svg");
     if (!root) return svg;
 
-    const inner = root.querySelector("#zm-inner") ?? root;
+    const inner =
+      Array.from(root.children).find((child) => child.id === "zm-inner") ?? root;
     const base = root.querySelector("#zm-base");
     const outline = root.querySelector("#zm-outline");
 
@@ -1021,6 +1023,7 @@ export class MapInstance extends Component {
     })),
     markersPath: this.cfg.storageMode === "json" ? this.cfg.markersPath : "",
     renderMode: this.cfg.renderMode,
+	imageRendering: this.cfg.imageRendering ?? "auto",
     minZoom: this.cfg.minZoom,
     maxZoom: this.cfg.maxZoom,
     wrap: !!this.cfg.wrap,
@@ -2507,6 +2510,12 @@ export class MapInstance extends Component {
     this.updateZoomControlsVisibility();
   }
 
+  public onIconLibraryChanged(): void {
+    this.tintedSvgCache.clear();
+    if (!this.ready) return;
+    this.renderMarkersOnly();
+  }
+
   onload(): void {
 	this.plugin.registerMapInstance(this);
     void this.bootstrap().catch((err: unknown) => {
@@ -2599,6 +2608,15 @@ export class MapInstance extends Component {
 	this.applyGlobalHoverPopoverStyleVars();
     if (this.isCanvas()) this.el.classList.add("zm-root--canvas-mode");
     if (this.cfg.responsive) this.el.classList.add("zm-root--responsive");
+	
+    this.el.classList.toggle(
+      "zm-root--image-pixelated",
+      this.cfg.imageRendering === "pixelated",
+    );
+    this.el.classList.toggle(
+      "zm-root--image-crisp-edges",
+      this.cfg.imageRendering === "crisp-edges",
+    );
 
 	if (this.cfg.responsive) {
 	  setCssProps(this.el, {
@@ -3368,8 +3386,12 @@ export class MapInstance extends Component {
     ctx.translate(this.tx, this.ty);
     ctx.scale(this.scale, this.scale);
 
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = this.scale < 0.18 ? "low" : "medium";
+    const crispPixels =
+      this.cfg.imageRendering === "pixelated" ||
+      this.cfg.imageRendering === "crisp-edges";
+
+    ctx.imageSmoothingEnabled = !crispPixels;
+    ctx.imageSmoothingQuality = crispPixels || this.scale < 0.18 ? "low" : "medium";
 
     if (this.baseIsSvg && this.baseSource instanceof ImageBitmap) {
       const srcW = this.baseSource.width;
@@ -8837,15 +8859,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         { label: "Zoom +", action: () => this.zoomAt(vx, vy, 1.2) },
         { label: "Zoom −", action: () => this.zoomAt(vx, vy, 1 / 1.2) },
         { label: "Fit to window", action: () => this.fitToView() },
-        {
-          label: "Reset view",
-          action: () =>
-            this.applyTransform(
-              1,
-              (this.vw - this.imgW) / 2,
-              (this.vh - this.imgH) / 2,
-            ),
-        },
+        { label: "Reset view", action: () => this.resetToDefaultView() },
       );
     }
 	
@@ -9292,6 +9306,24 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     const txNew = cx - wx * sNew;
     const tyNew = cy - wy * sNew;
     this.applyTransform(sNew, txNew, tyNew);
+  }
+  
+  private resetToDefaultView(): void {
+    if (this.cfg.initialViewRect) {
+      this.applyInitialViewRect(this.cfg.initialViewRect);
+      return;
+    }
+
+    if (this.cfg.initialZoom && this.cfg.initialCenter) {
+      this.applyInitialView(this.cfg.initialZoom, this.cfg.initialCenter);
+      return;
+    }
+
+    this.applyTransform(
+      1,
+      (this.vw - this.imgW) / 2,
+      (this.vh - this.imgH) / 2,
+    );
   }
 
   private fitToView(): void {

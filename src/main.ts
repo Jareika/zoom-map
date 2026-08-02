@@ -201,6 +201,7 @@ interface YamlOptions {
   resizable?: boolean;
   resizeHandle?: string; // parsed
   render?: string; // parsed
+  imageRendering?: string;
   responsive?: boolean;
   responsiv?: boolean; // legacy alias
 
@@ -467,6 +468,12 @@ export default class ZoomMapPlugin extends Plugin {
     }
   }
   
+  public refreshMapIconVisuals(): void {
+    for (const inst of this.mapInstances) {
+      inst.onIconLibraryChanged();
+    }
+  }
+  
   private getUiDocument(): Document {
     return this.app.workspace.containerEl.ownerDocument;
   }
@@ -528,6 +535,7 @@ export default class ZoomMapPlugin extends Plugin {
         overlays: [],
         markersPath: "",
         renderMode: "dom",
+		imageRendering: "auto",
         minZoom: 0.25,
         maxZoom: 8,
         wrap: false,
@@ -704,6 +712,11 @@ export default class ZoomMapPlugin extends Plugin {
           : yamlRender === "dom" ? "dom"
           : preferCanvas ? "canvas"
           : "dom";
+          
+        const imageRendering =
+          opts.imageRendering === "pixelated" || opts.imageRendering === "crisp-edges"
+            ? opts.imageRendering
+            : "auto";
 
         let image = typeof opts.image === "string" ? opts.image.trim() : "";
         if (!image && yamlBases.length > 0) image = yamlBases[0].path;
@@ -817,6 +830,7 @@ export default class ZoomMapPlugin extends Plugin {
 		  wrap,
 		  extraClasses,
 		  renderMode,
+		  imageRendering,
 		  yamlBases,
 		  yamlOverlays,
 		  yamlMetersPerPixel,
@@ -1237,6 +1251,7 @@ export default class ZoomMapPlugin extends Plugin {
     obj.resizable = !!cfg.resizable;
     obj.resizeHandle = cfg.resizeHandle;
     obj.render = cfg.renderMode;
+	obj.imageRendering = cfg.imageRendering ?? "auto";
     if (cfg.align) obj.align = cfg.align;
 
     if (cfg.id && cfg.id.trim().length > 0) {
@@ -1271,7 +1286,8 @@ function tintSvgMarkup(svg: string, color: string): string {
     const root = doc.querySelector("svg");
     if (!root) return svg;
 
-    const inner = root.querySelector("#zm-inner") ?? root;
+    const inner =
+      Array.from(root.children).find((child) => child.id === "zm-inner") ?? root;
     const base = root.querySelector("#zm-base");
     const outline = root.querySelector("#zm-outline");
 
@@ -1322,6 +1338,8 @@ class ZoomMapSettingTab extends PluginSettingTab {
   plugin: ZoomMapPlugin;
 
   private svgFileCache = new Map<string, string>();
+  private iconRecolorChains = new Map<IconProfile, Promise<boolean>>();
+  private iconRecolorTokens = new Map<IconProfile, number>();
 
   constructor(app: App, plugin: ZoomMapPlugin) {
     super(app, plugin);
@@ -1365,9 +1383,9 @@ class ZoomMapSettingTab extends PluginSettingTab {
     }
   }
 
-  private async recolorIconSvg(icon: IconProfile, color: string): Promise<void> {
+  private async recolorIconSvg(icon: IconProfile, color: string): Promise<boolean> {
     const c = color.trim();
-    if (!c) return;
+    if (!c) return false;
 
     let svg: string | null = null;
     const src = icon.pathOrDataUrl ?? "";
@@ -1400,14 +1418,42 @@ class ZoomMapSettingTab extends PluginSettingTab {
       }
     }
 
-    if (!svg) return;
+    if (!svg) return false;
 
     const tinted = tintSvgMarkup(svg, c);
     const dataUrl =
       "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(tinted);
 
     icon.pathOrDataUrl = dataUrl;
-    await this.plugin.saveSettings();
+    return true;
+  }
+
+  private queueSvgIconRecolor(icon: IconProfile, color: string): Promise<boolean> {
+    const token = (this.iconRecolorTokens.get(icon) ?? 0) + 1;
+    this.iconRecolorTokens.set(icon, token);
+
+    const previous = this.iconRecolorChains.get(icon) ?? Promise.resolve(false);
+    const job = previous
+      .catch(() => false)
+      .then(async () => {
+        if (this.iconRecolorTokens.get(icon) !== token) return false;
+
+        const changed = await this.recolorIconSvg(icon, color);
+        if (!changed || this.iconRecolorTokens.get(icon) !== token) return false;
+
+        await this.plugin.saveSettings();
+        this.plugin.refreshMapIconVisuals();
+        return true;
+      });
+
+    this.iconRecolorChains.set(icon, job);
+    void job.finally(() => {
+      if (this.iconRecolorChains.get(icon) === job) {
+        this.iconRecolorChains.delete(icon);
+      }
+    });
+
+    return job;
   }
 
   private getSvgColorFromDataUrl(dataUrl: string): string | null {
@@ -2170,7 +2216,8 @@ class ZoomMapSettingTab extends PluginSettingTab {
           const applyColor = (val: string) => {
             const c = val.trim();
             if (!c) return;
-            void this.recolorIconSvg(icon, c).then(() => {
+            void this.queueSvgIconRecolor(icon, c).then((changed) => {
+              if (!changed) return;
               const updated = icon.pathOrDataUrl ?? "";
               let out = updated;
               if (typeof out === "string" && !out.startsWith("data:") && out) {
@@ -2196,7 +2243,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
             }
           });
 
-          colorPicker.addEventListener("input", () => {
+          colorPicker.addEventListener("change", () => {
             const hex = colorPicker.value;
             colorInput.value = hex;
             applyColor(hex);
@@ -2229,6 +2276,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
 		    outlineBtn.onclick = () => {
 			  new IconOutlineModal(this.app, this.plugin, icon, (newDataUrl) => {
 			      img.src = newDataUrl;
+				  this.plugin.refreshMapIconVisuals();
 			  }).open();
 		    };
 

@@ -28,7 +28,8 @@ function tintSvgMarkup(svg: string, color: string): string {
     const root = doc.querySelector("svg");
     if (!root) return svg;
 
-    const inner = root.querySelector("#zm-inner") ?? root;
+    const inner =
+      Array.from(root.children).find((child) => child.id === "zm-inner") ?? root;
     const base = root.querySelector("#zm-base");
     const outline = root.querySelector("#zm-outline");
 
@@ -146,10 +147,29 @@ export class MarkerEditorModal extends Modal {
 
     for (const file of files) {
       const baseLink = this.app.metadataCache.fileToLinktext(file, fromPath);
+	  const cache = this.app.metadataCache.getCache(file.path);
 
       suggestions.push({ label: baseLink, value: baseLink });
 
-      const cache = this.app.metadataCache.getCache(file.path);
+      const aliasesRaw =
+        cache?.frontmatter?.aliases ??
+        cache?.frontmatter?.alias;
+
+      const aliases = Array.isArray(aliasesRaw)
+        ? aliasesRaw.filter((alias): alias is string => typeof alias === "string")
+        : typeof aliasesRaw === "string"
+          ? [aliasesRaw]
+          : [];
+
+      for (const alias of aliases) {
+        const trimmed = alias.trim();
+        if (!trimmed) continue;
+        suggestions.push({
+          label: `${trimmed} → ${baseLink}`,
+          value: baseLink,
+        });
+      }
+
       const headings = cache?.headings ?? [];
       for (const h of headings) {
         const headingName = h.heading;

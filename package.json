@@ -1,6 +1,6 @@
 {
   "name": "zoom-map",
-  "version": "2.1.5",
+  "version": "2.1.7",
   "private": true,
   "license": "MIT",
   "scripts": {
@@ -16,11 +16,14 @@
     "@typescript-eslint/parser": "^8.48.0",
     "esbuild": "^0.28.0",
     "eslint": "^9.39.1",
-    "eslint-plugin-obsidianmd": "^0.1.9",
+    "eslint-plugin-obsidianmd": "^0.4.1",
+    "fflate": "^0.8.2",
     "globals": "^16.5.0",
-    "obsidian": "^1.9.0",
+    "obsidian": "^1.13.0",
     "typescript": "^5.6.3",
-    "typescript-eslint": "^8.48.0",
-    "fflate": "^0.8.2"
+    "typescript-eslint": "^8.48.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true
   }
 }

@@ -166,6 +166,17 @@ button.zm-btn-sm {
   z-index: 0;
 }
 
+/* Optional pixel-art rendering mode, configured per zoommap block. */
+.zm-root--image-pixelated .zm-image,
+.zm-root--image-pixelated .zm-overlay-image {
+  image-rendering: pixelated;
+}
+
+.zm-root--image-crisp-edges .zm-image,
+.zm-root--image-crisp-edges .zm-overlay-image {
+  image-rendering: crisp-edges;
+}
+
 /* Hide DOM image/overlays in canvas mode */
 .zm-root.zm-root--canvas-mode .zm-image,
 .zm-root.zm-root--canvas-mode .zm-overlays {
@@ -1138,6 +1149,25 @@ body.zm-cursor-resize-nesw {
 }
 body.zm-cursor-move-grabbing {
   cursor: grabbing;
+}
+
+/* SVG outline modal preview */
+.zoommap-icon-outline-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-secondary);
+}
+
+.zoommap-icon-outline-preview img {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
 }
 
 /* Always-visible marker label (tooltip caption) */

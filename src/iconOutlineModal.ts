@@ -12,6 +12,7 @@ export class IconOutlineModal extends Modal {
   private colorPicker!: HTMLInputElement;
   private widthInput!: HTMLInputElement;
   private opacityInput!: HTMLInputElement;
+  private previewImg: HTMLImageElement | null = null;
   
   private onApplied?: (dataUrl: string) => void;
   
@@ -228,6 +229,47 @@ export class IconOutlineModal extends Modal {
   onClose(): void {
     this.contentEl.empty();
     this.svgSource = null;
+    this.previewImg = null;
+  }
+
+  private updatePreview(): void {
+    if (!this.previewImg || !this.svgSource) return;
+
+    const svg = this.applyOutline(
+      this.svgSource,
+      this.outlineColor || "#000000",
+      Math.max(0, Number(this.outlineWidth) || 0),
+      Math.min(1, Math.max(0, Number(this.outlineOpacity) || 0)),
+    );
+
+    this.previewImg.src =
+      "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
+
+    if (this.shadowEnabled) {
+      const color = (this.shadowColor ?? "").trim() || "#000000";
+      const blur = Math.max(0, Number(this.shadowBlurPx) || 0);
+      const x = Number.isFinite(this.shadowOffsetXPx)
+        ? this.shadowOffsetXPx
+        : 2;
+      const y = Number.isFinite(this.shadowOffsetYPx)
+        ? this.shadowOffsetYPx
+        : 2;
+
+      this.previewImg.style.filter =
+        `drop-shadow(${x}px ${y}px ${blur}px ${color})`;
+    } else {
+      this.previewImg.style.removeProperty("filter");
+    }
+  }
+
+  private addPreview(container: HTMLElement): void {
+    const preview = container.createDiv({
+      cls: "zoommap-icon-outline-preview",
+    });
+    preview.createEl("div", { text: "Preview" });
+    this.previewImg = preview.createEl("img");
+    this.previewImg.alt = "SVG icon preview";
+    this.updatePreview();
   }
   
   private parseViewBoxString(vb: string): { minX: number; minY: number; w: number; h: number } | null {
@@ -356,12 +398,14 @@ export class IconOutlineModal extends Modal {
       if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(val)) {
         this.colorPicker.value = this.normalizeHex(val);
       }
-	  this.outlineColor = val || "#000000";
+      this.outlineColor = val || "#000000";
+      this.updatePreview();
     };
     this.colorPicker.oninput = () => {
       const hex = this.colorPicker.value;
       this.colorText.value = hex;
-	  this.outlineColor = hex;
+      this.outlineColor = hex;
+      this.updatePreview();
     };
 
     // Width
@@ -374,6 +418,11 @@ export class IconOutlineModal extends Modal {
     this.widthInput.step = "0.5";
     this.widthInput.value = String(defaultWidth);
 	this.outlineWidth = defaultWidth;
+    this.widthInput.oninput = () => {
+      const n = Number(String(this.widthInput.value).replace(",", "."));
+      this.outlineWidth = Number.isFinite(n) && n >= 0 ? n : 0;
+      this.updatePreview();
+    };
 
     // Opacity (percent)
     const opacitySetting = new Setting(contentEl).setName("Opacity (%)");
@@ -386,6 +435,14 @@ export class IconOutlineModal extends Modal {
     this.opacityInput.step = "5";
     this.opacityInput.value = String(Math.round(defaultOpacity * 100));
 	this.outlineOpacity = defaultOpacity;
+    this.opacityInput.oninput = () => {
+      const n = Number(String(this.opacityInput.value).replace(",", "."));
+      const percent = Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 100;
+      this.outlineOpacity = percent / 100;
+      this.updatePreview();
+    };
+	
+    this.addPreview(contentEl);
 	
     // --- Base UI ---
     contentEl.createEl("h3", { text: "SVG base (background)" });
@@ -409,6 +466,7 @@ export class IconOutlineModal extends Modal {
           strokeSetting?.settingEl.toggle(on);
 		  innerOffsetSetting?.settingEl.toggle(on);
 		  innerOffsetXSetting?.settingEl.toggle(on);
+		  this.updatePreview();
         });
       });
 
@@ -433,6 +491,7 @@ export class IconOutlineModal extends Modal {
 		// *** FIXED: add onChange handler ***
 		d.onChange((v) => {
 		  if (v.startsWith("icon:")) this.baseIconKey = v.slice("icon:".length);
+		  this.updatePreview();
 		});
 	  });
 
@@ -444,6 +503,7 @@ export class IconOutlineModal extends Modal {
         t.onChange((v) => {
           const n = Number(String(v).replace(",", "."));
           if (Number.isFinite(n) && n >= 50 && n <= 400) this.baseScalePct = Math.round(n);
+		  this.updatePreview();
         });
       });
 
@@ -461,10 +521,12 @@ export class IconOutlineModal extends Modal {
         const val = txt.value.trim() || "#ffffff";
         this.baseFill = val;
         if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(val)) pick.value = this.normalizeHex(val);
+		this.updatePreview();
       };
       pick.oninput = () => {
         this.baseFill = pick.value;
         txt.value = pick.value;
+		this.updatePreview();
       };
     }
 
@@ -493,20 +555,24 @@ export class IconOutlineModal extends Modal {
         const val = strokeTxt.value.trim() || "#000000";
         this.baseStroke = val;
         if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(val)) strokePick.value = this.normalizeHex(val);
+		this.updatePreview();
       };
       strokePick.oninput = () => {
         this.baseStroke = strokePick.value;
         strokeTxt.value = strokePick.value;
+		this.updatePreview();
       };
       w.oninput = () => {
         const n = Number(String(w.value).replace(",", "."));
         if (Number.isFinite(n) && n >= 0) this.baseStrokeWidth = n;
+		this.updatePreview();
       };
       op.oninput = () => {
         const n = Number(String(op.value).replace(",", "."));
         if (!Number.isFinite(n)) return;
         const clamped = Math.min(100, Math.max(0, n));
         this.baseStrokeOpacity = clamped / 100;
+		this.updatePreview();
       };
     }
 	
@@ -521,6 +587,7 @@ export class IconOutlineModal extends Modal {
           const n = Number(String(v).replace(",", "."));
           if (!Number.isFinite(n)) return;
           this.innerOffsetXPx = Math.max(-500, Math.min(500, n));
+		  this.updatePreview();
         });
       });
 	
@@ -535,6 +602,7 @@ export class IconOutlineModal extends Modal {
           const n = Number(String(v).replace(",", "."));
           if (!Number.isFinite(n)) return;
           this.innerOffsetYPx = Math.max(-500, Math.min(500, n));
+		  this.updatePreview();
         });
       });
 
@@ -563,6 +631,7 @@ export class IconOutlineModal extends Modal {
         tg.setValue(this.shadowEnabled).onChange((on) => {
           this.shadowEnabled = on;
           toggleShadowRows();
+		  this.updatePreview();
         });
       });
 
@@ -580,10 +649,12 @@ export class IconOutlineModal extends Modal {
         const val = txt.value.trim() || "#000000";
         this.shadowColor = val;
         if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(val)) pick.value = this.normalizeHex(val);
+		this.updatePreview();
       };
       pick.oninput = () => {
         this.shadowColor = pick.value;
         txt.value = pick.value;
+		this.updatePreview();
       };
     }
 
@@ -595,6 +666,7 @@ export class IconOutlineModal extends Modal {
         t.onChange((v) => {
           const n = Number(String(v).replace(",", "."));
           if (Number.isFinite(n) && n >= 0) this.shadowBlurPx = n;
+		  this.updatePreview();
         });
       });
 
@@ -606,6 +678,7 @@ export class IconOutlineModal extends Modal {
         t.onChange((v) => {
           const n = Number(String(v).replace(",", "."));
           if (Number.isFinite(n)) this.shadowOffsetXPx = n;
+		  this.updatePreview();
         });
       });
 
@@ -617,6 +690,7 @@ export class IconOutlineModal extends Modal {
         t.onChange((v) => {
           const n = Number(String(v).replace(",", "."));
           if (Number.isFinite(n)) this.shadowOffsetYPx = n;
+		  this.updatePreview();
         });
       });
 
@@ -715,6 +789,7 @@ export class IconOutlineModal extends Modal {
 
     this.icon.pathOrDataUrl = dataUrl;
 	await this.plugin.saveSettings();
+	this.plugin.refreshMapIconVisuals();
 
 	if (this.onApplied) {
 	  this.onApplied(dataUrl);

@@ -26,7 +26,6 @@ export class FaIconPickerModal extends Modal {
   private currentQuery = "";
 
   private readonly initialVisibleLimit = 30;
-  private readonly searchResultLimit = 50;
   private readonly scrollLoadStep = 30;
   private readonly renderChunkSize = 12;
   private readonly debounceMs = 180;
@@ -78,7 +77,7 @@ export class FaIconPickerModal extends Modal {
       return name.includes(q) || path.includes(q);
     });
 
-    return q ? matches.slice(0, this.searchResultLimit) : matches;
+    return matches;
   }
 
   private scheduleRender(filter: string): void {
@@ -145,29 +144,18 @@ export class FaIconPickerModal extends Modal {
     const rendered = this.renderedCount;
     const searching = this.currentQuery.length > 0;
 
-    if (searching) {
-      const limited = total >= this.searchResultLimit;
-      if (rendered < total) {
-        this.statusEl.setText(
-          limited
-            ? `Showing ${rendered} of max. ${this.searchResultLimit} search results. Scroll to load more.`
-            : `Showing ${rendered} of ${total} search results. Scroll to load more.`,
-        );
-      } else {
-        this.statusEl.setText(
-          limited
-            ? `Showing max. ${this.searchResultLimit} search results.`
-            : `Showing ${total} search results.`,
-        );
-      }
+    if (rendered < total) {
+      this.statusEl.setText(
+        searching
+          ? `Showing ${rendered} of ${total} search results. Scroll to load more.`
+          : `Showing ${rendered} of ${total} icons. Scroll to load more or use search.`,
+      );
       return;
     }
 
-    if (rendered < total) {
-      this.statusEl.setText(`Showing ${rendered} of ${total} icons. Scroll to load more or use search.`);
-    } else {
-      this.statusEl.setText(`Showing ${total} icons.`);
-    }
+    this.statusEl.setText(
+      searching ? `Showing ${total} search results.` : `Showing ${total} icons.`,
+    );
   }
 
   private queueRenderTo(targetCount: number): void {

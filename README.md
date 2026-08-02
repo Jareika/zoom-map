@@ -105,6 +105,9 @@ resizable: true
 resizeHandle: native     # left | right | both | native
 render: canvas           # or: dom
 
+# Image interpolation: auto | pixelated | crisp-edges
+imageRendering: pixelated
+
 # Responsive display (fit into width, no wheel/pinch/dblclick pan/zoom)
 responsive: false        # true → always fit; disables pan/zoom gestures
 
@@ -140,6 +143,7 @@ wrap: true               # wrap text; useful with left/right alignment
 - minZoom: number | 150%  
 - maxZoom: number | 300%
 - render: dom | canvas
+- imageRendering: auto | pixelated | crisp-edges
 - resizable: true
 - resizeHandle: native | left | right | both
 - responsive: true #If true: map fits to width; zoom/pan gestures are disabled
