@@ -366,7 +366,7 @@ function stableEqual(a: unknown, b: unknown): boolean {
 }
 
 function isImageBitmapLike(x: unknown): x is ImageBitmap {
-  return typeof x === "object" && x !== null && "close" in x && typeof (x as { close: unknown }).close === "function";
+  return typeof x === "object" && x !== null && "close" in x && typeof x.close === "function";
 }
 
 function isNodeLike(x: unknown): x is Node {
@@ -473,40 +473,47 @@ function tintSvgMarkupLocal(svg: string, color: string): string {
 
     const inner =
       Array.from(root.children).find((child) => child.id === "zm-inner") ?? root;
-    const base = root.querySelector("#zm-base");
-    const outline = root.querySelector("#zm-outline");
 
-    const shapes = inner.querySelectorAll<SVGElement>("path, circle, rect, polygon, polyline, line, ellipse");
     let touched = false;
 
-    shapes.forEach((el) => {
-      if (base && base.contains(el)) return;
-      if (outline && outline.contains(el)) return;
+    const isPaintColor = (value: string | null): boolean => {
+      const normalized = (value ?? "").trim().toLowerCase();
+      return (
+        !!normalized &&
+        normalized !== "none" &&
+        normalized !== "transparent" &&
+        !normalized.startsWith("url(")
+      );
+    };
 
-      const styleFill = (el as unknown as { style?: CSSStyleDeclaration }).style?.fill;
-      const styleStroke = (el as unknown as { style?: CSSStyleDeclaration }).style?.stroke;
+    const foregroundElements = [
+      inner as SVGElement,
+      ...Array.from(inner.querySelectorAll<SVGElement>("*")),
+    ];
 
+    for (const el of foregroundElements) {
       const fillAttr = el.getAttribute("fill");
       const strokeAttr = el.getAttribute("stroke");
+      const styleFill = el.style.getPropertyValue("fill");
+      const styleStroke = el.style.getPropertyValue("stroke");
 
-      const hasFill =
-        (typeof styleFill === "string" && styleFill && styleFill.toLowerCase() !== "none") ||
-        (typeof fillAttr === "string" && fillAttr && fillAttr.toLowerCase() !== "none");
-      const hasStroke =
-        (typeof styleStroke === "string" && styleStroke && styleStroke.toLowerCase() !== "none") ||
-        (typeof strokeAttr === "string" && strokeAttr && strokeAttr.toLowerCase() !== "none");
-
-      if (hasFill) {
-        (el as unknown as { style: CSSStyleDeclaration }).style.fill = c;
+      if (isPaintColor(fillAttr)) {
         el.setAttribute("fill", c);
         touched = true;
       }
-      if (hasStroke) {
-        (el as unknown as { style: CSSStyleDeclaration }).style.stroke = c;
+      if (isPaintColor(strokeAttr)) {
         el.setAttribute("stroke", c);
         touched = true;
       }
-    });
+      if (isPaintColor(styleFill)) {
+        el.style.setProperty("fill", c);
+        touched = true;
+      }
+      if (isPaintColor(styleStroke)) {
+        el.style.setProperty("stroke", c);
+        touched = true;
+      }
+    }
 
     if (!touched) {
       (inner as SVGElement).setAttribute("fill", c);
@@ -1021,7 +1028,7 @@ export class MapInstance extends Component {
       name: o.name,
       visible: o.visible,
     })),
-    markersPath: this.cfg.storageMode === "json" ? this.cfg.markersPath : "",
+    markersPath: this.cfg.markersPath,
     renderMode: this.cfg.renderMode,
 	imageRendering: this.cfg.imageRendering ?? "auto",
     minZoom: this.cfg.minZoom,
@@ -3078,7 +3085,7 @@ export class MapInstance extends Component {
       // Balance the extra acquire() above:
       cache.release(f.path);
 
-      this.baseSource = src as CanvasImageSource;
+      this.baseSource = src;
       // Determine size
       if (isImageBitmapLike(src)) {
         this.imgW = src.width;
@@ -3317,8 +3324,8 @@ export class MapInstance extends Component {
       const src = await cache.acquire(f);
       cache.release(f.path);
 
-      this.overlaySources.set(path, src as CanvasImageSource);
-      return src as CanvasImageSource;
+      this.overlaySources.set(path, src);
+      return src;
     }
 
     if (this.overlaySources.has(path)) return this.overlaySources.get(path) ?? null;
@@ -3415,28 +3422,22 @@ export class MapInstance extends Component {
   }
 
   private setupMeasureOverlay(): void {
-	const doc = this.getOwnerDocument();
     this.measureEl = this.worldEl.createDiv({ cls: "zm-measure" });
 
-    this.measureSvg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
+    this.measureSvg = this.measureEl.createSvg("svg");
     this.measureSvg.classList.add("zm-measure__svg");
     this.measureSvg.setAttribute("width", String(this.imgW));
     this.measureSvg.setAttribute("height", String(this.imgH));
-    this.measureEl.appendChild(this.measureSvg);
 
-    this.measurePath = doc.createElementNS("http://www.w3.org/2000/svg", "path");
+    this.measurePath = this.measureSvg.createSvg("path");
     this.measurePath.classList.add("zm-measure__path");
-    this.measureSvg.appendChild(this.measurePath);
 
-    this.measureDots = doc.createElementNS("http://www.w3.org/2000/svg", "g");
-    this.measureSvg.appendChild(this.measureDots);
+    this.measureDots = this.measureSvg.createSvg("g");
 
-    this.calibPath = doc.createElementNS("http://www.w3.org/2000/svg", "path");
+    this.calibPath = this.measureSvg.createSvg("path");
     this.calibPath.classList.add("zm-measure__path", "zm-measure__dash");
-    this.measureSvg.appendChild(this.calibPath);
 
-    this.calibDots = doc.createElementNS("http://www.w3.org/2000/svg", "g");
-    this.measureSvg.appendChild(this.calibDots);
+    this.calibDots = this.measureSvg.createSvg("g");
 
     this.updateMeasureHud();
   }
@@ -4377,7 +4378,7 @@ export class MapInstance extends Component {
           e.preventDefault();
           e.stopPropagation();
           this.plugin.setActiveMap(this);
-          const p = this.mouseEventToWorldNorm(e as unknown as MouseEvent);
+          const p = this.mouseEventToWorldNorm(e);
           this.startTextBoxMove(layer.id, box.id, p, e.pointerId, hb);
         });
 
@@ -5372,7 +5373,6 @@ export class MapInstance extends Component {
 
   private renderMeasure(): void {
     if (!this.measureSvg) return;
-	const doc = this.getOwnerDocument();
     this.measureSvg.setAttribute("width", String(this.imgW));
 	this.updateTextHitboxInteractivity();
     this.measureSvg.setAttribute("height", String(this.imgH));
@@ -5393,12 +5393,11 @@ export class MapInstance extends Component {
 
     for (const p of this.measurePts) {
       const a = toAbs(p);
-      const c = doc.createElementNS("http://www.w3.org/2000/svg", "circle");
+      const c = this.measureDots.createSvg("circle");
       c.setAttribute("cx", String(a.x));
       c.setAttribute("cy", String(a.y));
       c.setAttribute("r", "4");
       c.classList.add("zm-measure__dot");
-      this.measureDots.appendChild(c);
     }
 
     this.updateMeasureHud();
@@ -5407,7 +5406,6 @@ export class MapInstance extends Component {
   private renderCalibrate(): void {
     if (!this.measureSvg) return;
 	this.updateTextHitboxInteractivity();
-	const doc = this.getOwnerDocument();
 
     const toAbs = (p: Point) => ({ x: p.x * this.imgW, y: p.y * this.imgH });
 
@@ -5424,12 +5422,11 @@ export class MapInstance extends Component {
     while (this.calibDots.firstChild) this.calibDots.removeChild(this.calibDots.firstChild);
     for (const p of this.calibPts) {
       const a = toAbs(p);
-      const c = doc.createElementNS("http://www.w3.org/2000/svg", "circle");
+      const c = this.calibDots.createSvg("circle");
       c.setAttribute("cx", String(a.x));
       c.setAttribute("cy", String(a.y));
       c.setAttribute("r", "4");
       c.classList.add("zm-measure__dot");
-      this.calibDots.appendChild(c);
     }
   }
 
@@ -6091,10 +6088,8 @@ export class MapInstance extends Component {
     this.plugin.setActiveMap(this);
 
     this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    const captureTarget = this.asElement(e.target) as (Element & {
-      setPointerCapture?: (pointerId: number) => void;
-    }) | null;
-    captureTarget?.setPointerCapture?.(e.pointerId);
+    const captureTarget = this.asElement(e.target);
+    captureTarget?.setPointerCapture(e.pointerId);
 
     const tgt = this.asElement(e.target);
     if (tgt?.closest(".zm-marker")) return;
@@ -9073,7 +9068,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       throw new Error(`Target size too large (${w}×${h}). Try 8k.`);
     }
 
-    const canvas = this.getOwnerDocument().createElement("canvas");
+    const canvas = this.el.createEl("canvas", { cls: "zm-hidden" });
     canvas.width = w;
     canvas.height = h;
 
@@ -9112,6 +9107,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     // @ts-expect-error writeBinary exists on desktop adapters
     await this.app.vault.adapter.writeBinary(finalPath, await blob.arrayBuffer());
 
+	canvas.remove();
     return finalPath;
   }
 
@@ -10481,8 +10477,9 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     }
 
     // Rebuild note body into the canonical layout and update both sections in one pass.
-    const dummyPreset = (preset ??
-      ({ id: "", name: "", distances: [], unit: "km" } as PingPreset));
+    const dummyPreset: PingPreset = preset ?? {
+      id: "", name: "", distances: [], unit: "km",
+    };
     const baseYamlFallback = this.buildPingBaseYaml(dummyPreset, unitLabel);
 
     const distLabel = this.formatPingDistanceLabel(radius, unit, customUnitId);
@@ -10525,8 +10522,10 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     const af = this.app.vault.getAbstractFileByPath(p);
     if (!(af instanceof TFile)) return;
 
-    const fm = this.app.metadataCache.getFileCache(af)?.frontmatter as Record<string, unknown> | undefined;
-    const owner = fm?.zoommapPingId;
+    const frontmatter = this.app.metadataCache.getFileCache(af)?.frontmatter;
+    const owner = this.isPlainObject(frontmatter)
+      ? frontmatter.zoommapPingId
+      : undefined;
     if (owner !== m.id) return;
 
     try {
@@ -11812,7 +11811,6 @@ if (this.plugin.settings.enableTextLayers && this.data) {
   private updateDrawPreview(e: PointerEvent): boolean {
     if (!this.drawingMode) return false;
     if (!this.drawDraftLayer) return false;
-	const doc = this.getOwnerDocument();
 
     const vpRect = this.viewportEl.getBoundingClientRect();
     const vx = e.clientX - vpRect.left;
@@ -11838,7 +11836,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       const w = Math.abs(x0 - x1);
       const h = Math.abs(y0 - y1);
 
-      const r = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+      const r = this.drawDraftLayer.createSvg("rect");
       r.setAttribute("x", String(x));
       r.setAttribute("y", String(y));
       r.setAttribute("width", String(w));
@@ -11848,7 +11846,6 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       r.setAttribute("stroke-width", "2");
       r.setAttribute("fill", "none");
 
-      this.drawDraftLayer.appendChild(r);
       return true;
     }
 
@@ -11861,7 +11858,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       const py = ny * this.imgH;
       const radius = Math.hypot(px - cx, py - cy);
 
-      const c = doc.createElementNS("http://www.w3.org/2000/svg", "circle");
+      const c = this.drawDraftLayer.createSvg("circle");
       c.setAttribute("cx", String(cx));
       c.setAttribute("cy", String(cy));
       c.setAttribute("r", String(radius));
@@ -11870,7 +11867,6 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       c.setAttribute("stroke-width", "2");
       c.setAttribute("fill", "none");
 
-      this.drawDraftLayer.appendChild(c);
       return true;
     }
 
@@ -11879,7 +11875,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 
       const all = [...this.drawPolygonPoints, { x: nx, y: ny }];
 
-      const path = doc.createElementNS("http://www.w3.org/2000/svg", "path");
+      const path = this.drawDraftLayer.createSvg("path");
       let dAttr = "";
       all.forEach((p, idx) => {
         const ax = p.x * this.imgW;
@@ -11892,7 +11888,6 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       path.setAttribute("stroke-width", "2");
       path.setAttribute("fill", "none");
 
-      this.drawDraftLayer.appendChild(path);
       return true;
     }
 	
@@ -11901,7 +11896,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 
       const all = [...this.drawPolygonPoints, { x: nx, y: ny }];
 
-      const path = doc.createElementNS("http://www.w3.org/2000/svg", "path");
+      const path = this.drawDraftLayer.createSvg("path");
       let dAttr = "";
       all.forEach((p, idx) => {
         const ax = p.x * this.imgW;
@@ -11916,7 +11911,6 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       path.setAttribute("stroke-linecap", "round");
       path.setAttribute("stroke-linejoin", "round");
 
-      this.drawDraftLayer.appendChild(path);
       return true;
     }	
 

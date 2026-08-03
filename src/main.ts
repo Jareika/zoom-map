@@ -1288,39 +1288,47 @@ function tintSvgMarkup(svg: string, color: string): string {
 
     const inner =
       Array.from(root.children).find((child) => child.id === "zm-inner") ?? root;
-    const base = root.querySelector("#zm-base");
-    const outline = root.querySelector("#zm-outline");
 
-    const shapes = inner.querySelectorAll<SVGElement>("path, circle, rect, polygon, polyline, line, ellipse");
     let touched = false;
 
-    shapes.forEach((el) => {
-      if (base && base.contains(el)) return;
-      if (outline && outline.contains(el)) return;
+    const isPaintColor = (value: string | null): boolean => {
+      const normalized = (value ?? "").trim().toLowerCase();
+      return (
+        !!normalized &&
+        normalized !== "none" &&
+        normalized !== "transparent" &&
+        !normalized.startsWith("url(")
+      );
+    };
 
-      const styleFill = (el as unknown as { style?: CSSStyleDeclaration }).style?.fill;
-      const styleStroke = (el as unknown as { style?: CSSStyleDeclaration }).style?.stroke;
+    const foregroundElements = [
+      inner as SVGElement,
+      ...Array.from(inner.querySelectorAll<SVGElement>("*")),
+    ];
+
+    for (const el of foregroundElements) {
       const fillAttr = el.getAttribute("fill");
       const strokeAttr = el.getAttribute("stroke");
+      const styleFill = el.style.getPropertyValue("fill");
+      const styleStroke = el.style.getPropertyValue("stroke");
 
-      const hasFill =
-        (typeof styleFill === "string" && styleFill && styleFill.toLowerCase() !== "none") ||
-        (typeof fillAttr === "string" && fillAttr && fillAttr.toLowerCase() !== "none");
-      const hasStroke =
-        (typeof styleStroke === "string" && styleStroke && styleStroke.toLowerCase() !== "none") ||
-        (typeof strokeAttr === "string" && strokeAttr && strokeAttr.toLowerCase() !== "none");
-
-      if (hasFill) {
-        (el as unknown as { style: CSSStyleDeclaration }).style.fill = c;
+      if (isPaintColor(fillAttr)) {
         el.setAttribute("fill", c);
         touched = true;
       }
-      if (hasStroke) {
-        (el as unknown as { style: CSSStyleDeclaration }).style.stroke = c;
+      if (isPaintColor(strokeAttr)) {
         el.setAttribute("stroke", c);
         touched = true;
       }
-    });
+      if (isPaintColor(styleFill)) {
+        el.style.setProperty("fill", c);
+        touched = true;
+      }
+      if (isPaintColor(styleStroke)) {
+        el.style.setProperty("stroke", c);
+        touched = true;
+      }
+    }
 
     if (!touched) {
       (inner as SVGElement).setAttribute("fill", c);
@@ -1464,14 +1472,52 @@ class ZoomMapSettingTab extends PluginSettingTab {
     try {
       const payload = dataUrl.slice(idx + 1);
       const svg = decodeURIComponent(payload);
+      const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+      const root = doc.querySelector<SVGSVGElement>("svg");
+      if (!root) return null;
 
-      const mFill = /fill="([^"]+)"/i.exec(svg);
-      if (mFill) return mFill[1];
+      const inner =
+        Array.from(root.children).find((child) => child.id === "zm-inner") ?? root;
 
-      const mStroke = /stroke="([^"]+)"/i.exec(svg);
-      if (mStroke) return mStroke[1];
+      const usableColor = (value: string | null): string | null => {
+        const color = (value ?? "").trim();
+        const normalized = color.toLowerCase();
+        if (
+          !color ||
+          normalized === "none" ||
+          normalized === "transparent" ||
+          normalized === "currentcolor" ||
+          normalized.startsWith("url(")
+        ) {
+          return null;
+        }
+        return color;
+      };
 
-      return null;
+      const foregroundElements = [
+        inner as SVGElement,
+        ...Array.from(inner.querySelectorAll<SVGElement>("*")),
+      ];
+
+      for (const el of foregroundElements) {
+        const fill =
+          usableColor(el.style.getPropertyValue("fill")) ??
+          usableColor(el.getAttribute("fill"));
+        if (fill) return fill;
+
+        const stroke =
+          usableColor(el.style.getPropertyValue("stroke")) ??
+          usableColor(el.getAttribute("stroke"));
+        if (stroke) return stroke;
+      }
+
+      return (
+        usableColor(root.style.getPropertyValue("fill")) ??
+        usableColor(root.getAttribute("fill")) ??
+        usableColor(root.style.getPropertyValue("stroke")) ??
+        usableColor(root.getAttribute("stroke"))
+      );
+
     } catch {
       return null;
     }
@@ -2273,12 +2319,37 @@ class ZoomMapSettingTab extends PluginSettingTab {
 		  });
 		  outlineBtn.classList.add("zm-icon-btn");
 		  setIcon(outlineBtn, "gear");
-		    outlineBtn.onclick = () => {
-			  new IconOutlineModal(this.app, this.plugin, icon, (newDataUrl) => {
-			      img.src = newDataUrl;
-				  this.plugin.refreshMapIconVisuals();
-			  }).open();
-		    };
+		  outlineBtn.onclick = () => {
+		    void (async () => {
+		      outlineBtn.disabled = true;
+
+		      try {
+		        const pending = this.iconRecolorChains.get(icon);
+		        if (pending) {
+		          await pending.catch(() => false);
+		        }
+
+		        const currentColor = colorInput.value.trim();
+		        if (currentColor) {
+		          await this.queueSvgIconRecolor(icon, currentColor);
+		        }
+
+		        if (!(this.plugin.settings.icons ?? []).includes(icon)) return;
+				
+				const svgSourceSnapshot = icon.pathOrDataUrl;
+
+		        new IconOutlineModal(this.app, this.plugin, icon, (newDataUrl) => {
+		          img.src = newDataUrl;
+		          this.plugin.refreshMapIconVisuals();
+		        }, {
+                  svgSourceOverride: svgSourceSnapshot,
+                  foregroundColorOverride: currentColor || undefined,
+                }).open();
+		      } finally {
+		        outlineBtn.disabled = false;
+		      }
+		    })();
+		  };
 
           const size = row.createEl("input", { type: "number" });
           size.classList.add("zm-num");

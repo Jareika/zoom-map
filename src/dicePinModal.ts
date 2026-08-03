@@ -135,18 +135,14 @@ export class DicePinModal extends Modal {
 
         const sidesEl = row.createEl("select");
         for (const s of DEFAULT_DICE_SIDES) {
-          const opt = sidesEl.ownerDocument.createElement("option");
+          const opt = sidesEl.createEl("option", { text: `d${s}` });
           opt.value = String(s);
-          opt.textContent = `d${s}`;
-          sidesEl.appendChild(opt);
         }
 
         const hasCurrent = Array.from(sidesEl.options).some((o) => Number(o.value) === r.sides);
         if (!hasCurrent) {
-          const opt = sidesEl.ownerDocument.createElement("option");
+          const opt = sidesEl.createEl("option", { text: `d${r.sides}` });
           opt.value = String(r.sides);
-          opt.textContent = `d${r.sides}`;
-          sidesEl.appendChild(opt);
         }
 
         sidesEl.value = String(r.sides);

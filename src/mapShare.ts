@@ -177,7 +177,8 @@ function classifyNoteMediaKind(
 
 function deepClone<T>(value: T): T {
   if (typeof structuredClone === "function") return structuredClone(value);
-  return JSON.parse(JSON.stringify(value));
+  const cloned: unknown = JSON.parse(JSON.stringify(value));
+  return cloned as T;
 }
 
 function stableStringify(value: unknown): string {
@@ -188,8 +189,10 @@ function stableStringify(value: unknown): string {
       seen.add(v);
       if (Array.isArray(v)) return v.map(norm);
       const out: Record<string, unknown> = {};
-      for (const key of Object.keys(v as Record<string, unknown>).sort()) {
-        out[key] = norm((v as Record<string, unknown>)[key]);
+      if (isRecord(v)) {
+        for (const key of Object.keys(v).sort()) {
+          out[key] = norm(v[key]);
+        }
       }
       return out;
     }
@@ -470,10 +473,12 @@ function downloadZip(filename: string, bytes: Uint8Array): void {
   const doc = getActiveDocumentSafe();
   const blob = new Blob([bytes], { type: "application/zip" });
   const url = URL.createObjectURL(blob);
-  const a = doc.createElement("a");
+  const body = doc.body;
+  if (!body) throw new Error("No active document body available.");
+
+  const a = body.createEl("a");
   a.href = url;
   a.download = filename;
-  doc.body?.appendChild(a);
   a.click();
   a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -741,7 +746,7 @@ function findPingPreset(plugin: ZoomMapPlugin, id: string): PingPreset | null {
 }
 
 function findIconLike(plugin: ZoomMapPlugin, key: string): BundleIconProfile {
-  const existing = (plugin.settings.icons ?? []).find((i) => i.key === key) as BundleIconProfile | undefined;
+  const existing = (plugin.settings.icons ?? []).find((i) => i.key === key);
   if (existing) return deepClone(existing);
 
   const builtin = plugin.builtinIcon() as BundleIconProfile;
@@ -949,10 +954,24 @@ function thisSafeFileCache(app: App, file: TFile): {
   links?: { link: string }[];
   embeds?: { link: string }[];
 } | null {
-  return (app.metadataCache.getFileCache(file) as {
-    links?: { link: string }[];
-    embeds?: { link: string }[];
-  } | null) ?? null;
+  const cache: unknown = app.metadataCache.getFileCache(file);
+  if (!isRecord(cache)) return null;
+
+  const toLinkEntries = (value: unknown): { link: string }[] | undefined => {
+    if (!Array.isArray(value)) return undefined;
+
+    const entries = value
+      .filter(isRecord)
+      .map((entry) => entry.link)
+      .filter((link): link is string => typeof link === "string");
+
+    return entries.map((link) => ({ link }));
+  };
+
+  return {
+    links: toLinkEntries(cache.links),
+    embeds: toLinkEntries(cache.embeds),
+  };
 }
 
 function collectRecursiveLinkedNotes(
@@ -2183,7 +2202,7 @@ export class ExportMapBundleModal extends Modal {
       .setName("ZIP name")
       .setDesc("The exported file will be downloaded as a ZIP.")
       .addText((t) => {
-        t.setPlaceholder("zoommap-export");
+        t.setPlaceholder("Zoommap-export");
         t.setValue(this.zipName);
         t.onChange((v) => {
           this.zipName = sanitizeFileName(v) || suggested || "zoommap-export";

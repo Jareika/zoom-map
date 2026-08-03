@@ -237,7 +237,7 @@ export class TextLayerStyleModal extends Modal {
 	
     new Setting(contentEl)
       .setName("Auto-flow between baselines")
-      .setDesc("If disabled: each baseline keeps its own text (no pushing/pulling). Useful for one value per line (e.g. skill numbers).")
+      .setDesc("If disabled: each baseline keeps its own text (no pushing/pulling). Useful for one value per line (e.g. Skill numbers).")
       .addToggle((tg) => {
         tg.setValue(this.working.autoFlow !== false).onChange((on) => {
           this.working.autoFlow = on ? true : false;

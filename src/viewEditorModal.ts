@@ -467,7 +467,7 @@ export class ViewEditorModal extends Modal {
       .setClass("zoommap-view-editor-row")
       .setName("Align")
       .addDropdown((d) => {
-        d.addOption("", "(none)");
+        d.addOption("", "(None)");
         d.addOption("left", "Left");
         d.addOption("center", "Center");
         d.addOption("right", "Right");

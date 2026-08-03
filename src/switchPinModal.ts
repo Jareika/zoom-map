@@ -96,7 +96,7 @@ export class SwitchPinModal extends Modal {
       .setName("Switch to base")
       .setDesc("If rotate is disabled, right click switches to this base.")
       .addDropdown((d) => {
-        d.addOption("", "(none)");
+        d.addOption("", "(None)");
         for (const b of this.bases) {
           const label = (b.name ?? "").trim() || (b.path.split("/").pop() ?? b.path);
           d.addOption(b.path, label);

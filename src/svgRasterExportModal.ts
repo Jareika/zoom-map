@@ -70,9 +70,9 @@ export class SvgRasterExportModal extends Modal {
       .setName("Long edge")
       .setDesc("Target size for the longer side of the image.")
       .addDropdown((d) => {
-        d.addOption("4096", "4k (4096px)");
-        d.addOption("8192", "8k (8192px)");
-        d.addOption("12288", "12k (12288px)");
+        d.addOption("4096", "4K (4096px)");
+        d.addOption("8192", "8K (8192px)");
+        d.addOption("12288", "12K (12288px)");
         d.setValue(String(this.longEdge));
         d.onChange((v) => {
           this.longEdge = Number(v) as RasterLongEdge;

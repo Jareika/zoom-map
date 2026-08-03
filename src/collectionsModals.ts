@@ -201,10 +201,8 @@ export class CollectionEditorModal extends Modal {
 
         const iconSel = row.createEl("select");
         const addOpt = (val: string, labelText: string) => {
-          const o = iconSel.ownerDocument.createElement("option");
+          const o = iconSel.createEl("option", { text: labelText });
           o.value = val;
-          o.textContent = labelText;
-          iconSel.appendChild(o);
         };
 
         addOpt("", "(default)");
@@ -593,10 +591,8 @@ export class SwapFramesEditorModal extends Modal {
           .filter((ico) => ico.inCollections !== false || ico.key === fr.iconKey)
           .sort((a, b) => String(a.key ?? "").localeCompare(String(b.key ?? ""), undefined, { sensitivity: "base", numeric: true }));
         icons.forEach((ico) => {
-          const opt = iconSel.ownerDocument.createElement("option");
+          const opt = iconSel.createEl("option", { text: ico.key });
           opt.value = ico.key;
-          opt.textContent = ico.key;
-          iconSel.appendChild(opt);
         });
         iconSel.value = fr.iconKey;
         iconSel.onchange = () => {
@@ -769,7 +765,7 @@ class PingPresetEditorModal extends Modal {
     });
 
     new Setting(contentEl).setName("Icon").addDropdown((d) => {
-      d.addOption("", "(default)");
+      d.addOption("", "(Default)");
       {
         const pool = (this.plugin.settings.icons ?? [])
           .filter((ico) => ico.inCollections !== false || ico.key === (this.working.iconKey ?? ""))
@@ -899,7 +895,7 @@ class PingPresetEditorModal extends Modal {
       .setName("Travel pack")
       .setDesc("Used to select custom units for party radius.")
       .addDropdown((d) => {
-        d.addOption("", "(none)");
+        d.addOption("", "(None)");
         for (const p of packs) d.addOption(p.id, p.name || p.id);
         d.setValue(this.working.travelPackId ?? "");
         d.onChange((v) => { this.working.travelPackId = v || undefined; this.renderUnitSetting(); });

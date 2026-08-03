@@ -458,31 +458,37 @@ function tintSvgMarkup(svg, color) {
     const root = doc.querySelector("svg");
     if (!root) return svg;
     const inner = (_a2 = Array.from(root.children).find((child) => child.id === "zm-inner")) != null ? _a2 : root;
-    const base = root.querySelector("#zm-base");
-    const outline = root.querySelector("#zm-outline");
-    const shapes = inner.querySelectorAll("path, circle, rect, polygon, polyline, line, ellipse");
     let touched = false;
-    shapes.forEach((el) => {
-      var _a3, _b2;
-      if (base && base.contains(el)) return;
-      if (outline && outline.contains(el)) return;
-      const styleFill = (_a3 = el.style) == null ? void 0 : _a3.fill;
-      const styleStroke = (_b2 = el.style) == null ? void 0 : _b2.stroke;
+    const isPaintColor = (value) => {
+      const normalized = (value != null ? value : "").trim().toLowerCase();
+      return !!normalized && normalized !== "none" && normalized !== "transparent" && !normalized.startsWith("url(");
+    };
+    const foregroundElements = [
+      inner,
+      ...Array.from(inner.querySelectorAll("*"))
+    ];
+    for (const el of foregroundElements) {
       const fillAttr = el.getAttribute("fill");
       const strokeAttr = el.getAttribute("stroke");
-      const hasFill = typeof styleFill === "string" && styleFill && styleFill.toLowerCase() !== "none" || typeof fillAttr === "string" && fillAttr && fillAttr.toLowerCase() !== "none";
-      const hasStroke = typeof styleStroke === "string" && styleStroke && styleStroke.toLowerCase() !== "none" || typeof strokeAttr === "string" && strokeAttr && strokeAttr.toLowerCase() !== "none";
-      if (hasFill) {
-        el.style.fill = c;
+      const styleFill = el.style.getPropertyValue("fill");
+      const styleStroke = el.style.getPropertyValue("stroke");
+      if (isPaintColor(fillAttr)) {
         el.setAttribute("fill", c);
         touched = true;
       }
-      if (hasStroke) {
-        el.style.stroke = c;
+      if (isPaintColor(strokeAttr)) {
         el.setAttribute("stroke", c);
         touched = true;
       }
-    });
+      if (isPaintColor(styleFill)) {
+        el.style.setProperty("fill", c);
+        touched = true;
+      }
+      if (isPaintColor(styleStroke)) {
+        el.style.setProperty("stroke", c);
+        touched = true;
+      }
+    }
     if (!touched) {
       inner.setAttribute("fill", c);
     }
@@ -2516,7 +2522,7 @@ var ViewEditorModal = class extends import_obsidian11.Modal {
     handleSetting.settingEl.toggle(!!this.cfg.resizable);
     new import_obsidian11.Setting(contentEl).setClass("zoommap-view-editor-row").setName("Align").addDropdown((d) => {
       var _a2;
-      d.addOption("", "(none)");
+      d.addOption("", "(None)");
       d.addOption("left", "Left");
       d.addOption("center", "Center");
       d.addOption("right", "Right");
@@ -2798,10 +2804,8 @@ var CollectionEditorModal = class extends import_obsidian12.Modal {
         };
         const iconSel = row.createEl("select");
         const addOpt = (val, labelText) => {
-          const o = iconSel.ownerDocument.createElement("option");
+          const o = iconSel.createEl("option", { text: labelText });
           o.value = val;
-          o.textContent = labelText;
-          iconSel.appendChild(o);
         };
         addOpt("", "(default)");
         {
@@ -3128,10 +3132,8 @@ var SwapFramesEditorModal = class extends import_obsidian12.Modal {
           return String((_a4 = a.key) != null ? _a4 : "").localeCompare(String((_b4 = b.key) != null ? _b4 : ""), void 0, { sensitivity: "base", numeric: true });
         });
         icons.forEach((ico) => {
-          const opt = iconSel.ownerDocument.createElement("option");
+          const opt = iconSel.createEl("option", { text: ico.key });
           opt.value = ico.key;
-          opt.textContent = ico.key;
-          iconSel.appendChild(opt);
         });
         iconSel.value = fr.iconKey;
         iconSel.onchange = () => {
@@ -3276,7 +3278,7 @@ var PingPresetEditorModal = class extends import_obsidian12.Modal {
     });
     new import_obsidian12.Setting(contentEl).setName("Icon").addDropdown((d) => {
       var _a3, _b3;
-      d.addOption("", "(default)");
+      d.addOption("", "(Default)");
       {
         const pool = ((_a3 = this.plugin.settings.icons) != null ? _a3 : []).filter((ico) => {
           var _a4;
@@ -3380,7 +3382,7 @@ var PingPresetEditorModal = class extends import_obsidian12.Modal {
     const packs = (_c = this.plugin.settings.travelRulesPacks) != null ? _c : [];
     new import_obsidian12.Setting(contentEl).setName("Travel pack").setDesc("Used to select custom units for party radius.").addDropdown((d) => {
       var _a3;
-      d.addOption("", "(none)");
+      d.addOption("", "(None)");
       for (const p of packs) d.addOption(p.id, p.name || p.id);
       d.setValue((_a3 = this.working.travelPackId) != null ? _a3 : "");
       d.onChange((v) => {
@@ -3531,9 +3533,9 @@ var SvgRasterExportModal = class extends import_obsidian13.Modal {
     contentEl.createEl("h2", { text: "Export SVG as webp base" });
     contentEl.createDiv({ text: `SVG: ${this.opts.svgPath}` });
     new import_obsidian13.Setting(contentEl).setName("Long edge").setDesc("Target size for the longer side of the image.").addDropdown((d) => {
-      d.addOption("4096", "4k (4096px)");
-      d.addOption("8192", "8k (8192px)");
-      d.addOption("12288", "12k (12288px)");
+      d.addOption("4096", "4K (4096px)");
+      d.addOption("8192", "8K (8192px)");
+      d.addOption("12288", "12K (12288px)");
       d.setValue(String(this.longEdge));
       d.onChange((v) => {
         this.longEdge = Number(v);
@@ -4032,7 +4034,7 @@ var SwitchPinModal = class extends import_obsidian17.Modal {
     });
     baseSetting = new import_obsidian17.Setting(contentEl).setName("Switch to base").setDesc("If rotate is disabled, right click switches to this base.").addDropdown((d) => {
       var _a2, _b2, _c;
-      d.addOption("", "(none)");
+      d.addOption("", "(None)");
       for (const b of this.bases) {
         const label = ((_a2 = b.name) != null ? _a2 : "").trim() || ((_b2 = b.path.split("/").pop()) != null ? _b2 : b.path);
         d.addOption(b.path, label);
@@ -4561,17 +4563,13 @@ var DicePinModal = class extends import_obsidian20.Modal {
         };
         const sidesEl = row.createEl("select");
         for (const s of DEFAULT_DICE_SIDES) {
-          const opt = sidesEl.ownerDocument.createElement("option");
+          const opt = sidesEl.createEl("option", { text: `d${s}` });
           opt.value = String(s);
-          opt.textContent = `d${s}`;
-          sidesEl.appendChild(opt);
         }
         const hasCurrent = Array.from(sidesEl.options).some((o) => Number(o.value) === r.sides);
         if (!hasCurrent) {
-          const opt = sidesEl.ownerDocument.createElement("option");
+          const opt = sidesEl.createEl("option", { text: `d${r.sides}` });
           opt.value = String(r.sides);
-          opt.textContent = `d${r.sides}`;
-          sidesEl.appendChild(opt);
         }
         sidesEl.value = String(r.sides);
         sidesEl.onchange = () => {
@@ -4750,31 +4748,37 @@ function tintSvgMarkupLocal(svg, color) {
     const root = doc.querySelector("svg");
     if (!root) return svg;
     const inner = (_a2 = Array.from(root.children).find((child) => child.id === "zm-inner")) != null ? _a2 : root;
-    const base = root.querySelector("#zm-base");
-    const outline = root.querySelector("#zm-outline");
-    const shapes = inner.querySelectorAll("path, circle, rect, polygon, polyline, line, ellipse");
     let touched = false;
-    shapes.forEach((el) => {
-      var _a3, _b2;
-      if (base && base.contains(el)) return;
-      if (outline && outline.contains(el)) return;
-      const styleFill = (_a3 = el.style) == null ? void 0 : _a3.fill;
-      const styleStroke = (_b2 = el.style) == null ? void 0 : _b2.stroke;
+    const isPaintColor = (value) => {
+      const normalized = (value != null ? value : "").trim().toLowerCase();
+      return !!normalized && normalized !== "none" && normalized !== "transparent" && !normalized.startsWith("url(");
+    };
+    const foregroundElements = [
+      inner,
+      ...Array.from(inner.querySelectorAll("*"))
+    ];
+    for (const el of foregroundElements) {
       const fillAttr = el.getAttribute("fill");
       const strokeAttr = el.getAttribute("stroke");
-      const hasFill = typeof styleFill === "string" && styleFill && styleFill.toLowerCase() !== "none" || typeof fillAttr === "string" && fillAttr && fillAttr.toLowerCase() !== "none";
-      const hasStroke = typeof styleStroke === "string" && styleStroke && styleStroke.toLowerCase() !== "none" || typeof strokeAttr === "string" && strokeAttr && strokeAttr.toLowerCase() !== "none";
-      if (hasFill) {
-        el.style.fill = c;
+      const styleFill = el.style.getPropertyValue("fill");
+      const styleStroke = el.style.getPropertyValue("stroke");
+      if (isPaintColor(fillAttr)) {
         el.setAttribute("fill", c);
         touched = true;
       }
-      if (hasStroke) {
-        el.style.stroke = c;
+      if (isPaintColor(strokeAttr)) {
         el.setAttribute("stroke", c);
         touched = true;
       }
-    });
+      if (isPaintColor(styleFill)) {
+        el.style.setProperty("fill", c);
+        touched = true;
+      }
+      if (isPaintColor(styleStroke)) {
+        el.style.setProperty("stroke", c);
+        touched = true;
+      }
+    }
     if (!touched) {
       inner.setAttribute("fill", c);
     }
@@ -5223,7 +5227,7 @@ var MapInstance = class extends import_obsidian21.Component {
         name: o.name,
         visible: o.visible
       })),
-      markersPath: this.cfg.storageMode === "json" ? this.cfg.markersPath : "",
+      markersPath: this.cfg.markersPath,
       renderMode: this.cfg.renderMode,
       imageRendering: (_b2 = this.cfg.imageRendering) != null ? _b2 : "auto",
       minZoom: this.cfg.minZoom,
@@ -7143,23 +7147,17 @@ ${yamlRaw}
     }
   }
   setupMeasureOverlay() {
-    const doc = this.getOwnerDocument();
     this.measureEl = this.worldEl.createDiv({ cls: "zm-measure" });
-    this.measureSvg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
+    this.measureSvg = this.measureEl.createSvg("svg");
     this.measureSvg.classList.add("zm-measure__svg");
     this.measureSvg.setAttribute("width", String(this.imgW));
     this.measureSvg.setAttribute("height", String(this.imgH));
-    this.measureEl.appendChild(this.measureSvg);
-    this.measurePath = doc.createElementNS("http://www.w3.org/2000/svg", "path");
+    this.measurePath = this.measureSvg.createSvg("path");
     this.measurePath.classList.add("zm-measure__path");
-    this.measureSvg.appendChild(this.measurePath);
-    this.measureDots = doc.createElementNS("http://www.w3.org/2000/svg", "g");
-    this.measureSvg.appendChild(this.measureDots);
-    this.calibPath = doc.createElementNS("http://www.w3.org/2000/svg", "path");
+    this.measureDots = this.measureSvg.createSvg("g");
+    this.calibPath = this.measureSvg.createSvg("path");
     this.calibPath.classList.add("zm-measure__path", "zm-measure__dash");
-    this.measureSvg.appendChild(this.calibPath);
-    this.calibDots = doc.createElementNS("http://www.w3.org/2000/svg", "g");
-    this.measureSvg.appendChild(this.calibDots);
+    this.calibDots = this.measureSvg.createSvg("g");
     this.updateMeasureHud();
   }
   setupGridOverlay() {
@@ -8685,7 +8683,6 @@ ${yamlRaw}
   }
   renderMeasure() {
     if (!this.measureSvg) return;
-    const doc = this.getOwnerDocument();
     this.measureSvg.setAttribute("width", String(this.imgW));
     this.updateTextHitboxInteractivity();
     this.measureSvg.setAttribute("height", String(this.imgH));
@@ -8701,19 +8698,17 @@ ${yamlRaw}
     while (this.measureDots.firstChild) this.measureDots.removeChild(this.measureDots.firstChild);
     for (const p of this.measurePts) {
       const a = toAbs(p);
-      const c = doc.createElementNS("http://www.w3.org/2000/svg", "circle");
+      const c = this.measureDots.createSvg("circle");
       c.setAttribute("cx", String(a.x));
       c.setAttribute("cy", String(a.y));
       c.setAttribute("r", "4");
       c.classList.add("zm-measure__dot");
-      this.measureDots.appendChild(c);
     }
     this.updateMeasureHud();
   }
   renderCalibrate() {
     if (!this.measureSvg) return;
     this.updateTextHitboxInteractivity();
-    const doc = this.getOwnerDocument();
     const toAbs = (p) => ({ x: p.x * this.imgW, y: p.y * this.imgH });
     const pts = [...this.calibPts];
     if (this.calibrating && this.calibPts.length === 1 && this.calibPreview) pts.push(this.calibPreview);
@@ -8726,12 +8721,11 @@ ${yamlRaw}
     while (this.calibDots.firstChild) this.calibDots.removeChild(this.calibDots.firstChild);
     for (const p of this.calibPts) {
       const a = toAbs(p);
-      const c = doc.createElementNS("http://www.w3.org/2000/svg", "circle");
+      const c = this.calibDots.createSvg("circle");
       c.setAttribute("cx", String(a.x));
       c.setAttribute("cy", String(a.y));
       c.setAttribute("r", "4");
       c.classList.add("zm-measure__dot");
-      this.calibDots.appendChild(c);
     }
   }
   clearMeasure() {
@@ -9229,7 +9223,6 @@ ${yamlRaw}
     return e.button === 0;
   }
   onPointerDownViewport(e) {
-    var _a2;
     if (!this.ready) return;
     if (this.gridAlignId) {
       e.preventDefault();
@@ -9251,7 +9244,7 @@ ${yamlRaw}
     this.plugin.setActiveMap(this);
     this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const captureTarget = this.asElement(e.target);
-    (_a2 = captureTarget == null ? void 0 : captureTarget.setPointerCapture) == null ? void 0 : _a2.call(captureTarget, e.pointerId);
+    captureTarget == null ? void 0 : captureTarget.setPointerCapture(e.pointerId);
     const tgt = this.asElement(e.target);
     if (tgt == null ? void 0 : tgt.closest(".zm-marker")) return;
     if (this.cfg.responsive) return;
@@ -11822,7 +11815,7 @@ Total: ${local.total}`, 6e3);
     if (w > maxSide || h > maxSide) {
       throw new Error(`Target size too large (${w}\xD7${h}). Try 8k.`);
     }
-    const canvas = this.getOwnerDocument().createElement("canvas");
+    const canvas = this.el.createEl("canvas", { cls: "zm-hidden" });
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext("2d");
@@ -11850,6 +11843,7 @@ Total: ${local.total}`, 6e3);
       i2++;
     }
     await this.app.vault.adapter.writeBinary(finalPath, await blob.arrayBuffer());
+    canvas.remove();
     return finalPath;
   }
   openSvgExportModal() {
@@ -12962,7 +12956,12 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     if (!relatedBody.trim()) {
       relatedBody = "*(none)*";
     }
-    const dummyPreset = preset != null ? preset : { id: "", name: "", distances: [], unit: "km" };
+    const dummyPreset = preset != null ? preset : {
+      id: "",
+      name: "",
+      distances: [],
+      unit: "km"
+    };
     const baseYamlFallback = this.buildPingBaseYaml(dummyPreset, unitLabel);
     const distLabel = this.formatPingDistanceLabel(radius, unit, customUnitId);
     const defaultTitle = `# Party pin: ${(preset == null ? void 0 : preset.name) || "Party"} (${distLabel})`;
@@ -12994,8 +12993,8 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
     if (!p) return;
     const af = this.app.vault.getAbstractFileByPath(p);
     if (!(af instanceof import_obsidian21.TFile)) return;
-    const fm = (_b2 = this.app.metadataCache.getFileCache(af)) == null ? void 0 : _b2.frontmatter;
-    const owner = fm == null ? void 0 : fm.zoommapPingId;
+    const frontmatter = (_b2 = this.app.metadataCache.getFileCache(af)) == null ? void 0 : _b2.frontmatter;
+    const owner = this.isPlainObject(frontmatter) ? frontmatter.zoommapPingId : void 0;
     if (owner !== m.id) return;
     try {
       await this.app.fileManager.trashFile(af, true);
@@ -14026,7 +14025,6 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
   updateDrawPreview(e) {
     if (!this.drawingMode) return false;
     if (!this.drawDraftLayer) return false;
-    const doc = this.getOwnerDocument();
     const vpRect = this.viewportEl.getBoundingClientRect();
     const vx = e.clientX - vpRect.left;
     const vy = e.clientY - vpRect.top;
@@ -14046,7 +14044,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       const y = Math.min(y0, y1);
       const w = Math.abs(x0 - x1);
       const h = Math.abs(y0 - y1);
-      const r = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+      const r = this.drawDraftLayer.createSvg("rect");
       r.setAttribute("x", String(x2));
       r.setAttribute("y", String(y));
       r.setAttribute("width", String(w));
@@ -14055,7 +14053,6 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       r.setAttribute("stroke", "#ff0000");
       r.setAttribute("stroke-width", "2");
       r.setAttribute("fill", "none");
-      this.drawDraftLayer.appendChild(r);
       return true;
     }
     if (this.drawingMode === "circle") {
@@ -14065,7 +14062,7 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       const px = nx * this.imgW;
       const py = ny * this.imgH;
       const radius = Math.hypot(px - cx, py - cy);
-      const c = doc.createElementNS("http://www.w3.org/2000/svg", "circle");
+      const c = this.drawDraftLayer.createSvg("circle");
       c.setAttribute("cx", String(cx));
       c.setAttribute("cy", String(cy));
       c.setAttribute("r", String(radius));
@@ -14073,13 +14070,12 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       c.setAttribute("stroke", "#ff0000");
       c.setAttribute("stroke-width", "2");
       c.setAttribute("fill", "none");
-      this.drawDraftLayer.appendChild(c);
       return true;
     }
     if (this.drawingMode === "polygon") {
       if (this.drawPolygonPoints.length === 0) return false;
       const all = [...this.drawPolygonPoints, { x: nx, y: ny }];
-      const path = doc.createElementNS("http://www.w3.org/2000/svg", "path");
+      const path = this.drawDraftLayer.createSvg("path");
       let dAttr = "";
       all.forEach((p, idx) => {
         const ax = p.x * this.imgW;
@@ -14091,13 +14087,12 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       path.setAttribute("stroke", "#ff0000");
       path.setAttribute("stroke-width", "2");
       path.setAttribute("fill", "none");
-      this.drawDraftLayer.appendChild(path);
       return true;
     }
     if (this.drawingMode === "polyline") {
       if (this.drawPolygonPoints.length === 0) return false;
       const all = [...this.drawPolygonPoints, { x: nx, y: ny }];
-      const path = doc.createElementNS("http://www.w3.org/2000/svg", "path");
+      const path = this.drawDraftLayer.createSvg("path");
       let dAttr = "";
       all.forEach((p, idx) => {
         const ax = p.x * this.imgW;
@@ -14111,7 +14106,6 @@ ${(0, import_obsidian21.stringifyYaml)(fm).trimEnd()}
       path.setAttribute("fill", "none");
       path.setAttribute("stroke-linecap", "round");
       path.setAttribute("stroke-linejoin", "round");
-      this.drawDraftLayer.appendChild(path);
       return true;
     }
     return false;
@@ -16429,7 +16423,8 @@ var PreferencesModal = class extends import_obsidian24.Modal {
 // src/iconOutlineModal.ts
 var import_obsidian25 = require("obsidian");
 var IconOutlineModal = class extends import_obsidian25.Modal {
-  constructor(app, plugin, icon, onApplied) {
+  constructor(app, plugin, icon, onApplied, opts) {
+    var _a2, _b2;
     super(app);
     this.svgSource = null;
     this.previewImg = null;
@@ -16455,6 +16450,8 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     this.plugin = plugin;
     this.icon = icon;
     this.onApplied = onApplied;
+    this.svgSourceOverride = ((_a2 = opts == null ? void 0 : opts.svgSourceOverride) == null ? void 0 : _a2.trim()) || void 0;
+    this.foregroundColorOverride = ((_b2 = opts == null ? void 0 : opts.foregroundColorOverride) == null ? void 0 : _b2.trim()) || void 0;
   }
   isSvgIconProfile(i2) {
     var _a2;
@@ -16612,11 +16609,15 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
   updatePreview() {
     var _a2;
     if (!this.previewImg || !this.svgSource) return;
-    const svg = this.applyOutline(
+    const outlinedSvg = this.applyOutline(
       this.svgSource,
       this.outlineColor || "#000000",
       Math.max(0, Number(this.outlineWidth) || 0),
       Math.min(1, Math.max(0, Number(this.outlineOpacity) || 0))
+    );
+    const svg = this.applyForegroundColorOverride(
+      outlinedSvg,
+      this.foregroundColorOverride
     );
     this.previewImg.src = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
     if (this.shadowEnabled) {
@@ -16678,13 +16679,17 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", { text: "SVG outline" });
-    const svg = await this.loadSvgSource();
-    if (!svg) {
+    const loadedSvg = await this.loadSvgSource();
+    if (!loadedSvg) {
       contentEl.createDiv({
         text: "This icon is not an SVG or could not be loaded."
       });
       return;
     }
+    const svg = this.applyForegroundColorOverride(
+      loadedSvg,
+      this.foregroundColorOverride
+    );
     this.svgSource = svg;
     this.baseEnabled = /id="zm-base"/i.test(svg);
     this.baseKind = "icon";
@@ -16994,7 +16999,8 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     cancelBtn.onclick = () => this.close();
   }
   async loadSvgSource() {
-    const src = this.icon.pathOrDataUrl;
+    var _a2;
+    const src = (_a2 = this.svgSourceOverride) != null ? _a2 : this.icon.pathOrDataUrl;
     if (!src || typeof src !== "string") return null;
     if (src.startsWith("data:image/svg+xml")) {
       const idx = src.indexOf(",");
@@ -17012,6 +17018,61 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
       }
     }
     return null;
+  }
+  applyForegroundColorOverride(svg, color) {
+    var _a2;
+    const c = (color != null ? color : "").trim();
+    if (!c) return svg;
+    try {
+      const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+      const root = doc.querySelector("svg");
+      if (!root) return svg;
+      const inner = (_a2 = Array.from(root.children).find((child) => child.id === "zm-inner")) != null ? _a2 : root;
+      const isPaintColor = (value) => {
+        const normalized = (value != null ? value : "").trim().toLowerCase();
+        return !!normalized && normalized !== "none" && normalized !== "transparent" && !normalized.startsWith("url(");
+      };
+      root.setAttribute("color", c);
+      root.style.setProperty("color", c, "important");
+      inner.setAttribute("color", c);
+      inner.style.setProperty("color", c, "important");
+      let changed = false;
+      const elements = [
+        inner,
+        ...Array.from(inner.querySelectorAll("*"))
+      ];
+      for (const el of elements) {
+        const fill = el.getAttribute("fill");
+        const stroke = el.getAttribute("stroke");
+        const styleFill = el.style.getPropertyValue("fill");
+        const styleStroke = el.style.getPropertyValue("stroke");
+        if (isPaintColor(fill)) {
+          el.setAttribute("fill", c);
+          el.style.setProperty("fill", c, "important");
+          changed = true;
+        }
+        if (isPaintColor(stroke)) {
+          el.setAttribute("stroke", c);
+          el.style.setProperty("stroke", c, "important");
+          changed = true;
+        }
+        if (isPaintColor(styleFill)) {
+          el.style.setProperty("fill", c, "important");
+          changed = true;
+        }
+        if (isPaintColor(styleStroke)) {
+          el.style.setProperty("stroke", c, "important");
+          changed = true;
+        }
+      }
+      if (!changed) {
+        inner.setAttribute("fill", c);
+        inner.style.setProperty("fill", c, "important");
+      }
+      return new XMLSerializer().serializeToString(root);
+    } catch (e) {
+      return svg;
+    }
   }
   async applyAndSave() {
     var _a2, _b2, _c;
@@ -17051,11 +17112,15 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
     this.outlineColor = color;
     this.outlineWidth = width;
     this.outlineOpacity = opacity;
-    const updatedSvg = this.applyOutline(
+    const outlinedSvg = this.applyOutline(
       this.svgSource,
       color,
       width,
       opacity
+    );
+    const updatedSvg = this.applyForegroundColorOverride(
+      outlinedSvg,
+      this.foregroundColorOverride
     );
     const dataUrl = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(updatedSvg);
     this.icon.pathOrDataUrl = dataUrl;
@@ -17179,9 +17244,7 @@ var IconOutlineModal = class extends import_obsidian25.Modal {
       oldOutline == null ? void 0 : oldOutline.remove();
       const oldInner = svgEl.querySelector("#zm-inner");
       if (oldInner) {
-        const frag = doc.createDocumentFragment();
-        while (oldInner.firstChild) frag.appendChild(oldInner.firstChild);
-        oldInner.replaceWith(frag);
+        oldInner.replaceWith(...Array.from(oldInner.childNodes));
       }
       return new XMLSerializer().serializeToString(svgEl);
     } catch (e) {
@@ -18417,7 +18480,8 @@ function classifyNoteMediaKind(ext, options) {
 }
 function deepClone5(value) {
   if (typeof structuredClone === "function") return structuredClone(value);
-  return JSON.parse(JSON.stringify(value));
+  const cloned = JSON.parse(JSON.stringify(value));
+  return cloned;
 }
 function stableStringify2(value) {
   const seen = /* @__PURE__ */ new WeakSet();
@@ -18427,8 +18491,10 @@ function stableStringify2(value) {
       seen.add(v);
       if (Array.isArray(v)) return v.map(norm);
       const out = {};
-      for (const key of Object.keys(v).sort()) {
-        out[key] = norm(v[key]);
+      if (isRecord3(v)) {
+        for (const key of Object.keys(v).sort()) {
+          out[key] = norm(v[key]);
+        }
       }
       return out;
     }
@@ -18642,14 +18708,14 @@ function buildInlineStorageBlock(mapId, data) {
   ].join("\n");
 }
 function downloadZip(filename, bytes) {
-  var _a2;
   const doc = getActiveDocumentSafe();
   const blob = new Blob([bytes], { type: "application/zip" });
   const url = URL.createObjectURL(blob);
-  const a = doc.createElement("a");
+  const body = doc.body;
+  if (!body) throw new Error("No active document body available.");
+  const a = body.createEl("a");
   a.href = url;
   a.download = filename;
-  (_a2 = doc.body) == null ? void 0 : _a2.appendChild(a);
   a.click();
   a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1e3);
@@ -19015,8 +19081,17 @@ function collectDirectResolvedNoteLinks(app, file, options) {
   return { resolvedLinks, notePaths, mediaAssetPaths };
 }
 function thisSafeFileCache(app, file) {
-  var _a2;
-  return (_a2 = app.metadataCache.getFileCache(file)) != null ? _a2 : null;
+  const cache = app.metadataCache.getFileCache(file);
+  if (!isRecord3(cache)) return null;
+  const toLinkEntries = (value) => {
+    if (!Array.isArray(value)) return void 0;
+    const entries = value.filter(isRecord3).map((entry) => entry.link).filter((link) => typeof link === "string");
+    return entries.map((link) => ({ link }));
+  };
+  return {
+    links: toLinkEntries(cache.links),
+    embeds: toLinkEntries(cache.embeds)
+  };
 }
 function collectRecursiveLinkedNotes(app, seedPaths, options) {
   var _a2;
@@ -19968,7 +20043,7 @@ var ExportMapBundleModal = class extends import_obsidian27.Modal {
       this.zipName = suggested || "zoommap-export";
     }
     new import_obsidian27.Setting(contentEl).setName("ZIP name").setDesc("The exported file will be downloaded as a ZIP.").addText((t) => {
-      t.setPlaceholder("zoommap-export");
+      t.setPlaceholder("Zoommap-export");
       t.setValue(this.zipName);
       t.onChange((v) => {
         this.zipName = sanitizeFileName(v) || suggested || "zoommap-export";
@@ -20768,10 +20843,8 @@ var TravelRulesPackEditorModal = class extends import_obsidian28.Modal {
       const grid = presetsWrap.createDiv({ cls: "zm-travel-grid" });
       const addUnitOptions = (sel) => {
         const add = (value, label) => {
-          const opt = sel.ownerDocument.createElement("option");
+          const opt = sel.createEl("option", { text: label });
           opt.value = value;
-          opt.textContent = label;
-          sel.appendChild(opt);
         };
         add("m", "m");
         add("km", "km");
@@ -21797,31 +21870,37 @@ function tintSvgMarkup2(svg, color) {
     const root = doc.querySelector("svg");
     if (!root) return svg;
     const inner = (_a2 = Array.from(root.children).find((child) => child.id === "zm-inner")) != null ? _a2 : root;
-    const base = root.querySelector("#zm-base");
-    const outline = root.querySelector("#zm-outline");
-    const shapes = inner.querySelectorAll("path, circle, rect, polygon, polyline, line, ellipse");
     let touched = false;
-    shapes.forEach((el) => {
-      var _a3, _b2;
-      if (base && base.contains(el)) return;
-      if (outline && outline.contains(el)) return;
-      const styleFill = (_a3 = el.style) == null ? void 0 : _a3.fill;
-      const styleStroke = (_b2 = el.style) == null ? void 0 : _b2.stroke;
+    const isPaintColor = (value) => {
+      const normalized = (value != null ? value : "").trim().toLowerCase();
+      return !!normalized && normalized !== "none" && normalized !== "transparent" && !normalized.startsWith("url(");
+    };
+    const foregroundElements = [
+      inner,
+      ...Array.from(inner.querySelectorAll("*"))
+    ];
+    for (const el of foregroundElements) {
       const fillAttr = el.getAttribute("fill");
       const strokeAttr = el.getAttribute("stroke");
-      const hasFill = typeof styleFill === "string" && styleFill && styleFill.toLowerCase() !== "none" || typeof fillAttr === "string" && fillAttr && fillAttr.toLowerCase() !== "none";
-      const hasStroke = typeof styleStroke === "string" && styleStroke && styleStroke.toLowerCase() !== "none" || typeof strokeAttr === "string" && strokeAttr && strokeAttr.toLowerCase() !== "none";
-      if (hasFill) {
-        el.style.fill = c;
+      const styleFill = el.style.getPropertyValue("fill");
+      const styleStroke = el.style.getPropertyValue("stroke");
+      if (isPaintColor(fillAttr)) {
         el.setAttribute("fill", c);
         touched = true;
       }
-      if (hasStroke) {
-        el.style.stroke = c;
+      if (isPaintColor(strokeAttr)) {
         el.setAttribute("stroke", c);
         touched = true;
       }
-    });
+      if (isPaintColor(styleFill)) {
+        el.style.setProperty("fill", c);
+        touched = true;
+      }
+      if (isPaintColor(styleStroke)) {
+        el.style.setProperty("stroke", c);
+        touched = true;
+      }
+    }
     if (!touched) {
       inner.setAttribute("fill", c);
     }
@@ -21931,6 +22010,7 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     return job;
   }
   getSvgColorFromDataUrl(dataUrl) {
+    var _a2, _b2, _c, _d, _e, _f;
     if (typeof dataUrl !== "string") return null;
     if (!dataUrl.startsWith("data:image/svg+xml")) return null;
     const idx = dataUrl.indexOf(",");
@@ -21938,11 +22018,29 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     try {
       const payload = dataUrl.slice(idx + 1);
       const svg = decodeURIComponent(payload);
-      const mFill = /fill="([^"]+)"/i.exec(svg);
-      if (mFill) return mFill[1];
-      const mStroke = /stroke="([^"]+)"/i.exec(svg);
-      if (mStroke) return mStroke[1];
-      return null;
+      const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+      const root = doc.querySelector("svg");
+      if (!root) return null;
+      const inner = (_a2 = Array.from(root.children).find((child) => child.id === "zm-inner")) != null ? _a2 : root;
+      const usableColor = (value) => {
+        const color = (value != null ? value : "").trim();
+        const normalized = color.toLowerCase();
+        if (!color || normalized === "none" || normalized === "transparent" || normalized === "currentcolor" || normalized.startsWith("url(")) {
+          return null;
+        }
+        return color;
+      };
+      const foregroundElements = [
+        inner,
+        ...Array.from(inner.querySelectorAll("*"))
+      ];
+      for (const el of foregroundElements) {
+        const fill = (_b2 = usableColor(el.style.getPropertyValue("fill"))) != null ? _b2 : usableColor(el.getAttribute("fill"));
+        if (fill) return fill;
+        const stroke = (_c = usableColor(el.style.getPropertyValue("stroke"))) != null ? _c : usableColor(el.getAttribute("stroke"));
+        if (stroke) return stroke;
+      }
+      return (_f = (_e = (_d = usableColor(root.style.getPropertyValue("fill"))) != null ? _d : usableColor(root.getAttribute("fill"))) != null ? _e : usableColor(root.style.getPropertyValue("stroke"))) != null ? _f : usableColor(root.getAttribute("stroke"));
     } catch (e) {
       return null;
     }
@@ -22577,10 +22675,31 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
           outlineBtn.classList.add("zm-icon-btn");
           (0, import_obsidian29.setIcon)(outlineBtn, "gear");
           outlineBtn.onclick = () => {
-            new IconOutlineModal(this.app, this.plugin, icon, (newDataUrl) => {
-              img.src = newDataUrl;
-              this.plugin.refreshMapIconVisuals();
-            }).open();
+            void (async () => {
+              var _a4;
+              outlineBtn.disabled = true;
+              try {
+                const pending = this.iconRecolorChains.get(icon);
+                if (pending) {
+                  await pending.catch(() => false);
+                }
+                const currentColor2 = colorInput.value.trim();
+                if (currentColor2) {
+                  await this.queueSvgIconRecolor(icon, currentColor2);
+                }
+                if (!((_a4 = this.plugin.settings.icons) != null ? _a4 : []).includes(icon)) return;
+                const svgSourceSnapshot = icon.pathOrDataUrl;
+                new IconOutlineModal(this.app, this.plugin, icon, (newDataUrl) => {
+                  img.src = newDataUrl;
+                  this.plugin.refreshMapIconVisuals();
+                }, {
+                  svgSourceOverride: svgSourceSnapshot,
+                  foregroundColorOverride: currentColor2 || void 0
+                }).open();
+              } finally {
+                outlineBtn.disabled = false;
+              }
+            })();
           };
           const size = row.createEl("input", { type: "number" });
           size.classList.add("zm-num");

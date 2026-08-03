@@ -3,10 +3,17 @@ import type { App } from "obsidian";
 import type ZoomMapPlugin from "./main";
 import type { IconProfile } from "./map";
 
+interface IconOutlineModalOptions {
+  svgSourceOverride?: string;
+  foregroundColorOverride?: string;
+}
+
 export class IconOutlineModal extends Modal {
   private plugin: ZoomMapPlugin;
   private icon: IconProfile;
   private svgSource: string | null = null;
+  private svgSourceOverride?: string;
+  private foregroundColorOverride?: string;
 
   private colorText!: HTMLInputElement;
   private colorPicker!: HTMLInputElement;
@@ -43,11 +50,15 @@ export class IconOutlineModal extends Modal {
     plugin: ZoomMapPlugin,
     icon: IconProfile,
     onApplied?: (dataUrl: string) => void,
+	opts?: IconOutlineModalOptions,
   ) {
     super(app);
     this.plugin = plugin;
     this.icon = icon;
     this.onApplied = onApplied;
+    this.svgSourceOverride = opts?.svgSourceOverride?.trim() || undefined;
+    this.foregroundColorOverride =
+      opts?.foregroundColorOverride?.trim() || undefined;
   }
   
   private isSvgIconProfile(i: IconProfile): boolean {
@@ -234,11 +245,16 @@ export class IconOutlineModal extends Modal {
   private updatePreview(): void {
     if (!this.previewImg || !this.svgSource) return;
 
-    const svg = this.applyOutline(
+    const outlinedSvg = this.applyOutline(
       this.svgSource,
       this.outlineColor || "#000000",
       Math.max(0, Number(this.outlineWidth) || 0),
       Math.min(1, Math.max(0, Number(this.outlineOpacity) || 0)),
+    );
+	
+    const svg = this.applyForegroundColorOverride(
+      outlinedSvg,
+      this.foregroundColorOverride,
     );
 
     this.previewImg.src =
@@ -317,13 +333,18 @@ export class IconOutlineModal extends Modal {
     contentEl.empty();
     contentEl.createEl("h2", { text: "SVG outline" });
 
-    const svg = await this.loadSvgSource();
-    if (!svg) {
+    const loadedSvg = await this.loadSvgSource();
+    if (!loadedSvg) {
       contentEl.createDiv({
         text: "This icon is not an SVG or could not be loaded.",
       });
       return;
     }
+
+    const svg = this.applyForegroundColorOverride(
+      loadedSvg,
+      this.foregroundColorOverride,
+    );
 
     this.svgSource = svg;
 
@@ -710,7 +731,7 @@ export class IconOutlineModal extends Modal {
   }
 
   private async loadSvgSource(): Promise<string | null> {
-    const src = this.icon.pathOrDataUrl;
+    const src = this.svgSourceOverride ?? this.icon.pathOrDataUrl;
     if (!src || typeof src !== "string") return null;
 
     if (src.startsWith("data:image/svg+xml")) {
@@ -731,6 +752,81 @@ export class IconOutlineModal extends Modal {
     }
 
     return null;
+  }
+  
+  private applyForegroundColorOverride(
+    svg: string,
+    color?: string,
+  ): string {
+    const c = (color ?? "").trim();
+    if (!c) return svg;
+
+    try {
+      const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+      const root = doc.querySelector<SVGSVGElement>("svg");
+      if (!root) return svg;
+
+      const inner =
+        Array.from(root.children).find((child) => child.id === "zm-inner") ??
+        root;
+
+      const isPaintColor = (value: string | null): boolean => {
+        const normalized = (value ?? "").trim().toLowerCase();
+        return (
+          !!normalized &&
+          normalized !== "none" &&
+          normalized !== "transparent" &&
+          !normalized.startsWith("url(")
+        );
+      };
+
+      root.setAttribute("color", c);
+      root.style.setProperty("color", c, "important");
+
+      (inner as SVGElement).setAttribute("color", c);
+      (inner as SVGElement).style.setProperty("color", c, "important");
+
+      let changed = false;
+      const elements = [
+        inner as SVGElement,
+        ...Array.from(inner.querySelectorAll<SVGElement>("*")),
+      ];
+
+      for (const el of elements) {
+        const fill = el.getAttribute("fill");
+        const stroke = el.getAttribute("stroke");
+        const styleFill = el.style.getPropertyValue("fill");
+        const styleStroke = el.style.getPropertyValue("stroke");
+
+        if (isPaintColor(fill)) {
+          el.setAttribute("fill", c);
+		  el.style.setProperty("fill", c, "important");
+          changed = true;
+        }
+        if (isPaintColor(stroke)) {
+          el.setAttribute("stroke", c);
+		  el.style.setProperty("stroke", c, "important");
+          changed = true;
+        }
+        if (isPaintColor(styleFill)) {
+          el.style.setProperty("fill", c, "important");
+          changed = true;
+        }
+        if (isPaintColor(styleStroke)) {
+          el.style.setProperty("stroke", c, "important");
+          changed = true;
+        }
+      }
+
+      if (!changed) {
+        (inner as SVGElement).setAttribute("fill", c);
+		(inner as SVGElement).style.setProperty("fill", c, "important");
+      }
+
+      return new XMLSerializer().serializeToString(root);
+    } catch {
+      return svg;
+    }
   }
 
   private async applyAndSave(): Promise<void> {
@@ -777,12 +873,18 @@ export class IconOutlineModal extends Modal {
     this.outlineWidth = width;
     this.outlineOpacity = opacity;
 
-    const updatedSvg = this.applyOutline(
+    const outlinedSvg = this.applyOutline(
       this.svgSource,
       color,
       width,
       opacity,
     );
+
+    const updatedSvg = this.applyForegroundColorOverride(
+      outlinedSvg,
+      this.foregroundColorOverride,
+    );
+
     const dataUrl =
       "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(updatedSvg);
 
@@ -942,9 +1044,7 @@ export class IconOutlineModal extends Modal {
 
       const oldInner = svgEl.querySelector("#zm-inner");
       if (oldInner) {
-        const frag = doc.createDocumentFragment();
-        while (oldInner.firstChild) frag.appendChild(oldInner.firstChild);
-        oldInner.replaceWith(frag);
+        oldInner.replaceWith(...Array.from(oldInner.childNodes));
       }
 
       return new XMLSerializer().serializeToString(svgEl);

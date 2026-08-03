@@ -3,7 +3,7 @@ import type { App, TFile } from "obsidian";
 export type CachedImageSource = ImageBitmap | HTMLImageElement;
 
 function isImageBitmapLike(x: unknown): x is ImageBitmap {
-  return typeof x === "object" && x !== null && "close" in x && typeof (x as { close: unknown }).close === "function";
+  return typeof x === "object" && x !== null && "close" in x && typeof x.close === "function";
 }
 
 function approxBytesForSource(src: CachedImageSource): number {
