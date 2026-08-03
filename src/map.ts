@@ -1208,7 +1208,7 @@ export class MapInstance extends Component {
 
     const dummyPreset =
       preset ??
-      ({ id: "", name: "", distances: [], unit: "km" } as PingPreset);
+      { id: "", name: "", distances: [], unit: "km" };
 
     const sections = preset?.sections ?? {};
     const includeBases = sections.bases !== false;
