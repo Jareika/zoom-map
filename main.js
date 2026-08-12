@@ -5268,6 +5268,15 @@ var MapInstance = class extends import_obsidian21.Component {
     });
     modal.open();
   }
+  /**
+   * Public action for TTRPG Tools - Controls.
+   */
+  openViewEditorFromControl() {
+    if (!this.ready || !this.data) {
+      throw new Error("The map is not ready yet.");
+    }
+    this.openViewEditorFromMap();
+  }
   applyInitialView(zoom, center) {
     const z = clamp(zoom, this.cfg.minZoom, this.cfg.maxZoom);
     const r = this.viewportEl.getBoundingClientRect();
@@ -8825,6 +8834,26 @@ ${yamlRaw}
   clearMeasurementFromCommand() {
     if (!this.ready) return;
     this.clearMeasure();
+  }
+  /**
+   * Public user action for TTRPG Tools – Controls.
+   * Sends the active map to the Second Screen without Fog of War.
+   */
+  async sendToSecondScreenFromControl() {
+    if (!this.ready) {
+      throw new Error("The map is not ready yet.");
+    }
+    await this.sendToSecondScreen(false);
+  }
+  /**
+   * Public user action for TTRPG Tools – Controls.
+   * Sends the active map to the Second Screen with Fog of War.
+   */
+  async sendToSecondScreenWithFogFromControl() {
+    if (!this.ready) {
+      throw new Error("The map is not ready yet.");
+    }
+    await this.sendToSecondScreen(true);
   }
   getMetersPerPixel() {
     var _a2;
@@ -20947,6 +20976,17 @@ function svgPinDataUrl(color = "#d23c3c") {
 </svg>`;
   return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
 }
+var CONTROLS_PROVIDER_API_VERSION = 1;
+var CONTROLS_ACTION_IDS = {
+  settings: "settings.open",
+  insertMap: "map.insert",
+  editActiveView: "map.edit-active-view",
+  exportActiveMap: "map.export-active-package",
+  toggleMeasure: "measure.toggle",
+  clearMeasurement: "measure.clear",
+  sendToScreen: "second-screen.send",
+  sendToScreenWithFog: "second-screen.send-with-fog"
+};
 function toCssSize(v, fallback) {
   if (typeof v === "number" && Number.isFinite(v)) return `${v}px`;
   if (typeof v === "string" && v.trim().length > 0) return v.trim();
@@ -21170,6 +21210,21 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     super(...arguments);
     this.settings = DEFAULT_SETTINGS;
     this.imageCache = null;
+    this.lastInsertMapTarget = null;
+    /**
+     * Public API for TTRPG Tools – Controls.
+     *
+     * This interface exposes only public user-facing actions.
+     * It does not access internal map instances, stored data,
+     * or any private implementation details directly.
+     */
+    this.controlsApi = {
+      apiVersion: CONTROLS_PROVIDER_API_VERSION,
+      providerId: this.manifest.id,
+      providerName: "TTRPG Tools - Maps",
+      getActions: () => this.getControlsActions(),
+      executeAction: (actionId) => this.executeControlsAction(actionId)
+    };
     this.mapInstances = /* @__PURE__ */ new Set();
     this.pendingMapRestores = /* @__PURE__ */ new Map();
     this.activeMap = null;
@@ -21206,6 +21261,180 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
   }
   setActiveMap(inst) {
     this.activeMap = inst;
+  }
+  getControlsActions() {
+    return [
+      {
+        id: CONTROLS_ACTION_IDS.settings,
+        name: "Open Maps settings",
+        icon: "settings",
+        group: "Management",
+        description: "Open the settings for TTRPG Tools - Maps.",
+        available: true
+      },
+      {
+        id: CONTROLS_ACTION_IDS.insertMap,
+        name: "Insert new map",
+        icon: "map-plus",
+        group: "Map",
+        description: "Insert a new zoommap block into the active note editor.",
+        available: true
+      },
+      {
+        id: CONTROLS_ACTION_IDS.editActiveView,
+        name: "Open active map edit view",
+        icon: "square-pen",
+        group: "Map",
+        description: "Open the view editor for the currently active map.",
+        available: true
+      },
+      {
+        id: CONTROLS_ACTION_IDS.exportActiveMap,
+        name: "Export active map package",
+        icon: "download",
+        group: "Map",
+        description: "Export the currently active map as a reusable package.",
+        available: true
+      },
+      {
+        id: CONTROLS_ACTION_IDS.toggleMeasure,
+        name: "Toggle measure mode",
+        icon: "ruler",
+        group: "Measurement",
+        description: "Start or stop measuring on the active map.",
+        available: true
+      },
+      {
+        id: CONTROLS_ACTION_IDS.clearMeasurement,
+        name: "Clear measurement",
+        icon: "eraser",
+        group: "Measurement",
+        description: "Remove all current measurement points from the active map.",
+        available: true
+      },
+      {
+        id: CONTROLS_ACTION_IDS.sendToScreen,
+        name: "Display active map on screen",
+        icon: "monitor-up",
+        group: "Second screen",
+        description: "Send the active map to the configured player screen.",
+        available: this.settings.enableSecondScreen === true
+      },
+      {
+        id: CONTROLS_ACTION_IDS.sendToScreenWithFog,
+        name: "Display active map with fog of war",
+        icon: "cloud-fog",
+        group: "Second screen",
+        description: "Send the active map to the configured player screen with fog of war.",
+        available: this.settings.enableSecondScreen === true
+      }
+    ];
+  }
+  async executeControlsAction(actionId) {
+    switch (actionId) {
+      case CONTROLS_ACTION_IDS.settings:
+        this.openPluginSettings();
+        return;
+      case CONTROLS_ACTION_IDS.insertMap:
+        this.openInsertNewMapFromControls();
+        return;
+      case CONTROLS_ACTION_IDS.editActiveView:
+        {
+          const map = this.getActiveMapForControl();
+          if (!map) return;
+          map.openViewEditorFromControl();
+        }
+        return;
+      case CONTROLS_ACTION_IDS.exportActiveMap:
+        {
+          const map = this.getActiveMapForControl();
+          if (!map) return;
+          this.openExportMapBundleModal(map);
+        }
+        return;
+      case CONTROLS_ACTION_IDS.toggleMeasure:
+        {
+          const map = this.getActiveMapForControl();
+          if (!map) return;
+          map.toggleMeasureFromCommand();
+        }
+        return;
+      case CONTROLS_ACTION_IDS.clearMeasurement:
+        {
+          const map = this.getActiveMapForControl();
+          if (!map) return;
+          map.clearMeasurementFromCommand();
+        }
+        return;
+      case CONTROLS_ACTION_IDS.sendToScreen:
+        {
+          const map = this.getActiveMapForControl();
+          if (!map) return;
+          await map.sendToSecondScreenFromControl();
+        }
+        return;
+      case CONTROLS_ACTION_IDS.sendToScreenWithFog:
+        {
+          const map = this.getActiveMapForControl();
+          if (!map) return;
+          await map.sendToSecondScreenWithFogFromControl();
+        }
+        return;
+      default:
+        throw new Error(`Unknown Maps control action: ${actionId}`);
+    }
+  }
+  getActiveMapForControl() {
+    if (this.activeMap) {
+      return this.activeMap;
+    }
+    new import_obsidian29.Notice(
+      "No active map is available. Click or interact with a map first.",
+      3e3
+    );
+    return null;
+  }
+  rememberActiveMarkdownEditor() {
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian29.MarkdownView);
+    if (!(view == null ? void 0 : view.file)) {
+      return;
+    }
+    this.rememberInsertMapTarget(view.editor, view);
+  }
+  rememberInsertMapTarget(editor, view) {
+    if (!view.file) {
+      return;
+    }
+    const cursor = editor.getCursor();
+    this.lastInsertMapTarget = {
+      editor,
+      view,
+      cursor: {
+        line: cursor.line,
+        ch: cursor.ch
+      }
+    };
+  }
+  openInsertNewMapFromControls() {
+    const target = this.lastInsertMapTarget;
+    if (!(target == null ? void 0 : target.view.file)) {
+      new import_obsidian29.Notice(
+        "No recent note editor was found. Click into a note first.",
+        3500
+      );
+      return;
+    }
+    this.openInsertNewMapModal(
+      target.editor,
+      target.view,
+      target.cursor
+    );
+  }
+  openPluginSettings() {
+    var _a2, _b2;
+    const appWithSettings = this.app;
+    (_a2 = appWithSettings.setting) == null ? void 0 : _a2.open();
+    (_b2 = appWithSettings.setting) == null ? void 0 : _b2.openTabById(this.manifest.id);
   }
   notifyMapInstancesSettingsChanged() {
     for (const inst of this.mapInstances) {
@@ -21257,61 +21486,31 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
     await this.loadSettings();
     this.applyGlobalHoverPopoverSettings();
     this.applyImageCacheSettings();
+    this.app.workspace.onLayoutReady(() => {
+      this.rememberActiveMarkdownEditor();
+    });
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", () => {
+        this.rememberActiveMarkdownEditor();
+      })
+    );
+    this.registerEvent(
+      this.app.workspace.on("editor-change", (editor, view) => {
+        if (view instanceof import_obsidian29.MarkdownView) {
+          this.rememberInsertMapTarget(editor, view);
+        }
+      })
+    );
     this.addCommand({
       id: "insert-new-map",
       name: "Insert new map\u2026",
       editorCallback: (editor, view) => {
-        const file = view.file;
-        if (!file) return;
-        const initialConfig = {
-          imageBases: [{ path: "", name: "" }],
-          overlays: [],
-          markersPath: "",
-          renderMode: "dom",
-          imageRendering: "auto",
-          minZoom: 0.25,
-          maxZoom: 8,
-          wrap: false,
-          responsive: false,
-          width: "100%",
-          height: "480px",
-          useWidth: true,
-          useHeight: true,
-          resizable: false,
-          resizeHandle: "native",
-          align: void 0,
-          markerLayers: ["Default"],
-          id: `map-${Date.now().toString(36)}`,
-          viewportFrame: "",
-          viewportFrameInsets: {
-            unit: "framePx",
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0
-          }
-        };
-        new ViewEditorModal(this.app, initialConfig, (res) => {
-          var _a2, _b2;
-          if (res.action !== "save" || !res.config) return;
-          const yaml = this.buildYamlFromViewConfig(res.config);
-          const block = "```zoommap\n" + yaml + "\n```\n";
-          const cur = editor.getCursor();
-          const curLineText = (_a2 = editor.getLine(cur.line)) != null ? _a2 : "";
-          const m = /^(\s*(?:>\s*)+)/.exec(curLineText);
-          const quotePrefix = (_b2 = m == null ? void 0 : m[1]) != null ? _b2 : "";
-          if (!quotePrefix) {
-            editor.replaceRange(block, cur);
-            return;
-          }
-          const cursorAfterPrefix = cur.ch >= quotePrefix.length;
-          const lines = block.split("\n");
-          const quoted = lines.map((ln2, idx) => {
-            if (idx === 0 && cursorAfterPrefix) return ln2;
-            return quotePrefix + ln2;
-          }).join("\n");
-          editor.replaceRange(quoted, cur);
-        }).open();
+        this.rememberInsertMapTarget(editor, view);
+        this.openInsertNewMapModal(
+          editor,
+          view,
+          editor.getCursor()
+        );
       }
     });
     this.addCommand({
@@ -21493,6 +21692,62 @@ var ZoomMapPlugin = class extends import_obsidian29.Plugin {
       }
     );
     this.addSettingTab(new ZoomMapSettingTab(this.app, this));
+  }
+  openInsertNewMapModal(editor, view, insertionCursor) {
+    const file = view.file;
+    if (!file) {
+      new import_obsidian29.Notice("Please open a saved note in edit mode first.", 2500);
+      return;
+    }
+    const initialConfig = {
+      imageBases: [{ path: "", name: "" }],
+      overlays: [],
+      markersPath: "",
+      renderMode: "dom",
+      imageRendering: "auto",
+      minZoom: 0.25,
+      maxZoom: 8,
+      wrap: false,
+      responsive: false,
+      width: "100%",
+      height: "480px",
+      useWidth: true,
+      useHeight: true,
+      resizable: false,
+      resizeHandle: "native",
+      align: void 0,
+      markerLayers: ["Default"],
+      id: `map-${Date.now().toString(36)}`,
+      viewportFrame: "",
+      viewportFrameInsets: {
+        unit: "framePx",
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0
+      }
+    };
+    new ViewEditorModal(this.app, initialConfig, (res) => {
+      var _a2, _b2;
+      if (res.action !== "save" || !res.config) return;
+      const yaml = this.buildYamlFromViewConfig(res.config);
+      const block = "```zoommap\n" + yaml + "\n```\n";
+      const cur = insertionCursor;
+      const curLineText = (_a2 = editor.getLine(cur.line)) != null ? _a2 : "";
+      const m = /^(\s*(?:>\s*)+)/.exec(curLineText);
+      const quotePrefix = (_b2 = m == null ? void 0 : m[1]) != null ? _b2 : "";
+      if (!quotePrefix) {
+        editor.replaceRange(block, cur);
+        return;
+      }
+      const cursorAfterPrefix = cur.ch >= quotePrefix.length;
+      const lines = block.split("\n");
+      const quoted = lines.map((ln2, idx) => {
+        if (idx === 0 && cursorAfterPrefix) return ln2;
+        return quotePrefix + ln2;
+      }).join("\n");
+      editor.replaceRange(quoted, cur);
+    }).open();
   }
   getIconDefaultLink(iconKey) {
     var _a2;

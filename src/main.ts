@@ -11,7 +11,7 @@ import {
   requestUrl,
   MarkdownView,
 } from "obsidian";
-import type { App, MarkdownPostProcessorContext } from "obsidian";
+import type { App, Editor, MarkdownPostProcessorContext } from "obsidian";
 import { MapInstance } from "./map";
 import type {
   ZoomMapConfig,
@@ -65,6 +65,45 @@ interface LibraryFileData {
   travelRulesPacks?: TravelRulesPack[];
   exportedAt?: string;
 }
+
+interface ControlsProviderAction {
+  id: string;
+  name: string;
+  icon: string;
+  group: string;
+  description?: string;
+  available: boolean;
+}
+
+interface ControlsProviderApi {
+  apiVersion: 1;
+  providerId: string;
+  providerName: string;
+  getActions(): ControlsProviderAction[];
+  executeAction(actionId: string): Promise<void>;
+}
+
+interface LastInsertMapTarget {
+  editor: Editor;
+  view: MarkdownView;
+  cursor: {
+    line: number;
+    ch: number;
+  };
+}
+
+const CONTROLS_PROVIDER_API_VERSION = 1;
+
+const CONTROLS_ACTION_IDS = {
+  settings: "settings.open",
+  insertMap: "map.insert",
+  editActiveView: "map.edit-active-view",
+  exportActiveMap: "map.export-active-package",
+  toggleMeasure: "measure.toggle",
+  clearMeasurement: "measure.clear",
+  sendToScreen: "second-screen.send",
+  sendToScreenWithFog: "second-screen.send-with-fog",
+} as const;
 
 function toCssSize(v: unknown, fallback: string): string {
   if (typeof v === "number" && Number.isFinite(v)) return `${v}px`;
@@ -418,6 +457,23 @@ async function readSavedFrame(
 export default class ZoomMapPlugin extends Plugin {
   settings: ZoomMapSettings = DEFAULT_SETTINGS;
   imageCache: ImageCache | null = null;
+  private lastInsertMapTarget: LastInsertMapTarget | null = null;
+
+  /**
+   * Public API for TTRPG Tools – Controls.
+   *
+   * This interface exposes only public user-facing actions.
+   * It does not access internal map instances, stored data,
+   * or any private implementation details directly.
+   */
+
+  controlsApi: ControlsProviderApi = {
+    apiVersion: CONTROLS_PROVIDER_API_VERSION,
+    providerId: this.manifest.id,
+    providerName: "TTRPG Tools - Maps",
+    getActions: () => this.getControlsActions(),
+    executeAction: (actionId) => this.executeControlsAction(actionId),
+  };
 
   private mapInstances = new Set<MapInstance>();
   private pendingMapRestores = new Map<string, MapRestoreState>();
@@ -460,6 +516,211 @@ export default class ZoomMapPlugin extends Plugin {
 
   setActiveMap(inst: MapInstance): void {
     this.activeMap = inst;
+  }
+  
+  private getControlsActions(): ControlsProviderAction[] {
+
+    return [
+      {
+        id: CONTROLS_ACTION_IDS.settings,
+        name: "Open Maps settings",
+        icon: "settings",
+        group: "Management",
+        description: "Open the settings for TTRPG Tools - Maps.",
+        available: true,
+      },
+      {
+        id: CONTROLS_ACTION_IDS.insertMap,
+        name: "Insert new map",
+        icon: "map-plus",
+        group: "Map",
+        description: "Insert a new zoommap block into the active note editor.",
+        available: true,
+      },
+      {
+        id: CONTROLS_ACTION_IDS.editActiveView,
+        name: "Open active map edit view",
+        icon: "square-pen",
+        group: "Map",
+        description: "Open the view editor for the currently active map.",
+        available: true,
+      },
+      {
+        id: CONTROLS_ACTION_IDS.exportActiveMap,
+        name: "Export active map package",
+        icon: "download",
+        group: "Map",
+        description: "Export the currently active map as a reusable package.",
+        available: true,
+      },
+      {
+        id: CONTROLS_ACTION_IDS.toggleMeasure,
+        name: "Toggle measure mode",
+        icon: "ruler",
+        group: "Measurement",
+        description: "Start or stop measuring on the active map.",
+        available: true,
+      },
+      {
+        id: CONTROLS_ACTION_IDS.clearMeasurement,
+        name: "Clear measurement",
+        icon: "eraser",
+        group: "Measurement",
+        description: "Remove all current measurement points from the active map.",
+        available: true,
+      },
+      {
+        id: CONTROLS_ACTION_IDS.sendToScreen,
+        name: "Display active map on screen",
+        icon: "monitor-up",
+        group: "Second screen",
+        description: "Send the active map to the configured player screen.",
+        available: this.settings.enableSecondScreen === true,
+      },
+      {
+        id: CONTROLS_ACTION_IDS.sendToScreenWithFog,
+        name: "Display active map with fog of war",
+        icon: "cloud-fog",
+        group: "Second screen",
+        description: "Send the active map to the configured player screen with fog of war.",
+        available: this.settings.enableSecondScreen === true,
+      },
+    ];
+  }
+
+  private async executeControlsAction(actionId: string): Promise<void> {
+    switch (actionId) {
+      case CONTROLS_ACTION_IDS.settings:
+        this.openPluginSettings();
+        return;
+
+      case CONTROLS_ACTION_IDS.insertMap:
+        this.openInsertNewMapFromControls();
+        return;
+		
+      case CONTROLS_ACTION_IDS.editActiveView:
+        {
+          const map = this.getActiveMapForControl();
+          if (!map) return;
+          map.openViewEditorFromControl();
+        }
+        return;
+
+      case CONTROLS_ACTION_IDS.exportActiveMap:
+        {
+          const map = this.getActiveMapForControl();
+          if (!map) return;
+          this.openExportMapBundleModal(map);
+        }
+        return;
+
+      case CONTROLS_ACTION_IDS.toggleMeasure:
+        {
+          const map = this.getActiveMapForControl();
+          if (!map) return;
+          map.toggleMeasureFromCommand();
+        }
+        return;
+
+      case CONTROLS_ACTION_IDS.clearMeasurement:
+        {
+          const map = this.getActiveMapForControl();
+          if (!map) return;
+          map.clearMeasurementFromCommand();
+        }
+        return;
+		
+      case CONTROLS_ACTION_IDS.sendToScreen:
+        {
+          const map = this.getActiveMapForControl();
+          if (!map) return;
+          await map.sendToSecondScreenFromControl();
+        }
+        return;
+
+      case CONTROLS_ACTION_IDS.sendToScreenWithFog:
+        {
+          const map = this.getActiveMapForControl();
+          if (!map) return;
+          await map.sendToSecondScreenWithFogFromControl();
+        }
+        return;
+
+      default:
+        throw new Error(`Unknown Maps control action: ${actionId}`);
+    }
+  }
+  
+  private getActiveMapForControl(): MapInstance | null {
+    if (this.activeMap) {
+      return this.activeMap;
+    }
+
+    new Notice(
+      "No active map is available. Click or interact with a map first.",
+      3000,
+    );
+    return null;
+  }
+
+  private rememberActiveMarkdownEditor(): void {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+
+    if (!view?.file) {
+      return;
+    }
+
+    this.rememberInsertMapTarget(view.editor, view);
+  }
+
+  private rememberInsertMapTarget(
+    editor: Editor,
+    view: MarkdownView,
+  ): void {
+    if (!view.file) {
+      return;
+    }
+
+    const cursor = editor.getCursor();
+
+    this.lastInsertMapTarget = {
+      editor,
+      view,
+      cursor: {
+        line: cursor.line,
+        ch: cursor.ch,
+      },
+    };
+  }
+
+  private openInsertNewMapFromControls(): void {
+    const target = this.lastInsertMapTarget;
+
+    if (!target?.view.file) {
+      new Notice(
+        "No recent note editor was found. Click into a note first.",
+        3500,
+      );
+      return;
+    }
+
+    this.openInsertNewMapModal(
+      target.editor,
+      target.view,
+      target.cursor,
+    );
+  }
+
+  private openPluginSettings(): void {
+    const appWithSettings = this.app as unknown as {
+      setting?: {
+        open: () => void;
+        openTabById: (id: string) => void;
+      };
+    };
+
+    appWithSettings.setting?.open();
+    appWithSettings.setting?.openTabById(this.manifest.id);
   }
   
   private notifyMapInstancesSettingsChanged(): void {
@@ -523,74 +784,37 @@ export default class ZoomMapPlugin extends Plugin {
 	this.applyGlobalHoverPopoverSettings();
     this.applyImageCacheSettings();
 	
+    this.app.workspace.onLayoutReady(() => {
+      this.rememberActiveMarkdownEditor();
+    });
+
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", () => {
+        this.rememberActiveMarkdownEditor();
+      }),
+    );
+
+    this.registerEvent(
+      this.app.workspace.on("editor-change", (editor, view) => {
+        if (view instanceof MarkdownView) {
+          this.rememberInsertMapTarget(editor, view);
+        }
+      }),
+    );
+	
 	this.addCommand({
     id: "insert-new-map",
     name: "Insert new map…",
     editorCallback: (editor, view) => {
-      const file = (view as MarkdownView).file;
-      if (!file) return;
-
-      const initialConfig: ViewEditorConfig = {
-        imageBases: [{ path: "", name: "" }],
-        overlays: [],
-        markersPath: "",
-        renderMode: "dom",
-		imageRendering: "auto",
-        minZoom: 0.25,
-        maxZoom: 8,
-        wrap: false,
-        responsive: false,
-        width: "100%",
-        height: "480px",
-		useWidth: true,
-		useHeight: true,
-        resizable: false,
-        resizeHandle: "native",
-        align: undefined,
-        markerLayers: ["Default"],
-		id: `map-${Date.now().toString(36)}`,
-
-        viewportFrame: "",
-        viewportFrameInsets: {
-          unit: "framePx",
-          top: 0,
-          right: 0,
-          bottom: 0,
-          left: 0,
-        },
-      };
-
-      new ViewEditorModal(this.app, initialConfig, (res) => {
-        if (res.action !== "save" || !res.config) return;
-        const yaml = this.buildYamlFromViewConfig(res.config);
-        const block = "```zoommap\n" + yaml + "\n```\n";
-
-        // If user inserts inside a callout / blockquote line, prefix all inserted lines
-        // with the same quote prefix ("> ", "> > ", etc.).
-        const cur = editor.getCursor();
-        const curLineText = editor.getLine(cur.line) ?? "";
-        const m = /^(\s*(?:>\s*)+)/.exec(curLineText);
-        const quotePrefix = m?.[1] ?? "";
-
-        if (!quotePrefix) {
-          editor.replaceRange(block, cur);
-          return;
-        }
-
-        const cursorAfterPrefix = cur.ch >= quotePrefix.length;
-        const lines = block.split("\n");
-        const quoted = lines
-          .map((ln, idx) => {
-            if (idx === 0 && cursorAfterPrefix) return ln;
-            return quotePrefix + ln;
-          })
-          .join("\n");
-
-        editor.replaceRange(quoted, cur);
-      }).open();
+      this.rememberInsertMapTarget(editor, view as MarkdownView);
+      this.openInsertNewMapModal(
+        editor,
+        view as MarkdownView,
+        editor.getCursor(),
+      );
     },
   });
-  
+
     this.addCommand({
       id: "export-active-map-package",
       name: "Export active map package…",
@@ -857,6 +1081,77 @@ export default class ZoomMapPlugin extends Plugin {
     );
 
     this.addSettingTab(new ZoomMapSettingTab(this.app, this));
+  }
+  
+  private openInsertNewMapModal(
+    editor: Editor,
+    view: MarkdownView,
+    insertionCursor: { line: number; ch: number },
+  ): void {
+    const file = view.file;
+
+    if (!file) {
+      new Notice("Please open a saved note in edit mode first.", 2500);
+      return;
+    }
+
+    const initialConfig: ViewEditorConfig = {
+        imageBases: [{ path: "", name: "" }],
+        overlays: [],
+        markersPath: "",
+        renderMode: "dom",
+		imageRendering: "auto",
+        minZoom: 0.25,
+        maxZoom: 8,
+        wrap: false,
+        responsive: false,
+        width: "100%",
+        height: "480px",
+		useWidth: true,
+		useHeight: true,
+        resizable: false,
+        resizeHandle: "native",
+        align: undefined,
+        markerLayers: ["Default"],
+		id: `map-${Date.now().toString(36)}`,
+
+        viewportFrame: "",
+        viewportFrameInsets: {
+          unit: "framePx",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+        },
+    };
+
+    new ViewEditorModal(this.app, initialConfig, (res) => {
+      if (res.action !== "save" || !res.config) return;
+
+      const yaml = this.buildYamlFromViewConfig(res.config);
+      const block = "```zoommap\n" + yaml + "\n```\n";
+
+      const cur = insertionCursor;
+      const curLineText = editor.getLine(cur.line) ?? "";
+      const m = /^(\s*(?:>\s*)+)/.exec(curLineText);
+      const quotePrefix = m?.[1] ?? "";
+
+      if (!quotePrefix) {
+        editor.replaceRange(block, cur);
+        return;
+      }
+
+      const cursorAfterPrefix = cur.ch >= quotePrefix.length;
+      const lines = block.split("\n");
+      const quoted = lines
+        .map((ln, idx) => {
+          if (idx === 0 && cursorAfterPrefix) return ln;
+          return quotePrefix + ln;
+        })
+        .join("\n");
+
+      editor.replaceRange(quoted, cur);
+    }).open();
   }
   
   getIconDefaultLink(iconKey: string): string | undefined {

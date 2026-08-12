@@ -1073,6 +1073,17 @@ export class MapInstance extends Component {
   });
   modal.open();
   }
+  
+  /**
+   * Public action for TTRPG Tools - Controls.
+   */
+  public openViewEditorFromControl(): void {
+    if (!this.ready || !this.data) {
+      throw new Error("The map is not ready yet.");
+    }
+
+    this.openViewEditorFromMap();
+  }
 
   private applyInitialView(zoom: number, center: { x: number; y: number }): void {
     const z = clamp(zoom, this.cfg.minZoom, this.cfg.maxZoom);
@@ -5549,6 +5560,32 @@ export class MapInstance extends Component {
   public clearMeasurementFromCommand(): void {
     if (!this.ready) return;
     this.clearMeasure();
+  }
+  
+
+  /**
+   * Public user action for TTRPG Tools – Controls.
+   * Sends the active map to the Second Screen without Fog of War.
+   */
+
+  public async sendToSecondScreenFromControl(): Promise<void> {
+    if (!this.ready) {
+      throw new Error("The map is not ready yet.");
+    }
+
+    await this.sendToSecondScreen(false);
+  }
+  
+  /**
+   * Public user action for TTRPG Tools – Controls.
+   * Sends the active map to the Second Screen with Fog of War.
+   */
+  public async sendToSecondScreenWithFogFromControl(): Promise<void> {
+    if (!this.ready) {
+      throw new Error("The map is not ready yet.");
+    }
+
+    await this.sendToSecondScreen(true);
   }
 
   private getMetersPerPixel(): number | undefined {
