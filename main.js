@@ -22389,8 +22389,7 @@ var ZoomMapSettingTab = class extends import_obsidian29.PluginSettingTab {
     const nav = container.createDiv({
       cls: "zoommap-settings__tabs",
       attr: {
-        role: "tablist",
-        "aria-label": "TTRPG Tools - Maps settings"
+        role: "tablist"
       }
     });
     for (const tab of tabs) {

@@ -1726,7 +1726,6 @@ class ZoomMapSettingTab extends PluginSettingTab {
       cls: "zoommap-settings__tabs",
       attr: {
         role: "tablist",
-        "aria-label": "TTRPG Tools - Maps settings",
       },
     });
 

@@ -1,28 +1,2 @@
-# OS
-.DS_Store
-Thumbs.db
-
-# Node / Paketmanager-Logs
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Editor/IDE
-.vscode/
-.idea/
-*.swp
-
-# Lint/TS Caches
-.eslintcache
-*.tsbuildinfo
-
-# Optionale Build-Verzeichnisse (falls du später dist/ nutzt)
-dist/
-build/
-
-# Tests/Temp
-coverage/
-tmp/
-.temp/
+main.js
