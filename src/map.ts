@@ -727,6 +727,7 @@ export class MapInstance extends Component {
   private drawPolygonPoints: Point[] = [];
   private viewDragDist = 0;
   private viewDragMoved = false;
+  private suppressDrawingRegionClickUntil = 0;
   private suppressTextClickOnce = false;
 
   private panRAF: number | null = null;
@@ -6400,6 +6401,7 @@ export class MapInstance extends Component {
     this.panRAF = null;
   }
   if (this.viewDragMoved) {
+  this.suppressDrawingRegionClickUntil = Date.now() + 250;
   this.suppressTextClickOnce = true;
   window.setTimeout(() => {
     this.suppressTextClickOnce = false;
@@ -11302,6 +11304,12 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         });
 
         hit.addEventListener("click", (ev: MouseEvent) => {
+          if (Date.now() < this.suppressDrawingRegionClickUntil) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            return;
+          }
+
           if (this.drawingMode) {
             ev.preventDefault();
             ev.stopPropagation();
