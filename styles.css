@@ -1,3 +1,38 @@
+/* ==========================================================================
+   Obsidian 1.13 declarative settings host
+
+   getSettingDefinitions().render() receives a single `.setting-item` row,
+   not the old free PluginSettingTab.containerEl. The Maps settings page is
+   a complete custom page with its own tabs and grids, so the row must not
+   keep Obsidian's flex-row layout.
+   ========================================================================== */
+.setting-item.zoommap-settings {
+  display: block;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  padding: 0;
+  border-top: none;
+}
+
+/* Obsidian's declarative settings host highlights the complete custom
+   Maps settings row on hover. The Maps UI has its own buttons and
+   interactive states, so keep the outer host visually neutral. */
+.setting-item.zoommap-settings-host,
+.setting-item.zoommap-settings-host:hover,
+.setting-item.zoommap-settings-host:focus,
+.setting-item.zoommap-settings-host:focus-within {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.setting-item.zoommap-settings > .zoommap-settings__tabs,
+.setting-item.zoommap-settings > .zoommap-settings__tab-content {
+  width: 100%;
+  min-width: 0;
+}
+
 /* Settings: optional image-icon preview column */
 .zoommap-settings.zoommap-settings--imgpreview .zm-icons-grid-head--img,
 .zoommap-settings.zoommap-settings--imgpreview .zm-icons-grid--img {
@@ -809,6 +844,37 @@ body.zm-global-hover-popover-size .hover-popover .markdown-preview-section {
 }
 
 /* Settings grids */
+.zoommap-settings__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 16px;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.zoommap-settings__tab {
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: var(--text-normal);
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.zoommap-settings__tab:hover {
+  background: var(--background-modifier-hover);
+}
+
+.zoommap-settings__tab.is-active {
+  background: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.zoommap-settings__tab-content {
+  min-width: 0;
+}
+
 .zoommap-settings .zm-grid {
   display: grid;
   gap: 8px;

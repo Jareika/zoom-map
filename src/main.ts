@@ -53,6 +53,19 @@ interface ZoomMapSettingsExtended extends ZoomMapSettings {
   faFolderPath?: string; // Folder in vault containing SVG icon packs
 }
 
+type ZoomMapSettingsTabId =
+  | "general"
+  | "travel"
+  | "collections"
+  | "svg-icons"
+  | "image-icons"
+  | "preferences";
+  
+interface IconLinkSuggestion {
+  label: string;
+  value: string;
+}
+
 export interface TravelPerDayConfig {
   value: number;
   unit: string; // must match preset.timeUnit (string)
@@ -1643,10 +1656,104 @@ class ZoomMapSettingTab extends PluginSettingTab {
   private svgFileCache = new Map<string, string>();
   private iconRecolorChains = new Map<IconProfile, Promise<boolean>>();
   private iconRecolorTokens = new Map<IconProfile, number>();
+  private activeTab: ZoomMapSettingsTabId = "general";
 
   constructor(app: App, plugin: ZoomMapPlugin) {
     super(app, plugin);
     this.plugin = plugin;
+  }
+  
+  /**
+   * Obsidian 1.13+ settings entry point.
+   *
+   * The Maps settings UI contains custom tab navigation, editable grids,
+   * collection managers and embedded modal editors. Keeping that UI in a
+   * render callback preserves all existing behavior while registering the
+   * settings page with Obsidian's declarative settings/search system.
+   */
+  getSettingDefinitions() {
+    return [
+      {
+        name: "TTRPG Tools - Maps",
+        desc: "Configure map interaction, travel rules, collections, icon libraries and preferences.",
+        aliases: [
+          "maps",
+          "general",
+          "storage",
+          "layout",
+          "interaction",
+          "travel",
+          "ruler",
+          "travel rules",
+          "collections",
+          "svg icons",
+          "image icons",
+          "marker icons",
+          "library",
+          "preferences",
+          "drawing",
+          "text layers",
+          "grids",
+          "second screen",
+          "player screen",
+          "image cache",
+        ],
+        render: (setting: Setting) => {
+          setting.settingEl.addClass("zoommap-settings-host");
+		  setting.settingEl.empty();
+          this.renderSettingsContent(setting.settingEl);
+        },
+      },
+    ];
+  }
+  
+  private setActiveTab(tab: ZoomMapSettingsTabId): void {
+    this.activeTab = tab;
+    this.update();
+  }
+
+  private renderTabs(container: HTMLElement): HTMLElement {
+    const tabs: { id: ZoomMapSettingsTabId; label: string }[] = [
+      { id: "general", label: "General" },
+      { id: "travel", label: "Travel" },
+      { id: "collections", label: "Collections" },
+      { id: "svg-icons", label: "SVG icons" },
+      { id: "image-icons", label: "Image icons" },
+      { id: "preferences", label: "Preferences" },
+    ];
+
+    const nav = container.createDiv({
+      cls: "zoommap-settings__tabs",
+      attr: {
+        role: "tablist",
+        "aria-label": "TTRPG Tools - Maps settings",
+      },
+    });
+
+    for (const tab of tabs) {
+      const button = nav.createEl("button", {
+        cls: "zoommap-settings__tab",
+        text: tab.label,
+        attr: {
+          type: "button",
+          role: "tab",
+          "aria-selected": String(this.activeTab === tab.id),
+        },
+      });
+
+      if (this.activeTab === tab.id) {
+        button.addClass("is-active");
+      }
+
+      button.onclick = () => this.setActiveTab(tab.id);
+    }
+
+    return container.createDiv({
+      cls: "zoommap-settings__tab-content",
+      attr: {
+        role: "tabpanel",
+      },
+    });
   }
 
   private async addFontAwesomeIcon(file: TFile): Promise<void> {
@@ -1679,7 +1786,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
 
       this.plugin.settings.icons = icons;
       await this.plugin.saveSettings();
-      this.display();
+      this.update();
     } catch (e) {
       console.error("Zoom Map: failed to add Font Awesome icon", e);
       new Notice("Failed to add font awesome icon.", 2500);
@@ -1817,15 +1924,137 @@ class ZoomMapSettingTab extends PluginSettingTab {
       return null;
     }
   }
+  
+  private isSvgIcon(icon: IconProfile): boolean {
+    const source = icon.pathOrDataUrl ?? "";
+    const lower = source.toLowerCase();
+    return lower.startsWith("data:image/svg+xml") || lower.endsWith(".svg");
+  }
 
-  display(): void {
-    const { containerEl } = this;
+  private buildIconLinkSuggestions(): IconLinkSuggestion[] {
+    const files = this.app.vault
+      .getFiles()
+      .filter((file) => file.extension?.toLowerCase() === "md");
+
+    const active = this.app.workspace.getActiveFile();
+    const fromPath = active?.path ?? files[0]?.path ?? "";
+    const suggestions: IconLinkSuggestion[] = [];
+
+    for (const file of files) {
+      const baseLink = this.app.metadataCache.fileToLinktext(file, fromPath);
+      suggestions.push({ label: baseLink, value: baseLink });
+
+      const cache = this.app.metadataCache.getCache(file.path);
+      for (const heading of cache?.headings ?? []) {
+        suggestions.push({
+          label: `${baseLink} › ${heading.heading}`,
+          value: `${baseLink}#${heading.heading}`,
+        });
+      }
+    }
+
+    return suggestions;
+  }
+
+  private attachIconLinkAutocomplete(
+    input: HTMLInputElement,
+    suggestions: IconLinkSuggestion[],
+    getValue: () => string,
+    setValue: (value: string) => void,
+  ): void {
+    const wrapper = input.parentElement;
+    if (!(wrapper instanceof HTMLElement)) return;
+
+    wrapper.addClass("zoommap-link-input-wrapper");
+
+    const listEl = wrapper.createDiv({
+      cls: "zoommap-link-suggestions is-hidden",
+    });
+
+    const hide = () => {
+      listEl.addClass("is-hidden");
+      listEl.empty();
+    };
+
+    const show = () => listEl.removeClass("is-hidden");
+
+    const update = (rawQuery: string) => {
+      const query = rawQuery.trim().toLowerCase();
+      listEl.empty();
+
+      if (!query) {
+        hide();
+        return;
+      }
+
+      const matches = suggestions
+        .filter((entry) =>
+          entry.label.toLowerCase().includes(query) ||
+          entry.value.toLowerCase().includes(query),
+        )
+        .slice(0, 20);
+
+      if (matches.length === 0) {
+        hide();
+        return;
+      }
+
+      show();
+
+      for (const entry of matches) {
+        const row = listEl.createDiv({
+          cls: "zoommap-link-suggestion-item",
+          text: entry.label,
+        });
+
+        row.addEventListener("mousedown", (event) => {
+          event.preventDefault();
+          setValue(entry.value);
+          hide();
+        });
+      }
+    };
+
+    input.addEventListener("input", () => update(input.value));
+    input.addEventListener("focus", () => update(getValue()));
+    input.addEventListener("blur", () => {
+      window.setTimeout(hide, 150);
+    });
+  }
+
+  private renderSettingsContent(containerEl: HTMLElement): void {
     containerEl.empty();
     containerEl.addClass("zoommap-settings");
     containerEl.classList.toggle(
       "zoommap-settings--imgpreview",
       !!this.plugin.settings.showImageIconPreviewInSettings,
     );
+	
+    const contentEl = this.renderTabs(containerEl);
+
+    switch (this.activeTab) {
+      case "general":
+        this.renderGeneralTab(contentEl);
+        return;
+      case "travel":
+        this.renderTravelTab(contentEl);
+        return;
+      case "collections":
+        this.renderCollectionsTab(contentEl);
+        return;
+      case "svg-icons":
+        this.renderSvgIconsTab(contentEl);
+        return;
+      case "image-icons":
+        this.renderImageIconsTab(contentEl);
+        return;
+      case "preferences":
+        this.renderPreferencesTab(contentEl);
+        return;
+    }
+  }
+
+  private renderGeneralTab(containerEl: HTMLElement): void {
 
     // Storage
     new Setting(containerEl).setName("Storage").setHeading();
@@ -1950,15 +2179,10 @@ class ZoomMapSettingTab extends PluginSettingTab {
         }),
       );
 
-    new Setting(containerEl)
-      .setName("Preferences")
-      .setDesc("Global defaults for marker creation and behavior.")
-      .addButton((b) =>
-        b.setButtonText("Open…").onClick(() => {
-          new PreferencesModal(this.app, this.plugin).open();
-        }),
-      );
+    this.renderLibrarySettings(containerEl);
+  }
 
+  private renderTravelTab(containerEl: HTMLElement): void {
     // Ruler
     new Setting(containerEl).setName("Ruler").setHeading();
 
@@ -2029,22 +2253,18 @@ class ZoomMapSettingTab extends PluginSettingTab {
           }),
       );
 
-    // Travel rules (custom units + travel presets)
     new Setting(containerEl).setName("Travel rules").setHeading();
-    new Setting(containerEl)
-      .setName("Manage travel rules packs")
-      .setDesc("Custom units + distance→time presets are managed in packs (import/export supported).")
-      .addButton((b) =>
-        b.setButtonText("Open…").onClick(() => {
-          new TravelRulesManagerModal(this.app, this.plugin, () => {
-            // re-render settings summary if needed
-            this.display();
-          }).open();
-        }),
-      );
 
-    /* ---------------- Collections ---------------- */
+    const travelRulesContainer = containerEl.createDiv();
+	const travelEditor = new TravelRulesManagerModal(
+      this.app,
+      this.plugin,
+      () => this.update(),
+    );
+    travelEditor.renderEmbedded(travelRulesContainer);
+  }
 
+  private renderCollectionsTab(containerEl: HTMLElement): void {
     new Setting(containerEl).setName("Collections (base-bound)").setHeading();
 
     const collectionsWrap = containerEl.createDiv();
@@ -2137,9 +2357,9 @@ class ZoomMapSettingTab extends PluginSettingTab {
       };
     };
     renderCollections();
+  }
 
-    /* ---------------- Marker icons (library) ---------------- */
-
+  private renderLibrarySettings(containerEl: HTMLElement): void {
     new Setting(containerEl).setName("Marker icons (library)").setHeading();
 
     const libRow = new Setting(containerEl)
@@ -2162,7 +2382,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
         new JsonFileSuggestModal(this.app, (file) => {
           (this.plugin.settings as ZoomMapSettingsExtended).libraryFilePath = file.path;
           void this.plugin.saveSettings().then(() => {
-            this.display();
+            this.update();
           });
         }).open();
       }),
@@ -2180,14 +2400,303 @@ class ZoomMapSettingTab extends PluginSettingTab {
       b.setButtonText("Load…").onClick(() => {
         new JsonFileSuggestModal(this.app, (file) => {
           void this.plugin.loadLibraryFromFile(file).then(() => {
-            this.display();
+            this.renderGeneralTab(containerEl);
           });
         }).open();
       }),
     );
-	
-	new Setting(containerEl).setName("SVG icon sources").setHeading();
+  }
 
+  private renderSvgIconsTab(containerEl: HTMLElement): void {
+    this.renderSvgIconSettings(containerEl);
+  }
+
+  private renderImageIconsTab(containerEl: HTMLElement): void {
+    this.renderImageIconSettings(containerEl);
+  }
+
+  private renderPreferencesTab(containerEl: HTMLElement): void {
+    new PreferencesModal(this.app, this.plugin).renderEmbedded(containerEl);
+  }
+
+  private renderSvgIconSettings(containerEl: HTMLElement): void {
+    new Setting(containerEl).setName("SVG icons").setHeading();
+
+    const addSvgSetting = new Setting(containerEl)
+      .setName("Add SVG icon or sort the list")
+      .setDesc("Create a pin icon from an SVG file in the configured folder, or sort the SVG icon list alphabetically.");
+
+    const infoIcon = addSvgSetting.controlEl.createDiv({
+      cls: "zoommap-info-icon",
+    });
+    setIcon(infoIcon, "info");
+    infoIcon.setAttr(
+      "title",
+      "Rendering many SVG files in the picker can cause noticeable delays while previews are generated.",
+    );
+
+    addSvgSetting.addButton((b) =>
+      b.setButtonText("Sort a→z").onClick(() => {
+        const icons = this.plugin.settings.icons ?? [];
+        const svgIcons = icons.filter((icon) => this.isSvgIcon(icon));
+
+        if (svgIcons.length <= 1) {
+          new Notice("No SVG icons to sort.", 2000);
+          return;
+        }
+
+        const sorted = [...svgIcons]
+          .sort((a, b) =>
+            String(a.key ?? "").localeCompare(String(b.key ?? ""), undefined, {
+              sensitivity: "base",
+              numeric: true,
+            }),
+          );
+
+        let index = 0;
+        this.plugin.settings.icons = icons.map((icon) =>
+          this.isSvgIcon(icon) ? sorted[index++] : icon,
+        );
+
+        void this.plugin.saveSettings().then(() => {
+          renderSvgIcons();
+          new Notice(`Sorted ${sorted.length} SVG icons.`, 2000);
+        });
+      }),
+    );
+
+    addSvgSetting.addButton((b) =>
+      b.setButtonText("Add SVG icon").onClick(() => {
+        const ext = this.plugin.settings as ZoomMapSettingsExtended;
+        const folder = ext.faFolderPath?.trim() || "ZoomMap/SVGs";
+
+        new FaIconPickerModal(this.app, folder, (file: TFile) => {
+          void this.addFontAwesomeIcon(file);
+        }).open();
+      }),
+    );
+
+    const head = containerEl.createDiv({
+      cls: "zm-icons-grid-head zm-grid",
+    });
+    head.createSpan();
+    head.createSpan({ text: "Name" });
+    head.createSpan({ text: "Preview / color / link" });
+    head.createSpan({ text: "Size" });
+    head.createSpan({ text: "Anchor X" });
+    head.createSpan({ text: "Anchor Y" });
+    head.createSpan({ text: "Angle" });
+    head.createSpan({ text: "" });
+
+    const grid = containerEl.createDiv({
+      cls: "zm-icons-grid zm-grid",
+    });
+	
+    const allLinkSuggestions = this.buildIconLinkSuggestions();
+
+    const renderSvgIcons = () => {
+      grid.empty();
+
+      for (const icon of this.plugin.settings.icons ?? []) {
+        if (!this.isSvgIcon(icon)) continue;
+
+        const row = grid.createDiv({ cls: "zm-row" });
+
+        const enabled = row.createEl("input", { type: "checkbox" });
+        enabled.addClass("zoommap-settings__icon-collections-toggle");
+        enabled.checked = icon.inCollections !== false;
+        enabled.onchange = () => {
+          icon.inCollections = enabled.checked;
+          void this.plugin.saveSettings();
+        };
+
+        const name = row.createEl("input", { type: "text" });
+        name.addClass("zm-name");
+        name.value = icon.key;
+        name.oninput = () => {
+          icon.key = name.value.trim();
+          void this.plugin.saveSettings();
+        };
+
+        const previewCell = row.createDiv({
+          cls: "zoommap-settings__preview-cell",
+        });
+
+        const img = previewCell.createEl("img");
+        img.addClass("zoommap-settings__icon-preview");
+        img.src = icon.pathOrDataUrl ?? "";
+
+        const applyRotationPreview = () => {
+          const deg = icon.rotationDeg ?? 0;
+          setCssProps(img, {
+            transform: deg ? `rotate(${deg}deg)` : null,
+          });
+        };
+        applyRotationPreview();
+
+        const rawSrc = icon.pathOrDataUrl ?? "";
+        const currentColor =
+          typeof rawSrc === "string" && rawSrc.startsWith("data:image/svg+xml")
+            ? this.getSvgColorFromDataUrl(rawSrc) ?? ""
+            : "";
+
+        const colorInput = previewCell.createEl("input", { type: "text" });
+        colorInput.addClass("zoommap-settings__color-input");
+        colorInput.placeholder = "Color";
+        colorInput.value = currentColor;
+
+        const colorPicker = previewCell.createEl("input", { type: "color" });
+        colorPicker.addClass("zoommap-settings__color-picker");
+        if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(currentColor)) {
+          const color =
+            currentColor.length === 4
+              ? `#${currentColor[1]}${currentColor[1]}${currentColor[2]}${currentColor[2]}${currentColor[3]}${currentColor[3]}`
+              : currentColor;
+          colorPicker.value = color;
+        }
+
+        const applyColor = (value: string) => {
+          const color = value.trim();
+          if (!color) return;
+
+          void this.queueSvgIconRecolor(icon, color).then((changed) => {
+            if (!changed) return;
+            img.src = icon.pathOrDataUrl ?? "";
+          });
+        };
+
+        colorInput.addEventListener("change", () => {
+          applyColor(colorInput.value);
+          if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(colorInput.value)) {
+            colorPicker.value =
+              colorInput.value.length === 4
+                ? `#${colorInput.value[1]}${colorInput.value[1]}${colorInput.value[2]}${colorInput.value[2]}${colorInput.value[3]}${colorInput.value[3]}`
+                : colorInput.value;
+          }
+        });
+
+        colorPicker.addEventListener("change", () => {
+          colorInput.value = colorPicker.value;
+          applyColor(colorPicker.value);
+        });
+
+        const linkInput = previewCell.createEl("input", { type: "text" });
+        linkInput.addClass("zoommap-settings__link-input--small");
+        linkInput.placeholder = "Default link (optional)";
+        linkInput.value = icon.defaultLink ?? "";
+        linkInput.oninput = () => {
+          icon.defaultLink = linkInput.value.trim() || undefined;
+          void this.plugin.saveSettings();
+        };
+
+        this.attachIconLinkAutocomplete(
+          linkInput,
+          allLinkSuggestions,
+          () => icon.defaultLink ?? "",
+          (value) => {
+            icon.defaultLink = value;
+            linkInput.value = value;
+            void this.plugin.saveSettings();
+          },
+        );
+
+        const outlineBtn = previewCell.createEl("button", {
+          attr: { title: "SVG outline…" },
+        });
+        outlineBtn.addClass("zm-icon-btn");
+        setIcon(outlineBtn, "gear");
+        outlineBtn.onclick = () => {
+          void (async () => {
+            outlineBtn.disabled = true;
+            try {
+              const pending = this.iconRecolorChains.get(icon);
+              if (pending) await pending.catch(() => false);
+
+              const foregroundColor = colorInput.value.trim();
+              if (foregroundColor) {
+                await this.queueSvgIconRecolor(icon, foregroundColor);
+              }
+
+              const svgSourceSnapshot = icon.pathOrDataUrl;
+              new IconOutlineModal(
+                this.app,
+                this.plugin,
+                icon,
+                (dataUrl) => {
+                  img.src = dataUrl;
+                  this.plugin.refreshMapIconVisuals();
+                },
+                {
+                  svgSourceOverride: svgSourceSnapshot,
+                  foregroundColorOverride: foregroundColor || undefined,
+                },
+              ).open();
+            } finally {
+              outlineBtn.disabled = false;
+            }
+          })();
+        };
+
+        const size = row.createEl("input", { type: "number" });
+        size.addClass("zm-num");
+        size.value = String(icon.size);
+        size.oninput = () => {
+          const n = Number(size.value);
+          if (Number.isFinite(n) && n > 0) {
+            icon.size = n;
+            void this.plugin.saveSettings();
+          }
+        };
+
+        const anchorX = row.createEl("input", { type: "number" });
+        anchorX.addClass("zm-num");
+        anchorX.value = String(icon.anchorX);
+        anchorX.oninput = () => {
+          const n = Number(anchorX.value);
+          if (Number.isFinite(n)) {
+            icon.anchorX = n;
+            void this.plugin.saveSettings();
+          }
+        };
+
+        const anchorY = row.createEl("input", { type: "number" });
+        anchorY.addClass("zm-num");
+        anchorY.value = String(icon.anchorY);
+        anchorY.oninput = () => {
+          const n = Number(anchorY.value);
+          if (Number.isFinite(n)) {
+            icon.anchorY = n;
+            void this.plugin.saveSettings();
+          }
+        };
+
+        const angle = row.createEl("input", { type: "number" });
+        angle.addClass("zm-num");
+        angle.value = String(icon.rotationDeg ?? 0);
+        angle.oninput = () => {
+          const n = Number(angle.value);
+          if (Number.isFinite(n)) {
+            icon.rotationDeg = n || 0;
+            void this.plugin.saveSettings();
+            applyRotationPreview();
+          }
+        };
+
+        const del = row.createEl("button", { attr: { title: "Delete" } });
+        del.addClass("zm-icon-btn");
+        setIcon(del, "trash");
+        del.onclick = () => {
+          this.plugin.settings.icons = (this.plugin.settings.icons ?? [])
+            .filter((candidate) => candidate !== icon);
+          void this.plugin.saveSettings();
+          renderSvgIcons();
+        };
+      }
+    };
+
+    renderSvgIcons();
+	
+    new Setting(containerEl).setName("SVG icon sources").setHeading();
     const svgFolderRow = new Setting(containerEl)
       .setName("SVG icon folder in vault")
       .setDesc("Folder that contains SVG packs.");
@@ -2237,176 +2746,13 @@ class ZoomMapSettingTab extends PluginSettingTab {
         void this.plugin.downloadRpgAwesomeZip();
       }),
     );
+  }
 
-    type IconLinkSuggestion = { label: string; value: string };
-
-    const buildLinkSuggestions = (): IconLinkSuggestion[] => {
-      const files = this.app.vault.getFiles().filter((f) => f.extension?.toLowerCase() === "md");
-      const suggestions: IconLinkSuggestion[] = [];
-
-      const active = this.app.workspace.getActiveFile();
-      const fromPath = active?.path ?? files[0]?.path ?? "";
-
-      for (const file of files) {
-        const baseLink = this.app.metadataCache.fileToLinktext(file, fromPath);
-
-        suggestions.push({ label: baseLink, value: baseLink });
-
-        const cache = this.app.metadataCache.getCache(file.path);
-        const headings = cache?.headings ?? [];
-        for (const h of headings) {
-          const headingName = h.heading;
-          const full = `${baseLink}#${headingName}`;
-          suggestions.push({ label: `${baseLink} › ${headingName}`, value: full });
-        }
-      }
-
-      return suggestions;
-    };
-
-    const allLinkSuggestions = buildLinkSuggestions();
-
-    const attachLinkAutocomplete = (
-      input: HTMLInputElement,
-      getValue: () => string,
-      setValue: (val: string) => void,
-    ): void => {
-      const wrapper = input.parentElement;
-      if (!wrapper) return;
-
-      wrapper.classList.add("zoommap-link-input-wrapper");
-      const listEl = wrapper.createDiv({ cls: "zoommap-link-suggestions is-hidden" });
-
-      const hide = () => listEl.classList.add("is-hidden");
-      const show = () => listEl.classList.remove("is-hidden");
-
-      const updateList = (query: string) => {
-        const q = query.trim().toLowerCase();
-        listEl.empty();
-
-        if (!q) {
-          hide();
-          return;
-        }
-
-        const maxItems = 20;
-        const matches = allLinkSuggestions
-          .filter((s) => s.value.toLowerCase().includes(q) || s.label.toLowerCase().includes(q))
-          .slice(0, maxItems);
-
-        if (matches.length === 0) {
-          hide();
-          return;
-        }
-
-        show();
-
-        matches.forEach((s) => {
-          const row = listEl.createDiv({ cls: "zoommap-link-suggestion-item" });
-          row.setText(s.label);
-          row.addEventListener("mousedown", (ev) => {
-            ev.preventDefault();
-            setValue(s.value);
-            hide();
-          });
-        });
-      };
-
-      input.addEventListener("input", () => updateList(input.value));
-
-      input.addEventListener("blur", () => {
-        window.setTimeout(() => hide(), 150);
-      });
-
-      updateList(getValue());
-    };
-
-    const isSvgIcon = (icon: IconProfile): boolean => {
-      const src = icon.pathOrDataUrl ?? "";
-      if (typeof src !== "string") return false;
-      const lower = src.toLowerCase();
-      return lower.startsWith("data:image/svg+xml") || lower.endsWith(".svg");
-    };
-	
-	new Setting(containerEl).setName("SVG icons").setHeading();
-	
-    const addSvgSetting = new Setting(containerEl)
-      .setName("Add SVG icon or sort the list")
-      .setDesc("Create a pin icon from an SVG file in the configured folder, or sort the SVG icon list alphabetically.");
-
-    const infoIcon = addSvgSetting.controlEl.createDiv({ cls: "zoommap-info-icon" });
-    setIcon(infoIcon, "info");
-    infoIcon.setAttr(
-      "title",
-      "Rendering many SVG files in the picker can cause noticeable delays while all previews are generated. Once the icons are cached, searching and adding should feel much faster.",
-    );
-
-    addSvgSetting.addButton((b) =>
-      b.setButtonText("Sort a→z").onClick(() => {
-        const icons = this.plugin.settings.icons ?? [];
-        if (icons.length === 0) return;
-
-        const svgIcons = icons.filter((i) => isSvgIcon(i));
-        if (svgIcons.length <= 1) {
-          new Notice("No SVG icons to sort.", 2000);
-          return;
-        }
-
-        const keyOf = (i: IconProfile) => String(i.key ?? "").trim();
-        const sorted = [...svgIcons].sort((a, b) =>
-          keyOf(a).localeCompare(keyOf(b), undefined, { sensitivity: "base", numeric: true }),
-        );
-
-        let j = 0;
-        const next = icons.map((ico) => (isSvgIcon(ico) ? sorted[j++] : ico));
-
-        this.plugin.settings.icons = next;
-        void this.plugin.saveSettings().then(() => {
-          renderIcons?.();
-          new Notice(`Sorted ${sorted.length} SVG icons.`, 2000);
-        });
-      }),
-    );
-
-    addSvgSetting.addButton((b) =>
-      b.setButtonText("Add SVG icon").onClick(() => {
-        const ext = this.plugin.settings as ZoomMapSettingsExtended;
-        const folder = ext.faFolderPath?.trim() || "ZoomMap/SVGs";
-
-        new FaIconPickerModal(this.app, folder, (file: TFile) => {
-          void this.addFontAwesomeIcon(file);
-        }).open();
-      }),
-    );
-
-    // SVG icons table header
-    const svgIconsHead = containerEl.createDiv({ cls: "zm-icons-grid-head zm-grid" });
-	svgIconsHead.createSpan();
-    svgIconsHead.createSpan({ text: "Name" });
-    svgIconsHead.createSpan({ text: "Preview / color / link" });
-    svgIconsHead.createSpan({ text: "Size" });
-
-    const headSvgAX = svgIconsHead.createSpan({ cls: "zm-icohead" });
-    const svgAxIco = headSvgAX.createSpan();
-    setIcon(svgAxIco, "anchor");
-    headSvgAX.appendText(" X");
-
-    const headSvgAY = svgIconsHead.createSpan({ cls: "zm-icohead" });
-    const svgAyIco = headSvgAY.createSpan();
-    setIcon(svgAyIco, "anchor");
-    headSvgAY.appendText(" Y");
-
-    svgIconsHead.createSpan({ text: "Angle" });
-
-    const headSvgTrash = svgIconsHead.createSpan();
-    setIcon(headSvgTrash, "trash");
-
-    const svgIconsGrid = containerEl.createDiv({ cls: "zm-icons-grid zm-grid" });
-
-    // Image icons heading
+  private renderImageIconSettings(containerEl: HTMLElement): void {
     new Setting(containerEl).setName("Image icons").setHeading();
-	
-    // ---- Add new icon (MOVE ABOVE LIST) ----
+
+    const allLinkSuggestions = this.buildIconLinkSuggestions();
+
     new Setting(containerEl)
       .setName("Add new icon or sort the list")
       .setDesc("Create a new image-based icon entry, or sort the image icon list alphabetically.")
@@ -2416,7 +2762,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
           if (icons.length === 0) return;
 
           // Only sort "image icons" (non-SVG) and keep SVG icons in place.
-          const imgIcons = icons.filter((i) => !isSvgIcon(i));
+          const imgIcons = icons.filter((icon) => !this.isSvgIcon(icon));
           if (imgIcons.length <= 1) {
             new Notice("No image icons to sort.", 2000);
             return;
@@ -2428,7 +2774,9 @@ class ZoomMapSettingTab extends PluginSettingTab {
           );
 
           let j = 0;
-          const next = icons.map((ico) => (isSvgIcon(ico) ? ico : sorted[j++]));
+          const next = icons.map((icon) =>
+            this.isSvgIcon(icon) ? icon : sorted[j++],
+          );
 
           this.plugin.settings.icons = next;
           void this.plugin.saveSettings().then(() => {
@@ -2482,365 +2830,154 @@ class ZoomMapSettingTab extends PluginSettingTab {
 	let renderIcons: () => void;
 
     renderIcons = () => {
-      svgIconsGrid.empty();
       imgIconsGrid.empty();
 
       for (const icon of this.plugin.settings.icons) {
-        if (isSvgIcon(icon)) {
-          const row = svgIconsGrid.createDiv({ cls: "zm-row" });
+        if (this.isSvgIcon(icon)) continue;
+
+        const row = imgIconsGrid.createDiv({ cls: "zm-row" });
 		  
-          const enabled = row.createEl("input", { type: "checkbox" });
-          enabled.addClass("zoommap-settings__icon-collections-toggle");
-          enabled.checked = icon.inCollections !== false;
-          enabled.onchange = () => {
-            icon.inCollections = enabled.checked;
-            void this.plugin.saveSettings();
-          };
+        const enabled = row.createEl("input", { type: "checkbox" });
+        enabled.addClass("zoommap-settings__icon-collections-toggle");
+        enabled.checked = icon.inCollections !== false;
+        enabled.onchange = () => {
+          icon.inCollections = enabled.checked;
+          void this.plugin.saveSettings();
+        };
 
-          const name = row.createEl("input", { type: "text" });
-          name.classList.add("zm-name");
-          name.value = icon.key;
-          name.oninput = () => {
-            icon.key = name.value.trim();
-            void this.plugin.saveSettings();
-          };
-
-          const previewCell = row.createDiv({ cls: "zoommap-settings__preview-cell" });
-
-          const img = previewCell.createEl("img");
-          img.addClass("zoommap-settings__icon-preview");
-
-          let src = icon.pathOrDataUrl ?? "";
-          if (typeof src === "string" && !src.startsWith("data:") && src) {
-            const f = this.app.vault.getAbstractFileByPath(src);
-            if (f instanceof TFile) {
-              src = this.app.vault.getResourcePath(f);
-            }
+        const name = row.createEl("input", { type: "text" });
+        name.classList.add("zm-name");
+        name.value = icon.key;
+        name.oninput = () => {
+          icon.key = name.value.trim();
+          void this.plugin.saveSettings();
+        };
+		  
+        const showPreview = !!this.plugin.settings.showImageIconPreviewInSettings;
+        let previewImg: HTMLImageElement | null = null;
+        const refreshPreview = () => {
+          if (!previewImg) return;
+          let src = (icon.pathOrDataUrl ?? "").trim();
+          if (!src) {
+            previewImg.src = "";
+            return;
           }
-          img.src = typeof src === "string" ? src : "";
-
-          const applyRotationPreview = () => {
-            const deg = icon.rotationDeg ?? 0;
-            setCssProps(img, {
-              transform: deg ? `rotate(${deg}deg)` : null,
-            });
-          };
-          applyRotationPreview();
-
-          const rawSrc = icon.pathOrDataUrl ?? "";
-          const isSvgData = typeof rawSrc === "string" && rawSrc.startsWith("data:image/svg+xml");
-          let currentColor = "";
-          if (isSvgData) {
-            const c = this.getSvgColorFromDataUrl(rawSrc);
-            if (c) currentColor = c;
-          }
-
-          const colorInput = previewCell.createEl("input", { type: "text" });
-          colorInput.addClass("zoommap-settings__color-input");
-          colorInput.placeholder = "Color";
-          colorInput.value = currentColor;
-
-          const colorPicker = previewCell.createEl("input", { type: "color" });
-          colorPicker.addClass("zoommap-settings__color-picker");
-
-          if (currentColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(currentColor)) {
-            if (currentColor.length === 4) {
-              const r = currentColor[1];
-              const g = currentColor[2];
-              const b = currentColor[3];
-              colorPicker.value = `#${r}${r}${g}${g}${b}${b}`;
-            } else {
-              colorPicker.value = currentColor;
-            }
-          }
-
-          const applyColor = (val: string) => {
-            const c = val.trim();
-            if (!c) return;
-            void this.queueSvgIconRecolor(icon, c).then((changed) => {
-              if (!changed) return;
-              const updated = icon.pathOrDataUrl ?? "";
-              let out = updated;
-              if (typeof out === "string" && !out.startsWith("data:") && out) {
-                const f = this.app.vault.getAbstractFileByPath(out);
-                if (f instanceof TFile) out = this.app.vault.getResourcePath(f);
-              }
-              img.src = typeof out === "string" ? out : "";
-            });
-          };
-
-          colorInput.addEventListener("change", () => {
-            const val = colorInput.value;
-            applyColor(val);
-            if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(val)) {
-              if (val.length === 4) {
-                const r = val[1];
-                const g = val[2];
-                const b = val[3];
-                colorPicker.value = `#${r}${r}${g}${g}${b}${b}`;
-              } else {
-                colorPicker.value = val;
-              }
-            }
-          });
-
-          colorPicker.addEventListener("change", () => {
-            const hex = colorPicker.value;
-            colorInput.value = hex;
-            applyColor(hex);
-          });
-
-          const linkInput = previewCell.createEl("input", { type: "text" });
-          linkInput.addClass("zoommap-settings__link-input--small");
-          linkInput.placeholder = "Default link (optional)";
-          linkInput.value = icon.defaultLink ?? "";
-          linkInput.oninput = () => {
-            icon.defaultLink = linkInput.value.trim() || undefined;
-            void this.plugin.saveSettings();
-          };
-
-          attachLinkAutocomplete(
-            linkInput,
-            () => icon.defaultLink ?? "",
-            (val) => {
-              icon.defaultLink = val;
-              linkInput.value = val;
-              void this.plugin.saveSettings();
-            },
-          );
-		  
-		  const outlineBtn = previewCell.createEl("button", {
-			attr: { title: "SVG outline…" },
-		  });
-		  outlineBtn.classList.add("zm-icon-btn");
-		  setIcon(outlineBtn, "gear");
-		  outlineBtn.onclick = () => {
-		    void (async () => {
-		      outlineBtn.disabled = true;
-
-		      try {
-		        const pending = this.iconRecolorChains.get(icon);
-		        if (pending) {
-		          await pending.catch(() => false);
-		        }
-
-		        const currentColor = colorInput.value.trim();
-		        if (currentColor) {
-		          await this.queueSvgIconRecolor(icon, currentColor);
-		        }
-
-		        if (!(this.plugin.settings.icons ?? []).includes(icon)) return;
-				
-				const svgSourceSnapshot = icon.pathOrDataUrl;
-
-		        new IconOutlineModal(this.app, this.plugin, icon, (newDataUrl) => {
-		          img.src = newDataUrl;
-		          this.plugin.refreshMapIconVisuals();
-		        }, {
-                  svgSourceOverride: svgSourceSnapshot,
-                  foregroundColorOverride: currentColor || undefined,
-                }).open();
-		      } finally {
-		        outlineBtn.disabled = false;
-		      }
-		    })();
-		  };
-
-          const size = row.createEl("input", { type: "number" });
-          size.classList.add("zm-num");
-          size.value = String(icon.size);
-          size.oninput = () => {
-            const n = Number(size.value);
-            if (!Number.isNaN(n) && n > 0) {
-              icon.size = n;
-              void this.plugin.saveSettings();
-            }
-          };
-
-          const ax = row.createEl("input", { type: "number" });
-          ax.classList.add("zm-num");
-          ax.value = String(icon.anchorX);
-          ax.oninput = () => {
-            const n = Number(ax.value);
-            if (!Number.isNaN(n)) {
-              icon.anchorX = n;
-              void this.plugin.saveSettings();
-            }
-          };
-
-          const ay = row.createEl("input", { type: "number" });
-          ay.classList.add("zm-num");
-          ay.value = String(icon.anchorY);
-          ay.oninput = () => {
-            const n = Number(ay.value);
-            if (!Number.isNaN(n)) {
-              icon.anchorY = n;
-              void this.plugin.saveSettings();
-            }
-          };
-
-          const angle = row.createEl("input", { type: "number" });
-          angle.classList.add("zm-num");
-          angle.value = String(icon.rotationDeg ?? 0);
-          angle.oninput = () => {
-            const n = Number(angle.value);
-            if (!Number.isNaN(n)) {
-              icon.rotationDeg = n || 0;
-              void this.plugin.saveSettings();
-              applyRotationPreview();
-            }
-          };
-
-          const del = row.createEl("button", { attr: { title: "Delete" } });
-          del.classList.add("zm-icon-btn");
-          setIcon(del, "trash");
-          del.onclick = () => {
-            this.plugin.settings.icons = this.plugin.settings.icons.filter((i) => i !== icon);
-            void this.plugin.saveSettings();
-            renderIcons();
-          };
-        } else {
-          const row = imgIconsGrid.createDiv({ cls: "zm-row" });
-		  
-          const enabled = row.createEl("input", { type: "checkbox" });
-          enabled.addClass("zoommap-settings__icon-collections-toggle");
-          enabled.checked = icon.inCollections !== false;
-          enabled.onchange = () => {
-            icon.inCollections = enabled.checked;
-            void this.plugin.saveSettings();
-          };
-
-          const name = row.createEl("input", { type: "text" });
-          name.classList.add("zm-name");
-          name.value = icon.key;
-          name.oninput = () => {
-            icon.key = name.value.trim();
-            void this.plugin.saveSettings();
-          };
-		  
-          // Optional preview column (between name and path)
-          const showPreview = !!this.plugin.settings.showImageIconPreviewInSettings;
-          let previewImg: HTMLImageElement | null = null;
-          const refreshPreview = () => {
-            if (!previewImg) return;
-            let src = (icon.pathOrDataUrl ?? "").trim();
-            if (!src) {
-              previewImg.src = "";
-              return;
-            }
-            if (src.startsWith("data:")) {
-              previewImg.src = src;
-              return;
-            }
-            const f = this.app.vault.getAbstractFileByPath(src);
-            if (f instanceof TFile) {
-              previewImg.src = this.app.vault.getResourcePath(f);
-              return;
-            }
+          if (src.startsWith("data:")) {
             previewImg.src = src;
-          };
-
-          if (showPreview) {
-            previewImg = row.createEl("img", { cls: "zoommap-settings__icon-preview zoommap-settings__icon-preview--img" });
-            refreshPreview();
+            return;
           }
+          const file = this.app.vault.getAbstractFileByPath(src);
+          previewImg.src =
+            file instanceof TFile
+              ? this.app.vault.getResourcePath(file)
+              : src;
+        };
+
+        if (showPreview) {
+          previewImg = row.createEl("img", {
+            cls: "zoommap-settings__icon-preview zoommap-settings__icon-preview--img",
+          });
+          refreshPreview();
+        }
 
           const pathWrap = row.createDiv({ cls: "zm-path-wrap" });
 
-          const path = pathWrap.createEl("input", { type: "text" });
-          path.addClass("zoommap-settings__icon-path-input");
-          path.value = icon.pathOrDataUrl ?? "";
-          path.oninput = () => {
-            icon.pathOrDataUrl = path.value.trim();
+        const path = pathWrap.createEl("input", { type: "text" });
+        path.addClass("zoommap-settings__icon-path-input");
+        path.value = icon.pathOrDataUrl ?? "";
+        path.oninput = () => {
+          icon.pathOrDataUrl = path.value.trim();
+          void this.plugin.saveSettings();
+          refreshPreview();
+        };
+
+        const pick = pathWrap.createEl("button", {
+          attr: { title: "Choose file…" },
+        });
+        pick.classList.add("zm-icon-btn");
+        setIcon(pick, "folder-open");
+        pick.onclick = () => {
+          new ImageFileSuggestModal(this.app, (file: TFile) => {
+            icon.pathOrDataUrl = file.path;
+            path.value = file.path;
+            refreshPreview();
             void this.plugin.saveSettings();
-			refreshPreview();
-          };
+          }).open();
+        };
 
-          const pick = pathWrap.createEl("button", { attr: { title: "Choose file…" } });
-          pick.classList.add("zm-icon-btn");
-          setIcon(pick, "folder-open");
-          pick.onclick = () => {
-            new ImageFileSuggestModal(this.app, (file: TFile) => {
-              icon.pathOrDataUrl = file.path;
-              void this.plugin.saveSettings();
-              path.value = file.path;
-              refreshPreview();
-              renderIcons();
-            }).open();
-          };
+        const linkInput = pathWrap.createEl("input", { type: "text" });
+        linkInput.addClass("zoommap-settings__link-input--medium");
+        linkInput.placeholder = "Default link (optional)";
+        linkInput.value = icon.defaultLink ?? "";
+        linkInput.oninput = () => {
+          icon.defaultLink = linkInput.value.trim() || undefined;
+          void this.plugin.saveSettings();
+        };
 
-          const linkInput = pathWrap.createEl("input", { type: "text" });
-          linkInput.addClass("zoommap-settings__link-input--medium");
-          linkInput.placeholder = "Default link (optional)";
-          linkInput.value = icon.defaultLink ?? "";
-          linkInput.oninput = () => {
-            icon.defaultLink = linkInput.value.trim() || undefined;
+        this.attachIconLinkAutocomplete(
+          linkInput,
+          allLinkSuggestions,
+          () => icon.defaultLink ?? "",
+          (value) => {
+            icon.defaultLink = value;
+            linkInput.value = value;
             void this.plugin.saveSettings();
-          };
+          },
+        );
 
-          attachLinkAutocomplete(
-            linkInput,
-            () => icon.defaultLink ?? "",
-            (val) => {
-              icon.defaultLink = val;
-              linkInput.value = val;
-              void this.plugin.saveSettings();
-            },
-          );
-
-          const size = row.createEl("input", { type: "number" });
-          size.classList.add("zm-num");
-          size.value = String(icon.size);
-          size.oninput = () => {
-            const n = Number(size.value);
-            if (!Number.isNaN(n) && n > 0) {
-              icon.size = n;
-              void this.plugin.saveSettings();
-            }
-          };
-
-          const ax = row.createEl("input", { type: "number" });
-          ax.classList.add("zm-num");
-          ax.value = String(icon.anchorX);
-          ax.oninput = () => {
-            const n = Number(ax.value);
-            if (!Number.isNaN(n)) {
-              icon.anchorX = n;
-              void this.plugin.saveSettings();
-            }
-          };
-
-          const ay = row.createEl("input", { type: "number" });
-          ay.classList.add("zm-num");
-          ay.value = String(icon.anchorY);
-          ay.oninput = () => {
-            const n = Number(ay.value);
-            if (!Number.isNaN(n)) {
-              icon.anchorY = n;
-              void this.plugin.saveSettings();
-            }
-          };
-
-          const angle = row.createEl("input", { type: "number" });
-          angle.classList.add("zm-num");
-          angle.value = String(icon.rotationDeg ?? 0);
-          angle.oninput = () => {
-            const n = Number(angle.value);
-            if (!Number.isNaN(n)) {
-              icon.rotationDeg = n || 0;
-              void this.plugin.saveSettings();
-            }
-          };
-
-          const del = row.createEl("button", { attr: { title: "Delete" } });
-          del.classList.add("zm-icon-btn");
-          setIcon(del, "trash");
-          del.onclick = () => {
-            this.plugin.settings.icons = this.plugin.settings.icons.filter((i) => i !== icon);
+        const size = row.createEl("input", { type: "number" });
+        size.addClass("zm-num");
+        size.value = String(icon.size);
+        size.oninput = () => {
+          const n = Number(size.value);
+          if (Number.isFinite(n) && n > 0) {
+            icon.size = n;
             void this.plugin.saveSettings();
-            renderIcons();
-          };
-        }
+          }
+        };
+
+        const ax = row.createEl("input", { type: "number" });
+        ax.addClass("zm-num");
+        ax.value = String(icon.anchorX);
+        ax.oninput = () => {
+          const n = Number(ax.value);
+          if (Number.isFinite(n)) {
+            icon.anchorX = n;
+            void this.plugin.saveSettings();
+          }
+        };
+
+        const ay = row.createEl("input", { type: "number" });
+        ay.addClass("zm-num");
+        ay.value = String(icon.anchorY);
+        ay.oninput = () => {
+          const n = Number(ay.value);
+          if (Number.isFinite(n)) {
+            icon.anchorY = n;
+            void this.plugin.saveSettings();
+          }
+        };
+
+        const angle = row.createEl("input", { type: "number" });
+        angle.addClass("zm-num");
+        angle.value = String(icon.rotationDeg ?? 0);
+        angle.oninput = () => {
+          const n = Number(angle.value);
+          if (Number.isFinite(n)) {
+            icon.rotationDeg = n || 0;
+            void this.plugin.saveSettings();
+          }
+        };
+
+        const del = row.createEl("button", { attr: { title: "Delete" } });
+        del.addClass("zm-icon-btn");
+        setIcon(del, "trash");
+        del.onclick = () => {
+          this.plugin.settings.icons = this.plugin.settings.icons
+            .filter((candidate) => candidate !== icon);
+          void this.plugin.saveSettings();
+          renderIcons();
+        };
       }
     };
 

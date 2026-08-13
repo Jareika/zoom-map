@@ -115,6 +115,7 @@ async function writeJsonToVault(app: App, path: string, payload: unknown): Promi
 export class TravelRulesManagerModal extends Modal {
   private plugin: ZoomMapPlugin;
   private onDone?: DoneCb;
+  private embeddedContainer: HTMLElement | null = null;
 
   constructor(app: App, plugin: ZoomMapPlugin, onDone?: DoneCb) {
     super(app);
@@ -130,11 +131,30 @@ export class TravelRulesManagerModal extends Modal {
     this.contentEl.empty();
     this.onDone?.();
   }
+  
+  renderEmbedded(containerEl: HTMLElement): void {
+    this.embeddedContainer = containerEl;
+    this.renderInto(containerEl, true);
+  }
 
   private render(): void {
-    const { contentEl } = this;
+    this.renderInto(this.contentEl, false);
+  }
+
+  private refresh(): void {
+    if (this.embeddedContainer) {
+      this.renderInto(this.embeddedContainer, true);
+      return;
+    }
+    this.render();
+  }
+
+  private renderInto(contentEl: HTMLElement, embedded: boolean): void {
     contentEl.empty();
-    contentEl.createEl("h2", { text: "Travel rules" });
+
+    if (!embedded) {
+      contentEl.createEl("h2", { text: "Travel rules" });
+    }
 
     const packs = (this.plugin.settings.travelRulesPacks ??= []);
 
@@ -171,7 +191,7 @@ export class TravelRulesManagerModal extends Modal {
         new TravelRulesPackEditorModal(this.app, this.plugin, p, (res) => {
           if (res.action !== "save" || !res.pack) return;
           packs[idx] = res.pack;
-          void this.plugin.saveSettings().then(() => this.render());
+          void this.plugin.saveSettings().then(() => this.refresh());
         }).open();
       };
 
@@ -198,7 +218,7 @@ export class TravelRulesManagerModal extends Modal {
       const del = actions.createEl("button", { text: "Delete" });
       del.onclick = () => {
         packs.splice(idx, 1);
-		void this.plugin.saveSettings().then(() => this.render());
+		void this.plugin.saveSettings().then(() => this.refresh());
       };
     });
 
@@ -216,7 +236,7 @@ export class TravelRulesManagerModal extends Modal {
         travelPerDayPresets: [{ id: genId("tpd"), name: "Default", value: 8, unit: "h" }],
         travelPerDay: { value: 8, unit: "h" }, // legacy mirror
       });
-      void this.plugin.saveSettings().then(() => this.render());
+      void this.plugin.saveSettings().then(() => this.refresh());
     };
 
     const importBtn = actions.createEl("button", { text: "Import…" });
@@ -224,7 +244,7 @@ export class TravelRulesManagerModal extends Modal {
       new JsonFileSuggestModal(this.app, (file: TFile) => {
         void (async () => {
           await this.importFromFile(file);
-          this.render();
+          this.refresh();
         })();
       }).open();
     };
@@ -244,8 +264,10 @@ export class TravelRulesManagerModal extends Modal {
       })();
     };
 
-    const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });
-    footer.createEl("button", { text: "Close" }).onclick = () => this.close();
+    if (!embedded) {
+      const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });
+      footer.createEl("button", { text: "Close" }).onclick = () => this.close();
+    }
   }
 
   private async importFromFile(file: TFile): Promise<void> {

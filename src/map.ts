@@ -687,6 +687,7 @@ export class MapInstance extends Component {
   private dragAnchorOffset: { dx: number; dy: number } | null = null;
   private dragMoved = false;
   private suppressClickMarkerId: string | null = null;
+  private markerClipboard: Marker | null = null;
 
   private tooltipEl: HTMLDivElement | null = null;
   private tooltipHideTimer: number | null = null;
@@ -7597,6 +7598,15 @@ private onContextMenuViewport(e: MouseEvent): void {
     if (!this.ready || !this.data) return;
     this.closeMenu();
     if (this.cfg.displayOnly) return;
+	
+    if (this.markerClipboard) {
+      const { vx, vy, nx, ny } = this.getViewportContextPosition(
+        e.clientX,
+        e.clientY,
+      );
+      this.openMarkerClipboardMenu(e.clientX, e.clientY, vx, vy, nx, ny);
+      return;
+    }
 
     if (this.measuring || this.calibrating) {
       e.preventDefault();
@@ -9459,6 +9469,116 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     });
     modal.open();
   }
+  
+  private buildCopyMarkerMenuItems(m: Marker): ZMMenuItem[] {
+    if (m.type === "ping") return [];
+
+    return [
+      {
+        label: m.type === "sticker" ? "Copy sticker" : "Copy pin",
+        action: () => {
+          this.markerClipboard = cloneForUndo(m);
+          this.closeMenu();
+          new Notice(
+            m.type === "sticker"
+              ? "Sticker copied. Right-click on the map to paste or cancel."
+              : "Pin copied. Right-click on the map to paste or cancel.",
+            2200,
+          );
+        },
+      },
+      { type: "separator" },
+    ];
+  }
+
+  private pasteMarkerClipboardAt(
+    vx: number,
+    vy: number,
+    nx: number,
+    ny: number,
+  ): void {
+    if (!this.data || !this.markerClipboard) return;
+
+    const pasted = cloneForUndo(this.markerClipboard);
+    pasted.id = generateId(
+      pasted.type === "sticker" ? "sticker" : "marker",
+    );
+
+    if (pasted.anchorSpace === "viewport") {
+      pasted.hudX = vx;
+      pasted.hudY = vy;
+      this.classifyHudMetaFromCurrentPosition(
+        pasted,
+        this.viewportEl.getBoundingClientRect(),
+      );
+    } else {
+      pasted.x = nx;
+      pasted.y = ny;
+      delete pasted.anchorSpace;
+      delete pasted.hudX;
+      delete pasted.hudY;
+      delete pasted.hudModeX;
+      delete pasted.hudModeY;
+      delete pasted.hudLastWidth;
+      delete pasted.hudLastHeight;
+    }
+
+    this.data.markers.push(pasted);
+    void this.saveDataSoon();
+    this.renderMarkersOnly();
+    new Notice(
+      pasted.type === "sticker" ? "Sticker pasted." : "Pin pasted.",
+      900,
+    );
+  }
+
+  private openMarkerClipboardMenu(
+    clientX: number,
+    clientY: number,
+    vx: number,
+    vy: number,
+    nx: number,
+    ny: number,
+  ): void {
+    this.closeMenu();
+
+    this.openMenu = new ZMMenu(this.el.ownerDocument);
+    this.openMenu.open(clientX, clientY, [
+      {
+        label: "Paste",
+        action: () => {
+          this.pasteMarkerClipboardAt(vx, vy, nx, ny);
+          this.closeMenu();
+        },
+      },
+      {
+        label: "Cancel",
+        action: () => {
+          this.markerClipboard = null;
+          this.closeMenu();
+          new Notice("Pin clipboard cleared.", 900);
+        },
+      },
+    ]);
+  }
+
+  private getViewportContextPosition(
+    clientX: number,
+    clientY: number,
+  ): { vx: number; vy: number; nx: number; ny: number } {
+    const vpRect = this.viewportEl.getBoundingClientRect();
+    const vx = clientX - vpRect.left;
+    const vy = clientY - vpRect.top;
+    const wx = (vx - this.tx) / this.scale;
+    const wy = (vy - this.ty) / this.scale;
+
+    return {
+      vx,
+      vy,
+      nx: clamp(wx / this.imgW, 0, 1),
+      ny: clamp(wy / this.imgH, 0, 1),
+    };
+  }
 
   private placePinAt(iconKey: string, nx: number, ny: number): void {
     if (!this.data) return;
@@ -11182,6 +11302,13 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         });
 
         hit.addEventListener("click", (ev: MouseEvent) => {
+          if (this.drawingMode) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            this.handleDrawClick(ev);
+            return;
+          }
+
           if (this.measuring || this.calibrating) return;
           if (!regionLink) return;
           ev.preventDefault();
@@ -12276,6 +12403,13 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       }
 
       host.addEventListener("click", (ev) => {
+        if (this.drawingMode) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          this.handleDrawClick(ev);
+          return;
+        }
+
         if (this.measuring || this.calibrating) return;
 
         ev.stopPropagation();
@@ -12310,6 +12444,12 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       });
 
       host.addEventListener("pointerdown", (e: PointerEvent) => {
+        if (this.drawingMode) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+
         if (this.measuring || this.calibrating) return;
 
         if (e.button === 1 && this.plugin.settings.middleClickOpensLinkInNewTab) {
@@ -12367,6 +12507,22 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         ev.preventDefault();
         ev.stopPropagation();
 
+        if (this.markerClipboard) {
+          const { vx, vy, nx, ny } = this.getViewportContextPosition(
+            ev.clientX,
+            ev.clientY,
+          );
+          this.openMarkerClipboardMenu(
+            ev.clientX,
+            ev.clientY,
+            vx,
+            vy,
+            nx,
+            ny,
+          );
+          return;
+        }
+
         if (this.measuring || this.calibrating) {
           this.openMeasureOnlyContextMenu(ev.clientX, ev.clientY);
           return;
@@ -12381,6 +12537,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
           }
 
           const items: ZMMenuItem[] = this.applyPlayerRevealItems([
+            ...this.buildCopyMarkerMenuItems(m),
             {
               label: "Switch base now",
               action: () => {
@@ -12466,6 +12623,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 		
         if (m.type === "dice") {
           const items: ZMMenuItem[] = this.applyPlayerRevealItems([
+            ...this.buildCopyMarkerMenuItems(m),
             {
               label: "Roll dice",
               action: () => {
@@ -12603,6 +12761,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
           }
 
           const items: ZMMenuItem[] = this.applyPlayerRevealItems([
+            ...this.buildCopyMarkerMenuItems(m),
             {
               label: "Edit swap pin links… ",
               action: () => {
@@ -12703,7 +12862,8 @@ if (this.plugin.settings.enableTextLayers && this.data) {
           return;
         }
 
-        const items: ZMMenuItem[] = this.applyPlayerRevealItems([
+          const items: ZMMenuItem[] = this.applyPlayerRevealItems([
+            ...this.buildCopyMarkerMenuItems(m),
           {
             label: m.type === "sticker" ? "Edit sticker" : "Edit marker",
             action: () => {

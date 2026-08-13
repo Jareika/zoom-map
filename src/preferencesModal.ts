@@ -4,6 +4,7 @@ import type ZoomMapPlugin from "./main";
 
 export class PreferencesModal extends Modal {
   private plugin: ZoomMapPlugin;
+  private embedded = false;
 
   constructor(app: App, plugin: ZoomMapPlugin) {
     super(app);
@@ -11,9 +12,20 @@ export class PreferencesModal extends Modal {
   }
 
   onOpen(): void {
-    const { contentEl } = this;
+    this.renderSettings(this.contentEl, false);
+  }
+
+  renderEmbedded(containerEl: HTMLElement): void {
+    this.renderSettings(containerEl, true);
+  }
+
+  private renderSettings(contentEl: HTMLElement, embedded: boolean): void {
+    this.embedded = embedded;
     contentEl.empty();
-    contentEl.createEl("h2", { text: "Preferences" });
+
+    if (!embedded) {
+      contentEl.createEl("h2", { text: "Preferences" });
+    }
 
     // Session image cache
     contentEl.createEl("h3", { text: "Session image cache" });
@@ -231,9 +243,11 @@ export class PreferencesModal extends Modal {
         });
       });
 
-    const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });
-    const closeBtn = footer.createEl("button", { text: "Close" });
-    closeBtn.onclick = () => this.close();
+    if (!embedded) {
+      const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });
+      const closeBtn = footer.createEl("button", { text: "Close" });
+      closeBtn.onclick = () => this.close();
+    }
 
     applyEnabledState();
     applySecondScreenState();
