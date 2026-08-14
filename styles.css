@@ -33,6 +33,81 @@
   min-width: 0;
 }
 
+/* ==========================================================================
+   Settings layout helpers
+
+   Obsidian settings normally keep the info column and the controls in a
+   single flex row. Long descriptions can become extremely narrow on smaller
+   settings panes. These helpers allow selected ZoomMap settings to wrap their
+   controls cleanly, while keeping descriptions readable.
+   ========================================================================== */
+
+.zoommap-settings .setting-item.zoommap-setting--wrap-control {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.zoommap-settings .setting-item.zoommap-setting--wrap-control > .setting-item-info {
+  min-width: min(100%, 220px);
+  flex: 1 1 220px;
+}
+
+.zoommap-settings .setting-item.zoommap-setting--wrap-control > .setting-item-control {
+  min-width: 0;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+/* Put a setting description below its label and controls. `display: contents`
+   preserves Obsidian's native setting markup while allowing flex ordering. */
+.zoommap-settings .setting-item.zoommap-setting--desc-below {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+
+.zoommap-settings .setting-item.zoommap-setting--desc-below > .setting-item-info {
+  display: contents;
+}
+
+.zoommap-settings .setting-item.zoommap-setting--desc-below .setting-item-name {
+  order: 1;
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.zoommap-settings .setting-item.zoommap-setting--desc-below > .setting-item-control {
+  order: 2;
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+.zoommap-settings .setting-item.zoommap-setting--desc-below .setting-item-description {
+  order: 3;
+  flex: 0 0 100%;
+  min-width: 0;
+  margin-top: 0;
+}
+
+/* Hover width/height are pixel counts; four digits should be sufficient. */
+.zoommap-settings .setting-item.zoommap-setting--hover-popover-size input[type="text"] {
+  width: 5ch;
+  min-width: 5ch;
+  max-width: 5ch;
+}
+
+.zoommap-settings .zoommap-settings__svg-folder-input {
+  width: 22ch;
+  max-width: min(22ch, 100%);
+}
+
 /* Settings: optional image-icon preview column */
 .zoommap-settings.zoommap-settings--imgpreview .zm-icons-grid-head--img,
 .zoommap-settings.zoommap-settings--imgpreview .zm-icons-grid--img {
@@ -893,20 +968,21 @@ body.zm-global-hover-popover-size .hover-popover .markdown-preview-section {
 }
 
 .zoommap-settings .zm-icons-grid-head {
-  grid-template-columns: 28px 12ch minmax(220px, 1fr) 7ch 7ch 7ch 7ch 36px;
+  grid-template-columns: 28px 12ch minmax(220px, 1fr) 5ch 5ch 5ch 5ch 36px;
+  gap: 3px;
   width: 100%;
 }
 
 .zoommap-settings .zm-icons-grid {
   display: grid;
-  grid-template-columns: 28px 12ch minmax(220px, 1fr) 7ch 7ch 7ch 7ch 36px;
-  gap: 8px;
+  grid-template-columns: 28px 12ch minmax(220px, 1fr) 5ch 5ch 5ch 5ch 36px;
+  gap: 3px;
   align-items: center;
   width: 100%;
 }
 
 .zoommap-settings input.zm-num {
-  width: 7ch;
+  width: 5ch;
 }
 
 .zoommap-settings input.zm-name {
@@ -1030,6 +1106,18 @@ body.is-phone .zoommap-settings .zm-icon-btn > svg,
 body.is-tablet .zoommap-settings .zm-icon-btn > svg {
   width: 20px;
   height: 20px;
+}
+
+@media (max-width: 620px) {
+  .zoommap-settings .setting-item.zoommap-setting--wrap-control > .setting-item-info,
+  .zoommap-settings .setting-item.zoommap-setting--desc-below .setting-item-name {
+    flex-basis: 100%;
+  }
+
+  .zoommap-settings .setting-item.zoommap-setting--wrap-control > .setting-item-control,
+  .zoommap-settings .setting-item.zoommap-setting--desc-below > .setting-item-control {
+    flex-basis: 100%;
+  }
 }
 
 /* Generic modal layouts (used in editor & other modals) */

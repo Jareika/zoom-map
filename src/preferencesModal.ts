@@ -55,6 +55,7 @@ export class PreferencesModal extends Modal {
     new Setting(contentEl)
       .setName("Cache size in megabyte")
       .setDesc("Maximum memory used for cached decoded images. Default: 512 megabyte.")
+	  .setClass("zoommap-setting--wrap-control")
       .addText((t) => {
         t.inputEl.type = "number";
         t.setValue(String(this.plugin.settings.sessionImageCacheMb ?? 512));
@@ -125,7 +126,8 @@ export class PreferencesModal extends Modal {
     new Setting(contentEl)
       .setName("Max SVG raster scale")
       .setDesc("Controls the maximum raster lod for SVG base images. Higher = sharper at high zoom, but more RAM and slower upgrades.")
-      .addDropdown((d) => {
+      .setClass("zoommap-setting--wrap-control")
+	  .addDropdown((d) => {
         d.addOption("2", "2× (low-end)");
         d.addOption("4", "4× (balanced)");
         d.addOption("8", "8× (high quality)");
@@ -232,6 +234,7 @@ export class PreferencesModal extends Modal {
     new Setting(contentEl)
       .setName("Second screen note folder")
       .setDesc("Folder where temporary map notes and marker snapshots for the second screen are written.")
+	  .setClass("zoommap-setting--wrap-control")
       .addText((t) => {
         t.setPlaceholder("Zoommap/secondscreen");
         t.setValue(this.plugin.settings.secondScreenFolder ?? "ZoomMap/SecondScreen");

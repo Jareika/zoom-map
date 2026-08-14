@@ -174,16 +174,16 @@ const DEFAULT_SETTINGS: ZoomMapSettingsExtended = {
       key: "pinRed",
       pathOrDataUrl: svgPinDataUrl("#d23c3c"),
       size: 24,
-      anchorX: 12,
-      anchorY: 12,
+      anchorX: 0,
+      anchorY: 0,
 	  inCollections: true,
     },
     {
       key: "pinBlue",
       pathOrDataUrl: svgPinDataUrl("#3c62d2"),
       size: 24,
-      anchorX: 12,
-      anchorY: 12,
+      anchorX: 0,
+      anchorY: 0,
 	  inCollections: true,
     },
   ],
@@ -1231,8 +1231,8 @@ export default class ZoomMapPlugin extends Plugin {
         key: "builtin",
         pathOrDataUrl: svgPinDataUrl("#d23c3c"),
         size: 24,
-        anchorX: 12,
-        anchorY: 12,
+        anchorX: 0,
+        anchorY: 0,
 		inCollections: true,
       }
     );
@@ -1777,8 +1777,8 @@ class ZoomMapSettingTab extends PluginSettingTab {
         key,
         pathOrDataUrl: dataUrl,
         size: 24,
-        anchorX: 12,
-        anchorY: 12,
+        anchorX: 0,
+        anchorY: 0,
         defaultLink: "",
 		inCollections: true,
       });
@@ -2127,6 +2127,7 @@ class ZoomMapSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Hover popover size")
       .setDesc("Max width and height in pixels.")
+	  .setClass("zoommap-setting--hover-popover-size zoommap-setting--wrap-control")
       .addToggle((tg) =>
         tg.setValue(!!this.plugin.settings.applyHoverPopoverSizeGlobally).onChange((v) => {
           this.plugin.settings.applyHoverPopoverSizeGlobally = v;
@@ -2362,8 +2363,9 @@ class ZoomMapSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("Marker icons (library)").setHeading();
 
     const libRow = new Setting(containerEl)
-      .setName("Library file (icons + collections)")
-      .setDesc("Save/load your icons and collections to/from a JSON file.");
+      .setName("Library file")
+      .setDesc("Save/load your icons and collections to/from a JSON file.")
+      .setClass("zoommap-setting--desc-below zoommap-setting--wrap-control");
 
     libRow.addText((t) => {
       const ext = this.plugin.settings as ZoomMapSettingsExtended;
@@ -2482,8 +2484,8 @@ class ZoomMapSettingTab extends PluginSettingTab {
     head.createSpan({ text: "Name" });
     head.createSpan({ text: "Preview / color / link" });
     head.createSpan({ text: "Size" });
-    head.createSpan({ text: "Anchor X" });
-    head.createSpan({ text: "Anchor Y" });
+    head.createSpan({ text: "⚓ X" });
+    head.createSpan({ text: "⚓ Y" });
     head.createSpan({ text: "Angle" });
     head.createSpan({ text: "" });
 
@@ -2698,10 +2700,12 @@ class ZoomMapSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("SVG icon sources").setHeading();
     const svgFolderRow = new Setting(containerEl)
       .setName("SVG icon folder in vault")
-      .setDesc("Folder that contains SVG packs.");
+      .setDesc("Folder that contains SVG packs.")
+      .setClass("zoommap-setting--desc-below zoommap-setting--wrap-control");
 
     svgFolderRow.addText((t) => {
-      const ext = this.plugin.settings as ZoomMapSettingsExtended;
+      t.inputEl.addClass("zoommap-settings__svg-folder-input");
+	  const ext = this.plugin.settings as ZoomMapSettingsExtended;
       t.setPlaceholder("e.g. ZoomMap/SVGs");
       t.setValue(ext.faFolderPath ?? "ZoomMap/SVGs");
       t.onChange((v) => {
@@ -2732,7 +2736,8 @@ class ZoomMapSettingTab extends PluginSettingTab {
 
     const svgDownloadRow = new Setting(containerEl)
       .setName("Download icon packs")
-      .setDesc("Download common SVG packs into the configured folder.");
+      .setDesc("Download common SVG packs into the configured folder.")
+      .setClass("zoommap-setting--desc-below zoommap-setting--wrap-control");
 
     svgDownloadRow.addButton((b) =>
       b.setButtonText("Download font awesome free").onClick(() => {
@@ -2791,8 +2796,8 @@ class ZoomMapSettingTab extends PluginSettingTab {
             key: `pin-${idx}`,
             pathOrDataUrl: "",
             size: 24,
-            anchorX: 12,
-            anchorY: 12,
+            anchorX: 0,
+            anchorY: 0,
 			inCollections: true,
           });
           void this.plugin.saveSettings();
