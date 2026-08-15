@@ -1670,8 +1670,7 @@ body.zm-cursor-move-grabbing {
 .zoommap-view-editor-inline-label--hint,
 .zoommap-view-editor .setting-item-name.zoommap-view-editor-inline-label--hint {
   cursor: help;
-  text-decoration: underline dotted;
-  text-underline-offset: 2px;
+  border-bottom: 1px dotted currentColor;
 }
 
 .zoommap-view-editor-row > .zoommap-view-editor-inline-label +
@@ -1706,8 +1705,7 @@ body.zm-cursor-move-grabbing {
 
 .zoommap-view-editor-compact-label--hint {
   cursor: help;
-  text-decoration: underline dotted;
-  text-underline-offset: 2px;
+  border-bottom: 1px dotted currentColor;
 }
 
 .zoommap-view-editor-compact-field > input:not([type="checkbox"]),
