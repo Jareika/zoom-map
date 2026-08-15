@@ -172,7 +172,13 @@ interface LegacyTextLayerData {
   sourceDrawingKind?: DrawingKind;
 }
 
-export type MarkerKind = "pin" | "sticker" | "swap" | "switch" | "dice";
+export type MarkerKind =
+  | "pin"
+  | "sticker"
+  | "swap"
+  | "switch"
+  | "dice"
+  | "ping";
 
 export type PingDistanceUnit = "m" | "km" | "mi" | "ft" | "custom";
 
@@ -664,7 +670,8 @@ export class MarkerStore {
       overlays: [],
       activeBase: initialImagePath ?? "",
       measurement: {
-        metersPerPixel: undefined,
+        displayUnit: "km",
+		metersPerPixel: undefined,
         scales: {},
         customUnitId: undefined,
 		customUnitPxPerUnit: {},

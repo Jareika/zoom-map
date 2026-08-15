@@ -31,14 +31,14 @@ export class PreferencesModal extends Modal {
     contentEl.createEl("h3", { text: "Session image cache" });
 
     let mbInput: HTMLInputElement | null = null;
-    let keepOverlayToggle: HTMLInputElement | null = null;
-    let hybridToggle: HTMLInputElement | null = null;
+    let keepOverlayToggle: HTMLElement | null = null;
+    let hybridToggle: HTMLElement | null = null;
 
     const applyEnabledState = () => {
       const on = !!this.plugin.settings.enableSessionImageCache;
       if (mbInput) mbInput.disabled = !on;
-      if (keepOverlayToggle) keepOverlayToggle.disabled = !on;
-      if (hybridToggle) hybridToggle.disabled = !on;
+      keepOverlayToggle?.toggleAttribute("disabled", !on);
+      hybridToggle?.toggleAttribute("disabled", !on);
     };
 
     new Setting(contentEl)

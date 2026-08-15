@@ -86,6 +86,7 @@ interface ControlsProviderAction {
   group: string;
   description?: string;
   available: boolean;
+  secondaryActionId?: string;
 }
 
 interface ControlsProviderApi {
@@ -116,6 +117,14 @@ const CONTROLS_ACTION_IDS = {
   clearMeasurement: "measure.clear",
   sendToScreen: "second-screen.send",
   sendToScreenWithFog: "second-screen.send-with-fog",
+  moveFrameUp: "frame.move-up",
+  moveFrameDown: "frame.move-down",
+  moveFrameLeft: "frame.move-left",
+  moveFrameRight: "frame.move-right",
+  moveFrameUpFast: "frame.move-up-5",
+  moveFrameDownFast: "frame.move-down-5",
+  moveFrameLeftFast: "frame.move-left-5",
+  moveFrameRightFast: "frame.move-right-5",
 } as const;
 
 function toCssSize(v: unknown, fallback: string): string {
@@ -146,24 +155,31 @@ function setCssProps(el: HTMLElement, props: Record<string, string | null>): voi
   }
 }
 
-interface CrossWindowInstanceOfElement extends Element {
-  instanceOf(ctor: Window["HTMLElement"]): this is HTMLElement;
-}
-
-interface CrossWindowWindow extends Window {
-  HTMLElement: Window["HTMLElement"];
-}
+type HTMLElementConstructor = new (...args: never[]) => HTMLElement;
 
 function isCrossWindowHTMLElement(
   el: Element,
   uiWin: Window,
 ): el is HTMLElement {
-  const candidate = el as CrossWindowInstanceOfElement;
-  const crossWin = uiWin as CrossWindowWindow;
-  if (typeof crossWin.HTMLElement !== "function") {
+  const ctor = (
+    uiWin as unknown as { HTMLElement?: HTMLElementConstructor }
+  ).HTMLElement;
+
+  if (typeof ctor !== "function") {
     return false;
   }
-  return candidate.instanceOf(crossWin.HTMLElement);
+
+  return el.instanceOf(ctor);
+}
+
+function moveSettingDescriptionBelow(setting: Setting): void {
+  const description = setting.settingEl.querySelector(
+    ".setting-item-description",
+  );
+
+  if (description instanceof HTMLElement) {
+    setting.settingEl.appendChild(description);
+  }
 }
 
 /* ---------------- Defaults ---------------- */
@@ -471,6 +487,7 @@ export default class ZoomMapPlugin extends Plugin {
   settings: ZoomMapSettings = DEFAULT_SETTINGS;
   imageCache: ImageCache | null = null;
   private lastInsertMapTarget: LastInsertMapTarget | null = null;
+  private lastActiveMapKey: string | null = null;
 
   /**
    * Public API for TTRPG Tools – Controls.
@@ -492,6 +509,10 @@ export default class ZoomMapPlugin extends Plugin {
   private pendingMapRestores = new Map<string, MapRestoreState>();
   activeMap: MapInstance | null = null;
   
+  private getMapControlKey(inst: MapInstance): string {
+    return `${normalizePath(inst.getSourcePath())}::${inst.getMapId().trim()}`;
+  }
+  
   private makeMapRestoreKey(sourcePath: string, mapId: string): string {
     return `${normalizePath(sourcePath)}::${mapId.trim()}`;
   }
@@ -499,10 +520,22 @@ export default class ZoomMapPlugin extends Plugin {
   registerMapInstance(inst: MapInstance): void {
     this.mapInstances.add(inst);
   }
+  
+  markMapInstanceReady(inst: MapInstance): void {
+    if (
+      this.activeMap === null &&
+      this.lastActiveMapKey === this.getMapControlKey(inst)
+    ) {
+      this.activeMap = inst;
+    }
+  }
 
   unregisterMapInstance(inst: MapInstance): void {
     this.mapInstances.delete(inst);
-    if (this.activeMap === inst) this.activeMap = null;
+
+    if (this.activeMap === inst) {
+      this.activeMap = null;
+    }
   }
 
   stashMapRestore(sourcePath: string, mapId: string, state: MapRestoreState): void {
@@ -528,7 +561,35 @@ export default class ZoomMapPlugin extends Plugin {
   }
 
   setActiveMap(inst: MapInstance): void {
+	this.lastActiveMapKey = this.getMapControlKey(inst);
     this.activeMap = inst;
+  }
+  
+  private getActiveMapForControl(): MapInstance | null {
+    if (this.activeMap?.isReadyForControl()) {
+      return this.activeMap;
+    }
+
+    this.activeMap = null;
+
+    if (this.lastActiveMapKey) {
+      const restored = [...this.mapInstances].find(
+        (inst) =>
+          inst.isReadyForControl() &&
+          this.getMapControlKey(inst) === this.lastActiveMapKey,
+      );
+
+      if (restored) {
+        this.activeMap = restored;
+        return restored;
+      }
+    }
+
+    new Notice(
+      "No active map is available. Click or interact with a map first.",
+      3000,
+    );
+    return null;
   }
   
   private getControlsActions(): ControlsProviderAction[] {
@@ -598,6 +659,42 @@ export default class ZoomMapPlugin extends Plugin {
         description: "Send the active map to the configured player screen with fog of war.",
         available: this.settings.enableSecondScreen === true,
       },
+      {
+        id: CONTROLS_ACTION_IDS.moveFrameUp,
+        name: "Move active map frame up",
+        icon: "arrow-up",
+        group: "Map frame",
+        description: "Moves the active map viewport inside its frame by 1 px. Right-click moves it by 5 px.",
+        available: true,
+        secondaryActionId: CONTROLS_ACTION_IDS.moveFrameUpFast,
+      },
+      {
+        id: CONTROLS_ACTION_IDS.moveFrameDown,
+        name: "Move active map frame down",
+        icon: "arrow-down",
+        group: "Map frame",
+        description: "Moves the active map viewport inside its frame by 1 px. Right-click moves it by 5 px.",
+        available: true,
+        secondaryActionId: CONTROLS_ACTION_IDS.moveFrameDownFast,
+      },
+      {
+        id: CONTROLS_ACTION_IDS.moveFrameLeft,
+        name: "Move active map frame left",
+        icon: "arrow-left",
+        group: "Map frame",
+        description: "Moves the active map viewport inside its frame by 1 px. Right-click moves it by 5 px.",
+        available: true,
+        secondaryActionId: CONTROLS_ACTION_IDS.moveFrameLeftFast,
+      },
+      {
+        id: CONTROLS_ACTION_IDS.moveFrameRight,
+        name: "Move active map frame right",
+        icon: "arrow-right",
+        group: "Map frame",
+        description: "Moves the active map viewport inside its frame by 1 px. Right-click moves it by 5 px.",
+        available: true,
+        secondaryActionId: CONTROLS_ACTION_IDS.moveFrameRightFast,
+      },
     ];
   }
 
@@ -658,24 +755,36 @@ export default class ZoomMapPlugin extends Plugin {
           await map.sendToSecondScreenWithFogFromControl();
         }
         return;
+		
+      case CONTROLS_ACTION_IDS.moveFrameUp:
+      case CONTROLS_ACTION_IDS.moveFrameDown:
+      case CONTROLS_ACTION_IDS.moveFrameLeft:
+      case CONTROLS_ACTION_IDS.moveFrameRight:
+      case CONTROLS_ACTION_IDS.moveFrameUpFast:
+      case CONTROLS_ACTION_IDS.moveFrameDownFast:
+      case CONTROLS_ACTION_IDS.moveFrameLeftFast:
+      case CONTROLS_ACTION_IDS.moveFrameRightFast:
+        {
+          const map = this.getActiveMapForControl();
+          if (!map) return;
+
+          const isFast = actionId.endsWith("-5");
+          const step = isFast ? 5 : 1;
+          const direction =
+            actionId.includes("move-up") ? "up"
+            : actionId.includes("move-down") ? "down"
+            : actionId.includes("move-left") ? "left"
+            : "right";
+
+          await map.nudgeViewportFrameFromControl(direction, step);
+        }
+        return;
 
       default:
         throw new Error(`Unknown Maps control action: ${actionId}`);
     }
   }
   
-  private getActiveMapForControl(): MapInstance | null {
-    if (this.activeMap) {
-      return this.activeMap;
-    }
-
-    new Notice(
-      "No active map is available. Click or interact with a map first.",
-      3000,
-    );
-    return null;
-  }
-
   private rememberActiveMarkdownEditor(): void {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 
@@ -1182,11 +1291,10 @@ export default class ZoomMapPlugin extends Plugin {
 
   private getEnabledTravelPacks(): TravelRulesPack[] {
     const packsRaw = this.settings.travelRulesPacks ?? [];
-    const packs = packsRaw.filter((p): p is TravelRulesPack => {
+    const packs = packsRaw.filter((p) => {
       if (!p || typeof p !== "object") return false;
       if (Array.isArray(p)) return false;
-      const r = p as Record<string, unknown>;
-      return typeof r.id === "string";
+      return typeof p.id === "string";
     });
     return packs.filter((p) => p.enabled === true);
   }
@@ -1289,6 +1397,7 @@ export default class ZoomMapPlugin extends Plugin {
           name: "Default travel rules",
           enabled: true,
           customUnits: legacyUnits,
+		  terrains: [],
           travelTimePresets: legacyPresets,
           travelPerDay: legacyPerDay,
         };
@@ -1442,7 +1551,6 @@ export default class ZoomMapPlugin extends Plugin {
         method: "GET",
       });
 
-      // @ts-expect-error writeBinary is available on desktop adapters
       await this.app.vault.adapter.writeBinary(zipPath, res.arrayBuffer);
 
       new Notice(
@@ -1472,7 +1580,6 @@ export default class ZoomMapPlugin extends Plugin {
         method: "GET",
       });
 
-      // @ts-expect-error writeBinary is available on desktop adapters
       await this.app.vault.adapter.writeBinary(zipPath, res.arrayBuffer);
 
       new Notice(
@@ -1503,7 +1610,7 @@ export default class ZoomMapPlugin extends Plugin {
     return count;
   }
   
-  private buildYamlFromViewConfig(cfg: ViewEditorConfig): string {
+  public buildYamlFromViewConfig(cfg: ViewEditorConfig): string {
     const obj: Record<string, unknown> = {};
 
     const bases = (cfg.imageBases ?? []).filter(
@@ -2366,6 +2473,8 @@ class ZoomMapSettingTab extends PluginSettingTab {
       .setName("Library file")
       .setDesc("Save/load your icons and collections to/from a JSON file.")
       .setClass("zoommap-setting--desc-below zoommap-setting--wrap-control");
+	  
+    moveSettingDescriptionBelow(libRow);
 
     libRow.addText((t) => {
       const ext = this.plugin.settings as ZoomMapSettingsExtended;
@@ -2702,6 +2811,8 @@ class ZoomMapSettingTab extends PluginSettingTab {
       .setName("SVG icon folder in vault")
       .setDesc("Folder that contains SVG packs.")
       .setClass("zoommap-setting--desc-below zoommap-setting--wrap-control");
+	  
+    moveSettingDescriptionBelow(svgFolderRow);
 
     svgFolderRow.addText((t) => {
       t.inputEl.addClass("zoommap-settings__svg-folder-input");
@@ -2738,6 +2849,8 @@ class ZoomMapSettingTab extends PluginSettingTab {
       .setName("Download icon packs")
       .setDesc("Download common SVG packs into the configured folder.")
       .setClass("zoommap-setting--desc-below zoommap-setting--wrap-control");
+	  
+    moveSettingDescriptionBelow(svgDownloadRow);
 
     svgDownloadRow.addButton((b) =>
       b.setButtonText("Download font awesome free").onClick(() => {

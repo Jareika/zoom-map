@@ -18,13 +18,13 @@
 /* Obsidian's declarative settings host highlights the complete custom
    Maps settings row on hover. The Maps UI has its own buttons and
    interactive states, so keep the outer host visually neutral. */
-.setting-item.zoommap-settings-host,
-.setting-item.zoommap-settings-host:hover,
-.setting-item.zoommap-settings-host:focus,
-.setting-item.zoommap-settings-host:focus-within {
-  background: transparent !important;
-  background-color: transparent !important;
-  box-shadow: none !important;
+.setting-item.zoommap-settings-host.zoommap-settings-host,
+.setting-item.zoommap-settings-host.zoommap-settings-host:hover,
+.setting-item.zoommap-settings-host.zoommap-settings-host:focus,
+.setting-item.zoommap-settings-host.zoommap-settings-host:focus-within {
+  background: transparent;
+  background-color: transparent;
+  box-shadow: none;
 }
 
 .setting-item.zoommap-settings > .zoommap-settings__tabs,
@@ -42,18 +42,21 @@
    controls cleanly, while keeping descriptions readable.
    ========================================================================== */
 
-.zoommap-settings .setting-item.zoommap-setting--wrap-control {
+.zoommap-settings .setting-item.zoommap-setting--wrap-control,
+.modal .setting-item.zoommap-setting--wrap-control {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
 }
 
-.zoommap-settings .setting-item.zoommap-setting--wrap-control > .setting-item-info {
+.zoommap-settings .setting-item.zoommap-setting--wrap-control > .setting-item-info,
+.modal .setting-item.zoommap-setting--wrap-control > .setting-item-info {
   min-width: min(100%, 220px);
   flex: 1 1 220px;
 }
 
-.zoommap-settings .setting-item.zoommap-setting--wrap-control > .setting-item-control {
+.zoommap-settings .setting-item.zoommap-setting--wrap-control > .setting-item-control,
+.modal .setting-item.zoommap-setting--wrap-control > .setting-item-control {
   min-width: 0;
   flex: 0 1 auto;
   flex-wrap: wrap;
@@ -63,24 +66,23 @@
 
 /* Put a setting description below its label and controls. `display: contents`
    preserves Obsidian's native setting markup while allowing flex ordering. */
-.zoommap-settings .setting-item.zoommap-setting--desc-below {
+.zoommap-settings .setting-item.zoommap-setting--desc-below,
+.modal .setting-item.zoommap-setting--desc-below {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 12px;
 }
 
-.zoommap-settings .setting-item.zoommap-setting--desc-below > .setting-item-info {
-  display: contents;
-}
-
-.zoommap-settings .setting-item.zoommap-setting--desc-below .setting-item-name {
+.zoommap-settings .setting-item.zoommap-setting--desc-below > .setting-item-info,
+.modal .setting-item.zoommap-setting--desc-below > .setting-item-info {
   order: 1;
   flex: 1 1 180px;
   min-width: 0;
 }
 
-.zoommap-settings .setting-item.zoommap-setting--desc-below > .setting-item-control {
+.zoommap-settings .setting-item.zoommap-setting--desc-below > .setting-item-control,
+.modal .setting-item.zoommap-setting--desc-below > .setting-item-control {
   order: 2;
   flex: 0 1 auto;
   min-width: 0;
@@ -89,7 +91,8 @@
   gap: 6px;
 }
 
-.zoommap-settings .setting-item.zoommap-setting--desc-below .setting-item-description {
+.zoommap-settings .setting-item.zoommap-setting--desc-below > .setting-item-description,
+.modal .setting-item.zoommap-setting--desc-below > .setting-item-description {
   order: 3;
   flex: 0 0 100%;
   min-width: 0;
@@ -1110,12 +1113,16 @@ body.is-tablet .zoommap-settings .zm-icon-btn > svg {
 
 @media (max-width: 620px) {
   .zoommap-settings .setting-item.zoommap-setting--wrap-control > .setting-item-info,
-  .zoommap-settings .setting-item.zoommap-setting--desc-below .setting-item-name {
+  .zoommap-settings .setting-item.zoommap-setting--desc-below > .setting-item-info,
+  .modal .setting-item.zoommap-setting--wrap-control > .setting-item-info,
+  .modal .setting-item.zoommap-setting--desc-below > .setting-item-info {
     flex-basis: 100%;
   }
 
   .zoommap-settings .setting-item.zoommap-setting--wrap-control > .setting-item-control,
-  .zoommap-settings .setting-item.zoommap-setting--desc-below > .setting-item-control {
+  .zoommap-settings .setting-item.zoommap-setting--desc-below > .setting-item-control,
+  .modal .setting-item.zoommap-setting--wrap-control > .setting-item-control,
+  .modal .setting-item.zoommap-setting--desc-below > .setting-item-control {
     flex-basis: 100%;
   }
 }
@@ -1648,6 +1655,99 @@ body.zm-cursor-move-grabbing {
   width: 12ch;
   max-width: 8ch;
   flex: 0 0 auto;
+}
+
+.zoommap-view-editor-inline-label {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 30px;
+  color: var(--text-normal);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.zoommap-view-editor-inline-label--hint,
+.zoommap-view-editor .setting-item-name.zoommap-view-editor-inline-label--hint {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.zoommap-view-editor-row > .zoommap-view-editor-inline-label +
+.zoommap-view-editor-input {
+  flex: 1 1 220px;
+}
+
+.zoommap-view-editor-compact-grid {
+  --zoommap-view-editor-compact-columns: 4;
+  display: grid;
+  grid-template-columns: repeat(
+    var(--zoommap-view-editor-compact-columns),
+    minmax(0, 1fr)
+  );
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.zoommap-view-editor-compact-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 4px;
+}
+
+.zoommap-view-editor-compact-field > label {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.zoommap-view-editor-compact-label--hint {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.zoommap-view-editor-compact-field > input:not([type="checkbox"]),
+.zoommap-view-editor-compact-field > select,
+.zoommap-view-editor-compact-inline > input[type="text"] {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.zoommap-view-editor-compact-field > input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin: 5px 0;
+}
+
+.zoommap-view-editor-compact-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.zoommap-view-editor-compact-inline > input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .zoommap-view-editor-compact-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .zoommap-view-editor-compact-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* =======================

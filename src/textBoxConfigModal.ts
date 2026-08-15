@@ -63,6 +63,11 @@ function buildFontOptions(doc: Document): FontOption[] {
   return options;
 }
 
+function moveSettingDescriptionBelow(setting: Setting): void {
+  const description = setting.settingEl.querySelector(".setting-item-description");
+  if (description) setting.settingEl.appendChild(description);
+}
+
 export class TextBoxConfigModal extends Modal {
   private working: TextBox;
   private onDone: DoneCb;
@@ -299,9 +304,10 @@ export class TextBoxConfigModal extends Modal {
           });
         });
 
-      new Setting(contentEl)
+      const horizontalInsetSetting = new Setting(contentEl)
         .setName("Box inset left / right (px)")
         .setDesc("Shrinks the usable auto-baseline width inside the text box.")
+		.setClass("zoommap-setting--desc-below zoommap-setting--wrap-control")
         .addText((t) => {
           t.inputEl.type = "number";
           t.setValue(String(this.working.auto?.padLeft ?? 0));
@@ -318,10 +324,12 @@ export class TextBoxConfigModal extends Modal {
             if (Number.isFinite(n) && n >= 0) this.working.auto!.padRight = n;
           });
         });
+      moveSettingDescriptionBelow(horizontalInsetSetting);
 
-      new Setting(contentEl)
+      const verticalInsetSetting = new Setting(contentEl)
         .setName("Box inset top / bottom (px)")
         .setDesc("Shrinks the usable auto-baseline height inside the text box.")
+		.setClass("zoommap-setting--desc-below zoommap-setting--wrap-control")
         .addText((t) => {
           t.inputEl.type = "number";
           t.setValue(String(this.working.auto?.padTop ?? 4));
@@ -338,6 +346,7 @@ export class TextBoxConfigModal extends Modal {
             if (Number.isFinite(n) && n >= 0) this.working.auto!.padBottom = n;
           });
         });
+      moveSettingDescriptionBelow(verticalInsetSetting);
     }
 
     const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });

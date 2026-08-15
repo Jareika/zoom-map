@@ -1,11 +1,12 @@
 {
   "name": "zoom-map",
-  "version": "2.2.3",
+  "version": "2.2.6",
   "private": true,
   "license": "MIT",
   "scripts": {
     "build": "node esbuild.config.mjs production",
     "dev": "node esbuild.config.mjs watch",
+	"check": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix"
   },

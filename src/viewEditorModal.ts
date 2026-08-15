@@ -1,4 +1,4 @@
-import { Modal, Setting, Notice, setIcon } from "obsidian";
+import { Modal, Setting, Notice } from "obsidian";
 import type { App } from "obsidian";
 import { ImageFileSuggestModal } from "./iconFileSuggest";
 
@@ -91,6 +91,60 @@ export class ViewEditorModal extends Modal {
     const n = Number(s);
     if (!Number.isFinite(n) || n <= 0) return fallback;
     return n / 100;
+  }
+  
+  private createCompactGrid(
+    parent: HTMLElement,
+    columns = 4,
+  ): HTMLDivElement {
+    const grid = parent.createDiv({
+      cls: "zoommap-view-editor-compact-grid",
+    });
+    grid.style.setProperty(
+      "--zoommap-view-editor-compact-columns",
+      String(columns),
+    );
+    return grid;
+  }
+
+  private createCompactField(
+    parent: HTMLElement,
+    label: string,
+    opts?: { hint?: string; wide?: boolean },
+  ): HTMLDivElement {
+    const field = parent.createDiv({
+      cls: "zoommap-view-editor-compact-field",
+    });
+
+    if (opts?.wide) {
+      field.addClass("zoommap-view-editor-compact-field--wide");
+    }
+
+    const labelEl = field.createEl("label", { text: label });
+    if (opts?.hint) {
+      labelEl.setAttr("title", opts.hint);
+      labelEl.addClass("zoommap-view-editor-compact-label--hint");
+    }
+
+    return field;
+  }
+  
+  private createInlineLabel(
+    parent: HTMLElement,
+    text: string,
+    hint?: string
+  ): HTMLSpanElement {
+    const label = parent.createSpan({
+      cls: "zoommap-view-editor-inline-label",
+      text
+    });
+
+    if (hint) {
+      label.setAttr("title", hint);
+      label.addClass("zoommap-view-editor-inline-label--hint");
+    }
+
+    return label;
   }
 
   onOpen(): void {
@@ -228,26 +282,38 @@ export class ViewEditorModal extends Modal {
     /* -------- Marker.json -------- */
     contentEl.createEl("h3", { text: "Marker JSON" });
 
-    new Setting(contentEl)
-      .setClass("zoommap-view-editor-row")
-      .setName("Markers")
-      .setDesc("Optional. If empty, <firstBase>.markers.json is used.")
-      .addText((t) => {
-        t.setPlaceholder("Path to markers.json");
-        t.setValue(this.cfg.markersPath ?? "");
-		this.markersInputEl = t.inputEl;
-        t.onChange((v) => {
-          this.cfg.markersPath = v.trim();
-        });
-      })
-      .addButton((b) =>
-        b
-          .setButtonText("Use first base")
-          .onClick(() => {
-            this.autoFillMarkersPathFromFirstBase(true);
-			if (this.markersInputEl) this.markersInputEl.value = this.cfg.markersPath ?? "";
-          }),
+    {
+      const row = contentEl.createDiv({
+        cls: "zoommap-view-editor-row"
+      });
+
+      this.createInlineLabel(
+        row,
+        "Markers",
+        "Optional. If empty, <firstBase>.markers.json is used."
       );
+
+      const input = row.createEl("input", { type: "text" });
+      input.addClass(
+        "zoommap-view-editor-input",
+        "zoommap-view-editor-input-path"
+      );
+      input.placeholder = "Path to markers.json";
+      input.value = this.cfg.markersPath ?? "";
+      input.oninput = () => {
+        this.cfg.markersPath = input.value.trim();
+      };
+      this.markersInputEl = input;
+
+      const button = row.createEl("button", {
+        text: "Use first base"
+      });
+      button.addClass("zoommap-view-editor-button");
+      button.onclick = () => {
+        this.autoFillMarkersPathFromFirstBase(true);
+        input.value = this.cfg.markersPath ?? "";
+      };
+    }
 
     /* -------- Marker layers (Namen) -------- */
     contentEl.createEl("h3", { text: "Marker layers (names)" });
@@ -293,203 +359,184 @@ export class ViewEditorModal extends Modal {
     /* -------- View & layout -------- */
     contentEl.createEl("h3", { text: "View & layout" });
 
-    // Render
-    new Setting(contentEl)
-      .setClass("zoommap-view-editor-row")
-      .setName("Render mode")
-	  .setDesc("Prefer canvas for larger SVG maps.",)
-      .addDropdown((d) => {
-        d.addOption("dom", "DOM");
-        d.addOption("canvas", "Canvas");
-        d.setValue(this.cfg.renderMode ?? "dom");
-        d.onChange((v) => {
-          this.cfg.renderMode = v as RenderMode;
-        });
+    const renderGrid = this.createCompactGrid(contentEl, 2);
+
+    {
+      const field = this.createCompactField(renderGrid, "Render mode", {
+        hint: "Canvas is usually smoother for large SVG maps or weaker devices.",
       });
-	  
-    new Setting(contentEl)
-      .setClass("zoommap-view-editor-row")
-      .setName("Image interpolation")
-      .setDesc("Auto is smooth. Pixelated/crisp edges are useful for pixel-art maps.")
-      .addDropdown((d) => {
-        d.addOption("auto", "Auto / smooth");
-        d.addOption("pixelated", "Pixelated");
-        d.addOption("crisp-edges", "Crisp edges");
-        d.setValue(this.cfg.imageRendering ?? "auto");
-        d.onChange((v) => {
-          this.cfg.imageRendering =
-            v === "pixelated" || v === "crisp-edges" ? v : "auto";
-        });
+      const input = field.createEl("select");
+      input.createEl("option", { text: "DOM", value: "dom" });
+      input.createEl("option", { text: "Canvas", value: "canvas" });
+      input.value = this.cfg.renderMode ?? "dom";
+      input.onchange = () => {
+        this.cfg.renderMode = input.value === "canvas" ? "canvas" : "dom";
+      };
+    }
+
+    {
+      const field = this.createCompactField(renderGrid, "Interpolation", {
+        hint: "Auto is smooth. Pixelated and crisp edges are useful for pixel-art maps.",
       });
+      const input = field.createEl("select");
+      input.createEl("option", { text: "Auto / smooth", value: "auto" });
+      input.createEl("option", { text: "Pixelated", value: "pixelated" });
+      input.createEl("option", { text: "Crisp edges", value: "crisp-edges" });
+      input.value = this.cfg.imageRendering ?? "auto";
+      input.onchange = () => {
+        this.cfg.imageRendering =
+          input.value === "pixelated" || input.value === "crisp-edges"
+            ? input.value
+            : "auto";
+      };
+    }
 
-    // Zoom
-    new Setting(contentEl)
-	  .setClass("zoommap-view-editor-row")
-	  .setName("Min zoom (%)")
-	  .addText((t) => {
-		t.setPlaceholder("25");
-		t.setValue(this.factorToPercentString(this.cfg.minZoom));
-		t.inputEl.classList.add("zoommap-view-editor-input--short");
-		t.onChange((v) => {
-		  this.cfg.minZoom = this.percentInputToFactor(v, 0.25);
-		});
-	  });
+    const viewGrid = this.createCompactGrid(contentEl, 4);
 
-	new Setting(contentEl)
-	  .setClass("zoommap-view-editor-row")
-	  .setName("Max zoom (%)")
-	  .addText((t) => {
-		t.setPlaceholder("200");
-		t.setValue(this.factorToPercentString(this.cfg.maxZoom));
-		t.inputEl.classList.add("zoommap-view-editor-input--short");
-		t.onChange((v) => {
-		  this.cfg.maxZoom = this.percentInputToFactor(v, 8);
-		});
-	  });
+    {
+      const field = this.createCompactField(viewGrid, "Min zoom (%)");
+      const input = field.createEl("input", { type: "number" });
+      input.placeholder = "25";
+      input.value = this.factorToPercentString(this.cfg.minZoom);
+      input.oninput = () => {
+        this.cfg.minZoom = this.percentInputToFactor(input.value, 0.25);
+      };
+    }
 
-    // Wrap
-    new Setting(contentEl)
-      .setClass("zoommap-view-editor-row")
-      .setName("Wrap")
-      .addDropdown((d) => {
-        d.addOption("false", "False");
-        d.addOption("true", "True");
-        d.setValue(this.cfg.wrap ? "true" : "false");
-        d.onChange((v) => {
-          this.cfg.wrap = v === "true";
-        });
+    {
+      const field = this.createCompactField(viewGrid, "Max zoom (%)");
+      const input = field.createEl("input", { type: "number" });
+      input.placeholder = "800";
+      input.value = this.factorToPercentString(this.cfg.maxZoom);
+      input.oninput = () => {
+        this.cfg.maxZoom = this.percentInputToFactor(input.value, 8);
+      };
+    }
+
+    {
+      const field = this.createCompactField(viewGrid, "Wrap", {
+        hint: "Allows surrounding text to flow around a left- or right-aligned map."
       });
+      const input = field.createEl("input", { type: "checkbox" });
+      input.checked = !!this.cfg.wrap;
+      input.onchange = () => {
+        this.cfg.wrap = input.checked;
+      };
+    }
 
-    // Responsive
-    new Setting(contentEl)
-      .setClass("zoommap-view-editor-row")
-      .setName("Responsive")
-      .addDropdown((d) => {
-        d.addOption("false", "False");
-        d.addOption("true", "True");
-        d.setValue(this.cfg.responsive ? "true" : "false");
-        d.onChange((v) => {
-          this.cfg.responsive = v === "true";
-        });
+    {
+      const field = this.createCompactField(viewGrid, "Responsive", {
+        hint: "Fits the map to its available width and disables pan/zoom gestures.",
       });
+      const input = field.createEl("input", { type: "checkbox" });
+      input.checked = !!this.cfg.responsive;
+      input.onchange = () => {
+        this.cfg.responsive = input.checked;
+      };
+    }
 
-	 // Width
-	const widthSetting = new Setting(contentEl)
-	  .setClass("zoommap-view-editor-row")
-	  .setName("Width");
+    const layoutGrid = this.createCompactGrid(contentEl, 5);
+    const savedSizeHint =
+      "Enable this to write a fixed value to YAML. If width and height are disabled, manual resizing is saved in markers.json.";
 
-	widthSetting.addToggle((tg) => {
-	  tg.setValue(this.cfg.useWidth).onChange((on) => {
-		this.cfg.useWidth = on;
-	  });
-	});
-
-	widthSetting.addText((t) => {
-	  t.setPlaceholder("100% or 640px");
-	  t.setValue(this.cfg.width ?? "");
-	  t.inputEl.classList.add("zoommap-view-editor-input--short");
-	  t.onChange((v) => {
-		this.cfg.width = v.trim();
-	  });
-	});
-
-	// Info-Icon
-	{
-	  const hint = widthSetting.controlEl.createDiv({ cls: "zoommap-info-icon" });
-	  setIcon(hint, "info");
-	  hint.setAttr(
-		"title",
-		"Check to store a fixed width in YAML. Leave both unchecked to resize the map freely; each new size will be saved automatically in markers.json.",
-	  );
-	}
-
-	// Height
-	const heightSetting = new Setting(contentEl)
-	  .setClass("zoommap-view-editor-row")
-	  .setName("Height");
-
-	heightSetting.addToggle((tg) => {
-	  tg.setValue(this.cfg.useHeight).onChange((on) => {
-		this.cfg.useHeight = on;
-	  });
-	});
-
-	heightSetting.addText((t) => {
-	  t.setPlaceholder("480px");
-	  t.setValue(this.cfg.height ?? "");
-	  t.inputEl.classList.add("zoommap-view-editor-input--short");
-	  t.onChange((v) => {
-		this.cfg.height = v.trim();
-	  });
-	});
-
-	// Info-Icon
-	{
-	  const hint = heightSetting.controlEl.createDiv({ cls: "zoommap-info-icon" });
-	  setIcon(hint, "info");
-	  hint.setAttr(
-		"title",
-		"Check to store a fixed height in YAML. Leave both unchecked to resize the map freely; each new size will be saved automatically in markers.json.",
-	  );
-	}
-
-    // Resizable + handle
-    let handleSetting: Setting | null = null;
-
-	new Setting(contentEl)
-	  .setClass("zoommap-view-editor-row")
-	  .setName("Resizable")
-	  .addToggle((tg) => {
-		tg.setValue(!!this.cfg.resizable).onChange((on) => {
-		  this.cfg.resizable = on;
-		  handleSetting?.settingEl.toggle(on);
-		});
-	  });
-
-	handleSetting = new Setting(contentEl)
-	  .setClass("zoommap-view-editor-row")
-	  .setName("Resize handle")
-	  .addDropdown((d) => {
-		d.addOption("native", "Native");
-		d.addOption("left", "Left");
-		d.addOption("right", "Right");
-		d.addOption("both", "Both");
-		d.setValue(this.cfg.resizeHandle ?? "native");
-		d.onChange((v) => {
-		  this.cfg.resizeHandle = v as "left" | "right" | "both" | "native";
-		});
-	  });
-
-	handleSetting.settingEl.toggle(!!this.cfg.resizable);
-
-    // Align
-    new Setting(contentEl)
-      .setClass("zoommap-view-editor-row")
-      .setName("Align")
-      .addDropdown((d) => {
-        d.addOption("", "(None)");
-        d.addOption("left", "Left");
-        d.addOption("center", "Center");
-        d.addOption("right", "Right");
-        d.setValue(this.cfg.align ?? "");
-        d.onChange((v) => {
-          this.cfg.align = (v || undefined) as AlignMode | undefined;
-        });
+    {
+      const field = this.createCompactField(layoutGrid, "Width", {
+        hint: savedSizeHint,
       });
+      const row = field.createDiv({ cls: "zoommap-view-editor-compact-inline" });
+      const enabled = row.createEl("input", { type: "checkbox" });
+      enabled.checked = !!this.cfg.useWidth;
+      enabled.title = "Store width in YAML";
+      const input = row.createEl("input", { type: "text" });
+      input.placeholder = "100%";
+      input.value = this.cfg.width ?? "";
+      enabled.onchange = () => {
+        this.cfg.useWidth = enabled.checked;
+      };
+      input.oninput = () => {
+        this.cfg.width = input.value.trim();
+      };
+    }
+
+    {
+      const field = this.createCompactField(layoutGrid, "Height", {
+        hint: savedSizeHint,
+      });
+      const row = field.createDiv({ cls: "zoommap-view-editor-compact-inline" });
+      const enabled = row.createEl("input", { type: "checkbox" });
+      enabled.checked = !!this.cfg.useHeight;
+      enabled.title = "Store height in YAML";
+      const input = row.createEl("input", { type: "text" });
+      input.placeholder = "480px";
+      input.value = this.cfg.height ?? "";
+      enabled.onchange = () => {
+        this.cfg.useHeight = enabled.checked;
+      };
+      input.oninput = () => {
+        this.cfg.height = input.value.trim();
+      };
+    }
+
+    let resizeHandleInput: HTMLSelectElement | null = null;
+    {
+      const field = this.createCompactField(layoutGrid, "Resizable");
+      const input = field.createEl("input", { type: "checkbox" });
+      input.checked = !!this.cfg.resizable;
+      input.onchange = () => {
+        this.cfg.resizable = input.checked;
+        if (resizeHandleInput) resizeHandleInput.disabled = !input.checked;
+      };
+    }
+
+    {
+      const field = this.createCompactField(layoutGrid, "Resize handle");
+      const input = field.createEl("select");
+      input.createEl("option", { text: "Native", value: "native" });
+      input.createEl("option", { text: "Left", value: "left" });
+      input.createEl("option", { text: "Right", value: "right" });
+      input.createEl("option", { text: "Both", value: "both" });
+      input.value = this.cfg.resizeHandle ?? "native";
+      input.disabled = !this.cfg.resizable;
+      input.onchange = () => {
+        this.cfg.resizeHandle = input.value as ResizeHandle;
+      };
+      resizeHandleInput = input;
+    }
+
+    {
+      const field = this.createCompactField(layoutGrid, "Align");
+      const input = field.createEl("select");
+      input.createEl("option", { text: "None", value: "" });
+      input.createEl("option", { text: "Left", value: "left" });
+      input.createEl("option", { text: "Center", value: "center" });
+      input.createEl("option", { text: "Right", value: "right" });
+      input.value = this.cfg.align ?? "";
+      input.onchange = () => {
+        this.cfg.align = (input.value || undefined) as AlignMode | undefined;
+      };
+    }
 	  
 	// ID
-	new Setting(contentEl)
-	  .setClass("zoommap-view-editor-row")
-	  .setName("ID = optional")
-	  .setDesc("Stable identifier if you store markers inline in the note.")
-	  .addText((t) => {
-		t.setPlaceholder("Map-world-1");
-		t.setValue(this.cfg.id ?? "");
-		t.onChange((v) => {
-		  const val = v.trim();
-		  this.cfg.id = val.length ? val : undefined;
-		});
-	  });
+    {
+      const row = contentEl.createDiv({
+        cls: "zoommap-view-editor-row"
+      });
+
+      this.createInlineLabel(
+        row,
+        "ID",
+        "Optional stable identifier when markers are stored inline in the note."
+      );
+
+      const input = row.createEl("input", { type: "text" });
+      input.addClass("zoommap-view-editor-input");
+      input.placeholder = "map-world-1";
+      input.value = this.cfg.id ?? "";
+      input.oninput = () => {
+        const value = input.value.trim();
+        this.cfg.id = value.length > 0 ? value : undefined;
+      };
+    }
 	  
     /* -------- Viewport frame -------- */
     contentEl.createEl("h3", { text: "Viewport frame" });
@@ -499,8 +546,10 @@ export class ViewEditorModal extends Modal {
 	
     const frameSetting = new Setting(contentEl)
       .setClass("zoommap-view-editor-row")
-      .setName("Frame image (optional)")
-      .setDesc("Drawn above the map. Supports overhang.");
+      .setName("Frame image");
+
+    frameSetting.nameEl.setAttr("title", "Optional. Drawn above the map and supports overhang.");
+    frameSetting.nameEl.addClass("zoommap-view-editor-inline-label--hint");
 
     frameSetting.addText((t) => {
       t.setPlaceholder("Path to frame image.");
@@ -539,41 +588,42 @@ export class ViewEditorModal extends Modal {
       }),
     );
 
-    const unitSetting = new Setting(contentEl)
-      .setClass("zoommap-view-editor-row")
-      .setName("Viewport insets unit")
-      .setDesc('Framepx = values in the frame image pixel space. Percent = 0..100 of the outer box.');
+    const frameGrid = this.createCompactGrid(contentEl, 5);
 
-    unitSetting.addDropdown((d) => {
-      d.addOption("framePx", "Framepx");
-      d.addOption("percent", "Percent");
-      d.setValue(insets.unit);
-      d.onChange((v) => {
-        insets.unit = (v === "percent" ? "percent" : "framePx");
+    {
+      const field = this.createCompactField(frameGrid, "Insets unit", {
+        hint: "Framepx uses the original pixel space of the frame image. Percent uses the outer map size.",
       });
-    });
+      const input = field.createEl("select");
+      input.createEl("option", { text: "Frame px", value: "framePx" });
+      input.createEl("option", { text: "Percent", value: "percent" });
+      input.value = insets.unit;
+      input.onchange = () => {
+        insets.unit = input.value === "percent" ? "percent" : "framePx";
+      };
+    }
 
-    const insetRow = (label: string, key: "top" | "right" | "bottom" | "left") => {
-      new Setting(contentEl)
-        .setClass("zoommap-view-editor-row")
-        .setName(`Inset ${label}`)
-        .addText((t) => {
-          t.inputEl.type = "number";
-          t.inputEl.classList.add("zoommap-view-editor-input--short");
-          t.setPlaceholder("0");
-          t.setValue(String(insets[key] ?? 0));
-          t.onChange((v) => {
-            const n = Number(String(v).replace(",", "."));
-            if (!Number.isFinite(n) || n < 0) return;
-            insets[key] = Math.round(n);
-          });
-        });
+    const addInsetField = (
+      label: string,
+      key: "top" | "right" | "bottom" | "left",
+    ) => {
+      const field = this.createCompactField(frameGrid, label);
+      const input = field.createEl("input", { type: "number" });
+      input.min = "0";
+      input.placeholder = "0";
+      input.value = String(insets[key] ?? 0);
+      input.oninput = () => {
+        const n = Number(input.value.replace(",", "."));
+        if (Number.isFinite(n) && n >= 0) {
+          insets[key] = Math.round(n);
+        }
+      };
     };
 
-    insetRow("Top", "top");
-    insetRow("Right", "right");
-    insetRow("Bottom", "bottom");
-    insetRow("Left", "left");
+    addInsetField("Top", "top");
+    addInsetField("Right", "right");
+    addInsetField("Bottom", "bottom");
+    addInsetField("Left", "left");
 
     /* -------- Footer -------- */
     const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });

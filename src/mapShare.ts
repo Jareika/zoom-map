@@ -1,5 +1,4 @@
 import {
-  activeDocument,
   Modal,
   Notice,
   Setting,
@@ -50,9 +49,7 @@ interface BundleAssetEntry {
   zipPath: string;
 }
 
-type BundleIconProfile = IconProfile & {
-  inCollections?: boolean;
-};
+type BundleIconProfile = IconProfile;
 
 interface BundleCollectionSubset {
   suggestedName: string;
@@ -245,10 +242,9 @@ function joinRoot(root: string, originalPath: string): string {
 }
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength,
-  );
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
 }
 
 function ensureUint8Array(value: unknown, context: string): Uint8Array {
@@ -469,9 +465,14 @@ function buildInlineStorageBlock(mapId: string, data: MarkerFileData): string {
   ].join("\n");
 }
 
-function downloadZip(filename: string, bytes: Uint8Array): void {
-  const doc = getActiveDocumentSafe();
-  const blob = new Blob([bytes], { type: "application/zip" });
+function downloadZip(
+  filename: string,
+  bytes: Uint8Array,
+  doc: Document,
+): void {
+  const blob = new Blob([toArrayBuffer(bytes)], {
+    type: "application/zip",
+  });
   const url = URL.createObjectURL(blob);
   const body = doc.body;
   if (!body) throw new Error("No active document body available.");
@@ -484,29 +485,10 @@ function downloadZip(filename: string, bytes: Uint8Array): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function getActiveDocumentSafe(): Document {
-  const docUnknown: unknown = activeDocument;
-
-  if (
-    docUnknown &&
-    typeof docUnknown === "object" &&
-    "createElement" in docUnknown &&
-    typeof (docUnknown as { createElement?: unknown }).createElement === "function"
-  ) {
-    return docUnknown as Document;
-  }
-
-  if (typeof window !== "undefined" && window.document) {
-    return window.document;
-  }
-
-  throw new Error("No active document available.");
-}
-
 async function deleteVaultPathIfExists(app: App, path: string): Promise<void> {
   const existing = app.vault.getAbstractFileByPath(normalizePath(path));
   if (!(existing instanceof TFile)) return;
-  await app.fileManager.trashFile(existing, false);
+  await app.fileManager.trashFile(existing);
 }
 
 async function ensureFolderPathExists(app: App, folder: string): Promise<void> {
@@ -749,7 +731,7 @@ function findIconLike(plugin: ZoomMapPlugin, key: string): BundleIconProfile {
   const existing = (plugin.settings.icons ?? []).find((i) => i.key === key);
   if (existing) return deepClone(existing);
 
-  const builtin = plugin.builtinIcon() as BundleIconProfile;
+  const builtin = plugin.builtinIcon();
   return {
     ...deepClone(builtin),
     key: key || builtin.key,
@@ -1753,7 +1735,7 @@ function importCollectionSubset(
 
     const clone = deepClone(preset);
     clone.id = uniqueCollectionItemId("swp", takenIds, clone.id);
-    target.include.swapPins.push(clone);
+    (target.include.swapPins ??= []).push(clone);
     swapIdMap.set(preset.id, clone.id);
     changed = true;
   }
@@ -1768,7 +1750,7 @@ function importCollectionSubset(
 
     const clone = deepClone(preset);
     clone.id = uniqueCollectionItemId("ping", takenIds, clone.id);
-    target.include.pingPins.push(clone);
+    (target.include.pingPins ??= []).push(clone);
     pingIdMap.set(preset.id, clone.id);
     changed = true;
   }
@@ -2053,11 +2035,11 @@ export class ExportMapBundleModal extends Modal {
   private summaryEl: HTMLDivElement | null = null;
   private refreshSummaryToken = 0;
 
-  private includeRecursiveToggleEl: HTMLInputElement | null = null;
-  private includeNoteImagesToggleEl: HTMLInputElement | null = null;
-  private includeNoteVideosToggleEl: HTMLInputElement | null = null;
-  private includeNotePdfsToggleEl: HTMLInputElement | null = null;
-  private includeNoteAudioToggleEl: HTMLInputElement | null = null;
+  private includeRecursiveToggleEl: HTMLElement | null = null;
+  private includeNoteImagesToggleEl: HTMLElement | null = null;
+  private includeNoteVideosToggleEl: HTMLElement | null = null;
+  private includeNotePdfsToggleEl: HTMLElement | null = null;
+  private includeNoteAudioToggleEl: HTMLElement | null = null;
   private summaryBodyEl: HTMLDivElement | null = null;
   private summaryStatusEl: HTMLDivElement | null = null;
   private summaryRefreshTimer: number | null = null;
@@ -2103,11 +2085,11 @@ export class ExportMapBundleModal extends Modal {
 
   private applyLinkedNotesToggleState(): void {
     const disabled = !this.includeLinkedNotes;
-    if (this.includeRecursiveToggleEl) this.includeRecursiveToggleEl.disabled = disabled;
-    if (this.includeNoteImagesToggleEl) this.includeNoteImagesToggleEl.disabled = disabled;
-    if (this.includeNoteVideosToggleEl) this.includeNoteVideosToggleEl.disabled = disabled;
-    if (this.includeNotePdfsToggleEl) this.includeNotePdfsToggleEl.disabled = disabled;
-    if (this.includeNoteAudioToggleEl) this.includeNoteAudioToggleEl.disabled = disabled;
+    this.includeRecursiveToggleEl?.toggleAttribute("disabled", disabled);
+    this.includeNoteImagesToggleEl?.toggleAttribute("disabled", disabled);
+    this.includeNoteVideosToggleEl?.toggleAttribute("disabled", disabled);
+    this.includeNotePdfsToggleEl?.toggleAttribute("disabled", disabled);
+    this.includeNoteAudioToggleEl?.toggleAttribute("disabled", disabled);
   }
   
   private setSummaryBusyState(text: string): void {
@@ -2323,7 +2305,7 @@ export class ExportMapBundleModal extends Modal {
         includeNotePdfs: this.includeNotePdfs,
         includeNoteAudio: this.includeNoteAudio,
       }, prepared);
-      downloadZip(fileName, bytes);
+      downloadZip(fileName, bytes, this.contentEl.ownerDocument);
       new Notice(`Export ready: ${fileName}`, 2500);
       this.close();
     } catch (err) {

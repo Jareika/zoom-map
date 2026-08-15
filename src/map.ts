@@ -1,4 +1,13 @@
-import { Component, Modal, Notice, TFile, MarkdownView, parseYaml, stringifyYaml, normalizePath } from "obsidian";
+import {
+  MarkdownRenderChild,
+  Modal,
+  Notice,
+  TFile,
+  MarkdownView,
+  parseYaml,
+  stringifyYaml,
+  normalizePath,
+} from "obsidian";
 import type { App } from "obsidian";
 import { generateId, MarkerStore, sanitizeMarkerFileDataForSave } from "./markerStore";
 import type {
@@ -188,6 +197,7 @@ export interface IconProfile {
   size: number;
   anchorX: number;
   anchorY: number;
+  inCollections?: boolean;
   defaultLink?: string;
   rotationDeg?: number;
   shadowEnabled?: boolean;
@@ -251,6 +261,7 @@ export interface ZoomMapSettings {
   panMouseButton: "left" | "middle" | "right";
   hoverMaxWidth: number;
   hoverMaxHeight: number;
+  applyHoverPopoverSizeGlobally?: boolean;
   presets?: MarkerPreset[];
   stickerPresets?: StickerPreset[];
   defaultWidth: string;
@@ -546,7 +557,7 @@ interface ScreenDisplayPluginApi {
   }) => Promise<void>;
 }
 
-export class MapInstance extends Component {
+export class MapInstance extends MarkdownRenderChild {
   private app: App;
   private plugin: ZoomMapPlugin;
   private el: HTMLElement;
@@ -2060,8 +2071,21 @@ export class MapInstance extends Component {
       "map";
 
     const safeStem = this.sanitizeFileName(`${stemBase}-screen`);
-    const notePath = normalizePath(sec.notePath ?? `${folder}/${safeStem}.md`);
-    const markersPath = normalizePath(sec.markersPath ?? `${folder}/${safeStem}.markers.json`);
+    const isInsideFolder = (path: string | undefined): boolean => {
+      const normalized = normalizePath((path ?? "").trim());
+      return normalized === folder || normalized.startsWith(`${folder}/`);
+    };
+
+    const notePath = normalizePath(
+      isInsideFolder(sec.notePath)
+        ? sec.notePath!
+        : `${folder}/${safeStem}.md`,
+    );
+    const markersPath = normalizePath(
+      isInsideFolder(sec.markersPath)
+        ? sec.markersPath!
+        : `${folder}/${safeStem}.markers.json`,
+    );
 
     await this.ensureFolderForPath(notePath);
     await this.ensureFolderForPath(markersPath);
@@ -2112,6 +2136,116 @@ export class MapInstance extends Component {
   
   private hasViewportFrame(): boolean {
     return typeof this.cfg.viewportFrame === "string" && this.cfg.viewportFrame.trim().length > 0;
+  }
+  
+  public hasViewportFrameForControl(): boolean {
+    return this.ready && this.hasViewportFrame();
+  }
+
+  public async nudgeViewportFrameFromControl(
+    direction: "up" | "down" | "left" | "right",
+    pixels: number,
+  ): Promise<void> {
+    if (!this.ready || !this.hasViewportFrame()) {
+      throw new Error("The active map has no viewport frame.");
+    }
+
+    const step = Math.max(1, Math.round(pixels));
+    const current = this.cfg.viewportFrameInsets ?? {
+      unit: "framePx" as const,
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+    };
+
+    const next = { ...current };
+
+    // Controls always moves in actual pixels. Convert percentage insets once
+    // using the current outer map dimensions before applying the nudge.
+    if (next.unit === "percent") {
+      const { w, h } = this.getOuterSizePx();
+      next.unit = "framePx";
+
+      if (this.frameNaturalW > 0 && this.frameNaturalH > 0) {
+        next.top = Math.round((next.top / 100) * this.frameNaturalH);
+        next.bottom = Math.round((next.bottom / 100) * this.frameNaturalH);
+        next.left = Math.round((next.left / 100) * this.frameNaturalW);
+        next.right = Math.round((next.right / 100) * this.frameNaturalW);
+      } else {
+        next.top = Math.round((next.top / 100) * h);
+        next.bottom = Math.round((next.bottom / 100) * h);
+        next.left = Math.round((next.left / 100) * w);
+        next.right = Math.round((next.right / 100) * w);
+      }
+    }
+
+    switch (direction) {
+      case "up":
+        next.top = Math.max(0, next.top - step);
+        next.bottom += step;
+        break;
+      case "down":
+        next.top += step;
+        next.bottom = Math.max(0, next.bottom - step);
+        break;
+      case "left":
+        next.left = Math.max(0, next.left - step);
+        next.right += step;
+        break;
+      case "right":
+        next.left += step;
+        next.right = Math.max(0, next.right - step);
+        break;
+    }
+
+    this.cfg.viewportFrameInsets = next;
+    this.applyViewportInset();
+    this.onResize();
+    await this.saveViewportFrameInsetsToYaml(next);
+  }
+
+  private async saveViewportFrameInsetsToYaml(
+    insets: NonNullable<ZoomMapConfig["viewportFrameInsets"]>,
+  ): Promise<void> {
+    const af = this.app.vault.getAbstractFileByPath(this.cfg.sourcePath);
+    if (!(af instanceof TFile)) {
+      throw new Error("Source note not found.");
+    }
+
+    let foundBlock = false;
+
+    await this.app.vault.process(af, (text) => {
+      const lines = text.split("\n");
+      const blk = this.findZoommapBlockForThisMap(lines);
+      if (!blk) return text;
+      foundBlock = true;
+
+      const prefix = splitQuotePrefix(lines[blk.start] ?? "").prefix;
+      const current = this.parseZoommapYamlFromBlock(lines, blk) ?? {};
+      current.viewportFrameInsets = {
+        unit: insets.unit,
+        top: insets.top,
+        right: insets.right,
+        bottom: insets.bottom,
+        left: insets.left,
+      };
+
+      const yaml = stringifyYaml(current)
+        .trimEnd()
+        .split("\n")
+        .map((line) => `${prefix}${line}`);
+
+      return [
+        ...lines.slice(0, blk.start + 1),
+        ...yaml,
+        ...lines.slice(blk.end),
+      ].join("\n");
+    });
+
+    if (!foundBlock) {
+      throw new Error("Could not locate the active zoommap block.");
+    }
   }
 
   private getOuterSizePx(): { w: number; h: number } {
@@ -2252,7 +2386,7 @@ export class MapInstance extends Component {
   }
   
   constructor(app: App, plugin: ZoomMapPlugin, el: HTMLElement, cfg: ZoomMapConfig) {
-    super();
+    super(el);
     this.app = app;
     this.plugin = plugin;
     this.el = el;
@@ -2275,13 +2409,12 @@ export class MapInstance extends Component {
     return this.getOwnerDocument().defaultView ?? window;
   }
 
-  private getOwnerBody(): HTMLBodyElement {
+  private getOwnerBody(): HTMLElement {
     return this.getOwnerDocument().body;
   }
   
   private isOwnerElement(value: EventTarget | null): value is Element {
-    const win = this.getOwnerWindow();
-    return !!value && value instanceof win.Element;
+    return !!value && typeof value === "object" && "closest" in value;
   }
   
   public getSourcePath(): string {
@@ -2290,6 +2423,10 @@ export class MapInstance extends Component {
 
   public getMapId(): string {
     return this.cfg.mapId ?? "";
+  }
+  
+  public isReadyForControl(): boolean {
+    return this.ready;
   }
   
   public async buildShareExportContext(): Promise<MapShareExportContext | null> {
@@ -2572,9 +2709,12 @@ export class MapInstance extends Component {
   private collectAncestorCallouts(): HTMLElement[] {
     const out: HTMLElement[] = [];
     let cur: HTMLElement | null = this.el;
+	
     while (cur) {
-      const callout = cur.closest?.(".callout");
-      if (callout && callout instanceof HTMLElement) {
+      const callout: HTMLElement | null =
+        cur.closest<HTMLElement>(".callout");
+
+      if (callout) {
         if (!out.includes(callout)) out.push(callout);
         cur = callout.parentElement;
       } else {
@@ -2951,9 +3091,11 @@ export class MapInstance extends Component {
     if (this.cfg.yamlMetersPerPixel && this.getMetersPerPixel() === undefined) {
       this.ensureMeasurement();
       const base = this.getActiveBasePath();
-      if (this.data?.measurement) {
-        this.data.measurement.metersPerPixel = this.cfg.yamlMetersPerPixel;
-        this.data.measurement.scales[base] = this.cfg.yamlMetersPerPixel;
+      const measurement = this.data?.measurement;
+      if (measurement) {
+        measurement.scales ??= {};
+        measurement.metersPerPixel = this.cfg.yamlMetersPerPixel;
+        measurement.scales[base] = this.cfg.yamlMetersPerPixel;
         if (await this.store.wouldChange(this.data)) {
           this.ignoreNextModify = true;
           await this.store.save(this.data);
@@ -3010,6 +3152,7 @@ export class MapInstance extends Component {
 
     this.renderAll();
     this.ready = true;
+	this.plugin.markMapInstanceReady(this);
 	this.updateZoomControlsVisibility();
   }
 
@@ -7463,7 +7606,17 @@ this.viewDragDist = 0;
               if (chk) chk.textContent = "✓";
             },
           }))
-        : [{ label: "(No max travel time presets configured)", action: () => new Notice("Configure max travel time presets in settings → travel rules.", 3500) }],
+        : [
+            {
+              label: "(No max travel time presets configured)",
+              action: () => {
+                new Notice(
+                  "Configure max travel time presets in settings → travel rules.",
+                  3500,
+                );
+              },
+            },
+          ],
     });
 
     travelTimeItems.push({ type: "separator" });
@@ -7492,7 +7645,9 @@ this.viewDragDist = 0;
     } else {
       travelTimeItems.push({
         label: "(No travel presets configured)",
-        action: () => new Notice("Configure presets in settings → travel rules.", 3000),
+        action: () => {
+          new Notice("Configure presets in settings → travel rules.", 3000);
+        },
       });
     }
 
@@ -9152,8 +9307,6 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       i++;
     }
 
-    // Desktop-only adapter API
-    // @ts-expect-error writeBinary exists on desktop adapters
     await this.app.vault.adapter.writeBinary(finalPath, await blob.arrayBuffer());
 
 	canvas.remove();
@@ -10688,7 +10841,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     if (owner !== m.id) return;
 
     try {
-      await this.app.fileManager.trashFile(af, true);
+      await this.app.fileManager.trashFile(af);
     } catch (e) {
       console.warn("Failed to trash ping note", e);
     }
@@ -11574,7 +11727,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     const af = this.app.vault.getAbstractFileByPath(d.bakedPath);
     if (af instanceof TFile) {
         try {
-          await this.app.fileManager.trashFile(af, true);
+          await this.app.fileManager.trashFile(af);
         } catch (err) {
           console.error("Zoom Map: failed to delete baked SVG", d.bakedPath, err);
         }
@@ -13709,10 +13862,12 @@ if (this.plugin.settings.enableTextLayers && this.data) {
   private async applyScaleCalibration(metersPerPixel: number): Promise<void> {
     if (!this.data) return;
     this.ensureMeasurement();
+    const measurement = this.data?.measurement;
+    if (!measurement) return;
     const base = this.getActiveBasePath();
-    if (!this.data.measurement) return;
-    this.data.measurement.metersPerPixel = metersPerPixel;
-    this.data.measurement.scales[base] = metersPerPixel;
+    measurement.scales ??= {};
+    measurement.metersPerPixel = metersPerPixel;
+    measurement.scales[base] = metersPerPixel;
 
     if (await this.store.wouldChange(this.data)) {
       this.ignoreNextModify = true;

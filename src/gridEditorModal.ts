@@ -25,6 +25,11 @@ function normalizeHex(v: string): string {
   return s;
 }
 
+function moveSettingDescriptionBelow(setting: Setting): void {
+  const description = setting.settingEl.querySelector(".setting-item-description");
+  if (description) setting.settingEl.appendChild(description);
+}
+
 export class GridEditorModal extends Modal {
   private working: GridOverlay;
   private onDone: DoneCb;
@@ -165,10 +170,11 @@ export class GridEditorModal extends Modal {
         });
       });
 
-    new Setting(contentEl)
-      .setName("Offset X / y (px)")
+    const offsetSetting = new Setting(contentEl)
+      .setName("Offset x / y (px)")
       .setDesc("Absolute anchor in image pixels. For precise alignment use the live alignment command in the map menu.")
-      .addText((t) => {
+      .setClass("zoommap-setting--desc-below zoommap-setting--wrap-control")
+	  .addText((t) => {
         t.inputEl.type = "number";
         t.setValue(String(this.working.offsetX));
         t.onChange((v) => {
@@ -184,6 +190,7 @@ export class GridEditorModal extends Modal {
           if (Number.isFinite(n)) this.working.offsetY = n;
         });
       });
+    moveSettingDescriptionBelow(offsetSetting);
 
     const footer = contentEl.createDiv({ cls: "zoommap-modal-footer" });
     const save = footer.createEl("button", { text: "Save" });
