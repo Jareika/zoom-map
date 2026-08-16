@@ -11,7 +11,11 @@ import {
   requestUrl,
   MarkdownView,
 } from "obsidian";
-import type { App, Editor, MarkdownPostProcessorContext } from "obsidian";
+import type {
+  App,
+  Editor,
+  MarkdownPostProcessorContext
+} from "obsidian";
 import { MapInstance } from "./map";
 import type {
   ZoomMapConfig,
@@ -86,6 +90,7 @@ interface ControlsProviderAction {
   group: string;
   description?: string;
   available: boolean;
+  active?: boolean;
   secondaryActionId?: string;
 }
 
@@ -95,6 +100,7 @@ interface ControlsProviderApi {
   providerName: string;
   getActions(): ControlsProviderAction[];
   executeAction(actionId: string): Promise<void>;
+  onActionsChanged?(callback: () => void): () => void;
 }
 
 interface LastInsertMapTarget {
@@ -125,6 +131,7 @@ const CONTROLS_ACTION_IDS = {
   moveFrameDownFast: "frame.move-down-5",
   moveFrameLeftFast: "frame.move-left-5",
   moveFrameRightFast: "frame.move-right-5",
+  toggleOpenZoomMapNotesInReadingMode: "map.toggle-open-in-reading-mode",
 } as const;
 
 function toCssSize(v: unknown, fallback: string): string {
@@ -245,6 +252,7 @@ const DEFAULT_SETTINGS: ZoomMapSettingsExtended = {
   middleClickOpensLinkInNewTab: false,
   enableSecondScreen: false,
   secondScreenFolder: "ZoomMap/SecondScreen",
+  openZoomMapNotesInReadingMode: false,
 };
 
 /* ---------------- YAML parsing helpers ---------------- */
@@ -488,6 +496,7 @@ export default class ZoomMapPlugin extends Plugin {
   imageCache: ImageCache | null = null;
   private lastInsertMapTarget: LastInsertMapTarget | null = null;
   private lastActiveMapKey: string | null = null;
+  private controlsActionListeners = new Set<() => void>();
 
   /**
    * Public API for TTRPG Tools – Controls.
@@ -503,6 +512,13 @@ export default class ZoomMapPlugin extends Plugin {
     providerName: "TTRPG Tools - Maps",
     getActions: () => this.getControlsActions(),
     executeAction: (actionId) => this.executeControlsAction(actionId),
+    onActionsChanged: (callback) => {
+      this.controlsActionListeners.add(callback);
+
+      return () => {
+        this.controlsActionListeners.delete(callback);
+      };
+    },
   };
 
   private mapInstances = new Set<MapInstance>();
@@ -695,6 +711,16 @@ export default class ZoomMapPlugin extends Plugin {
         available: true,
         secondaryActionId: CONTROLS_ACTION_IDS.moveFrameRightFast,
       },
+      {
+        id: CONTROLS_ACTION_IDS.toggleOpenZoomMapNotesInReadingMode,
+        name: "Open zoommap notes in reading mode",
+        icon: "book-open-check",
+        group: "Map",
+        description:
+          "Automatically opens newly opened notes containing a zoommap block in reading mode.",
+        available: true,
+        active: this.settings.openZoomMapNotesInReadingMode === true,
+      },
     ];
   }
 
@@ -780,8 +806,97 @@ export default class ZoomMapPlugin extends Plugin {
         }
         return;
 
+      case CONTROLS_ACTION_IDS.toggleOpenZoomMapNotesInReadingMode:
+        await this.setOpenZoomMapNotesInReadingMode(
+          !this.settings.openZoomMapNotesInReadingMode,
+        );
+        return;
+
       default:
         throw new Error(`Unknown Maps control action: ${actionId}`);
+    }
+  }
+  
+  public async setOpenZoomMapNotesInReadingMode(
+    enabled: boolean,
+  ): Promise<void> {
+    const next = enabled === true;
+
+    if (this.settings.openZoomMapNotesInReadingMode === next) {
+      return;
+    }
+
+    this.settings.openZoomMapNotesInReadingMode = next;
+    await this.saveSettings();
+    this.notifyControlsActionsChanged();
+
+    if (next) {
+      void this.openZoomMapNoteInReadingMode(
+        this.app.workspace.getActiveViewOfType(MarkdownView),
+      );
+    }
+  }
+
+  private notifyControlsActionsChanged(): void {
+    for (const callback of this.controlsActionListeners) {
+      try {
+        callback();
+      } catch {
+        // Controls listeners are optional integrations.
+      }
+    }
+  }
+
+  private async openZoomMapNoteInReadingMode(
+    view: MarkdownView | null,
+  ): Promise<void> {
+    if (!this.settings.openZoomMapNotesInReadingMode) {
+      return;
+    }
+
+    if (!view?.file) {
+      return;
+    }
+
+    if (view.getMode() === "preview") {
+      return;
+    }
+
+    const file = view.file;
+
+    try {
+      const content = await this.app.vault.cachedRead(file);
+
+      if (
+        !this.settings.openZoomMapNotesInReadingMode ||
+        view.file !== file ||
+        view.getMode() === "preview"
+      ) {
+        return;
+      }
+
+      const containsZoomMap =
+        /^\s*(?:>\s*)*```zoommap(?:\s|$)/im.test(content);
+
+      if (!containsZoomMap) {
+        return;
+      }
+
+      await view.setState(
+        {
+          ...view.getState(),
+          mode: "preview",
+          source: true,
+        },
+        {
+          history: false,
+        },
+      );
+    } catch (error) {
+      console.warn(
+        "Zoom Map: could not switch a zoommap note to reading mode",
+        error,
+      );
     }
   }
   
@@ -908,11 +1023,28 @@ export default class ZoomMapPlugin extends Plugin {
 	
     this.app.workspace.onLayoutReady(() => {
       this.rememberActiveMarkdownEditor();
+
+      void this.openZoomMapNoteInReadingMode(
+        this.app.workspace.getActiveViewOfType(MarkdownView),
+      );
     });
 
     this.registerEvent(
-      this.app.workspace.on("active-leaf-change", () => {
+      this.app.workspace.on("active-leaf-change", (leaf) => {
         this.rememberActiveMarkdownEditor();
+
+        const view = leaf?.view;
+        void this.openZoomMapNoteInReadingMode(
+          view instanceof MarkdownView ? view : null,
+        );
+      }),
+    );
+	
+    this.registerEvent(
+      this.app.workspace.on("file-open", () => {
+        void this.openZoomMapNoteInReadingMode(
+          this.app.workspace.getActiveViewOfType(MarkdownView),
+        );
       }),
     );
 
@@ -1424,6 +1556,8 @@ export default class ZoomMapPlugin extends Plugin {
 	this.settings.middleClickOpensLinkInNewTab ??= false;
     this.settings.enableSecondScreen ??= false;
     this.settings.secondScreenFolder ??= "ZoomMap/SecondScreen";
+	this.settings.openZoomMapNotesInReadingMode ??= false;
+
     // Icons: collection filter toggle
     for (const ico of (this.settings.icons ?? [])) {
       if (typeof (ico as { inCollections?: unknown }).inCollections !== "boolean") {

@@ -297,6 +297,7 @@ export interface ZoomMapSettings {
   enableSecondScreen?: boolean;
   enableGrid?: boolean;
   secondScreenFolder?: string;
+  openZoomMapNotesInReadingMode?: boolean;
 }
 
 export interface MapRestoreState {
@@ -4549,6 +4550,13 @@ export class MapInstance extends MarkdownRenderChild {
         });
 
         hb.addEventListener("click", (e: MouseEvent) => {
+          if (this.textMode === "draw-box") {
+            e.preventDefault();
+            e.stopPropagation();
+            this.handleTextBoxDrawClick(e);
+            return;
+          }
+
           if (this.drawingMode) {
             e.preventDefault();
             e.stopPropagation();
@@ -5465,7 +5473,39 @@ export class MapInstance extends MarkdownRenderChild {
     this.textDrawStart = null;
     this.textDrawPreview = null;
 
-    new Notice(`Draw ${mode} text box: drag to create the box. Press esc to cancel.`, 4500);
+    new Notice(`Draw ${mode} text box: click the first corner, move the mouse, then click the opposite corner. Press esc to cancel.`, 5500);
+  }
+  
+  private handleTextBoxDrawClick(e: MouseEvent): boolean {
+    if (this.textMode !== "draw-box") return false;
+    if (!this.data) return true;
+
+    const layer = this.getTextLayerById(this.activeTextLayerId);
+    if (!layer) {
+      this.textMode = null;
+      this.textDrawStart = null;
+      this.textDrawPreview = null;
+      this.renderTextDraft();
+      return true;
+    }
+
+    if (layer.locked) {
+      new Notice("Text layer is locked.", 1500);
+      return true;
+    }
+
+    const point = this.mouseEventToWorldNorm(e);
+
+    if (!this.textDrawStart) {
+      this.textDrawStart = point;
+      this.textDrawPreview = point;
+      this.renderTextDraft();
+      return true;
+    }
+
+    this.textDrawPreview = point;
+    this.finishDrawNewTextBox();
+    return true;
   }
 
   private finishDrawNewTextBox(): void {
@@ -6251,19 +6291,7 @@ export class MapInstance extends MarkdownRenderChild {
       return;
     }
 	
-	if (this.textMode === "draw-box") {
-      if (e.button !== 0) return;
-
-      const vpRect = this.viewportEl.getBoundingClientRect();
-      const vx = e.clientX - vpRect.left;
-      const vy = e.clientY - vpRect.top;
-      const wx = (vx - this.tx) / this.scale;
-      const wy = (vy - this.ty) / this.scale;
-
-      this.textDrawStart = { x: clamp(wx / this.imgW, 0, 1), y: clamp(wy / this.imgH, 0, 1) };
-      this.textDrawPreview = this.textDrawStart;
-
-      this.renderTextDraft();
+    if (this.textMode === "draw-box") {
       return;
     }
 
@@ -6493,11 +6521,6 @@ export class MapInstance extends MarkdownRenderChild {
       return;
     }
 	  
-  if (this.textMode === "draw-box" && this.textDrawStart && this.textDrawPreview) {
-      this.finishDrawNewTextBox();
-      return;
-    }
-	
     if (e) {
       this.handleTouchTapOnPointerUp(e);
     }
@@ -6808,6 +6831,10 @@ this.viewDragDist = 0;
   private onDblClickViewport(e: MouseEvent): void {
     if (!this.ready) return;
 	
+    if (this.textMode === "draw-box") {
+      return;
+    }
+	
     if (this.gridAlignId) {
       return;
     }
@@ -6847,6 +6874,10 @@ this.viewDragDist = 0;
         y: clamp(wy, 0, this.imgH),
       };
       this.stopGridAlignMode(true);
+      return;
+    }
+	
+    if (this.handleTextBoxDrawClick(e)) {
       return;
     }
 
@@ -11846,6 +11877,14 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       label: "Delete drawing",
       action: () => {
         void this.deleteDrawing(d);
+      },
+    },
+    { type: "separator" },
+    {
+      label: "Map menu",
+      action: () => {
+        this.closeMenu();
+        this.onContextMenuViewport(ev);
       },
     },
   ];
