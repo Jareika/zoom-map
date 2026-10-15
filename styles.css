@@ -791,6 +791,11 @@ body.zm-global-hover-popover-size .hover-popover .markdown-preview-section {
   background: var(--background-modifier-hover);
 }
 
+.zm-zoom-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 /* Draw overlay (shapes) */
 .zm-draw {
   position: absolute;

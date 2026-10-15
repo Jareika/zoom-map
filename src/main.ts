@@ -272,6 +272,7 @@ interface YamlOptions {
   markers?: string;
   minZoom?: number | string;
   maxZoom?: number | string;
+  zoomLocked?: boolean;
   height?: string | number;
   width?: string | number;
   resizable?: boolean;
@@ -1299,6 +1300,7 @@ export default class ZoomMapPlugin extends Plugin {
 		  markersPath,
 		  minZoom,
 		  maxZoom,
+		  zoomLocked: opts.zoomLocked === true,
 		  sourcePath: ctx.sourcePath,
 		  width: widthCss,
 		  height: heightCss,
@@ -1357,6 +1359,7 @@ export default class ZoomMapPlugin extends Plugin {
 		imageRendering: "auto",
         minZoom: 0.25,
         maxZoom: 8,
+		zoomLocked: false,
         wrap: false,
         responsive: false,
         width: "100%",
@@ -1787,6 +1790,7 @@ export default class ZoomMapPlugin extends Plugin {
 
     obj.minZoom = cfg.minZoom;
     obj.maxZoom = cfg.maxZoom;
+	if (cfg.zoomLocked) obj.zoomLocked = true;
     obj.wrap = !!cfg.wrap;
     obj.responsive = !!cfg.responsive;
 

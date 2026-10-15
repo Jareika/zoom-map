@@ -39,6 +39,11 @@ export interface GridOverlay {
   offsetX: number;
   offsetY: number;
   playerScreen?: GridDisplayTarget;
+
+  measureHexDistanceEnabled?: boolean;
+  measureHexDistance?: number;
+  measureHexUnit?: DistanceUnit;
+  measureHexCustomUnitId?: string;
 }
 
 export type DrawingKind = "polygon" | "polyline" | "rect" | "circle";
@@ -295,6 +300,7 @@ export interface MeasurementConfig {
   travelTimePresetIds?: string[];
   travelDaysEnabled?: boolean;
   travelDayPresetId?: string;
+  gridId?: string;
 }
 
 export interface SecondScreenViewState {
@@ -408,7 +414,7 @@ export interface MarkerFileData {
 
   pinSizeOverrides?: Record<string, number>;
   panClamp?: boolean;
-
+  
   drawLayers?: DrawLayer[];
   grids?: GridOverlay[];
   drawings?: Drawing[];
@@ -791,6 +797,24 @@ export class MarkerStore {
     offsetX: Number.isFinite(g.offsetX) ? g.offsetX : 0,
     offsetY: Number.isFinite(g.offsetY) ? g.offsetY : 0,
     playerScreen: g.playerScreen === "player-only" || g.playerScreen === "gm-only" ? g.playerScreen : "both",
+    measureHexDistanceEnabled: g.measureHexDistanceEnabled === true,
+    measureHexDistance:
+      Number.isFinite(g.measureHexDistance) && g.measureHexDistance! > 0
+        ? g.measureHexDistance
+        : 1,
+    measureHexUnit:
+      g.measureHexUnit === "m" ||
+      g.measureHexUnit === "km" ||
+      g.measureHexUnit === "mi" ||
+      g.measureHexUnit === "ft" ||
+      g.measureHexUnit === "custom"
+        ? g.measureHexUnit
+        : "mi",
+    measureHexCustomUnitId:
+      typeof g.measureHexCustomUnitId === "string" &&
+      g.measureHexCustomUnitId.trim()
+        ? g.measureHexCustomUnitId
+        : undefined,
   }));
   
   parsed.textLayers ??= [];

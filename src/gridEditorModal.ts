@@ -2,6 +2,12 @@ import { Modal, Setting } from "obsidian";
 import type { App } from "obsidian";
 import type { GridOverlay } from "./markerStore";
 
+export interface GridMeasureUnitOption {
+  id: string;
+  name: string;
+  abbreviation?: string;
+}
+
 export type GridEditorModalResult =
   | { action: "save"; grid: GridOverlay }
   | { action: "cancel" };
@@ -33,10 +39,17 @@ function moveSettingDescriptionBelow(setting: Setting): void {
 export class GridEditorModal extends Modal {
   private working: GridOverlay;
   private onDone: DoneCb;
+  private customUnits: GridMeasureUnitOption[];
 
-  constructor(app: App, grid: GridOverlay, onDone: DoneCb) {
+  constructor(
+    app: App,
+    grid: GridOverlay,
+    customUnits: GridMeasureUnitOption[],
+    onDone: DoneCb,
+  ) {
     super(app);
     this.working = deepClone(grid);
+	this.customUnits = customUnits ?? [];
     this.onDone = onDone;
 
     this.working.name = this.working.name ?? "Grid";
@@ -54,6 +67,14 @@ export class GridEditorModal extends Modal {
       this.working.playerScreen === "player-only" || this.working.playerScreen === "gm-only"
         ? this.working.playerScreen
         : "both";
+
+    this.working.measureHexDistanceEnabled ??= false;
+    this.working.measureHexDistance =
+      Number.isFinite(this.working.measureHexDistance) &&
+      this.working.measureHexDistance! > 0
+        ? this.working.measureHexDistance
+        : 1;
+    this.working.measureHexUnit ??= "mi";
   }
 
   onOpen(): void {
@@ -93,6 +114,18 @@ export class GridEditorModal extends Modal {
         });
       });
 
+    let hexMeasureToggle: Setting | null = null;
+    let hexMeasureDistance: Setting | null = null;
+    let hexMeasureUnit: Setting | null = null;
+
+    const updateHexMeasureVisibility = () => {
+      const isHex = this.working.shape === "hex";
+      hexMeasureToggle?.settingEl.toggle(isHex);
+      const showDetails = isHex && this.working.measureHexDistanceEnabled === true;
+      hexMeasureDistance?.settingEl.toggle(showDetails);
+      hexMeasureUnit?.settingEl.toggle(showDetails);
+    };
+
     new Setting(contentEl)
       .setName("Shape")
       .addDropdown((d) => {
@@ -101,8 +134,74 @@ export class GridEditorModal extends Modal {
         d.setValue(this.working.shape);
         d.onChange((v) => {
           this.working.shape = v === "hex" ? "hex" : "square";
+		  updateHexMeasureVisibility();
         });
       });
+
+    contentEl.createEl("h3", { text: "Hex crawl measurement" });
+
+    hexMeasureToggle = new Setting(contentEl)
+      .setName("Use this grid for hex measurement")
+      .setDesc("Measures center-to-center hex steps instead of pixel distances.")
+      .addToggle((tg) => {
+        tg.setValue(this.working.measureHexDistanceEnabled === true);
+        tg.onChange((on) => {
+          this.working.measureHexDistanceEnabled = on;
+          updateHexMeasureVisibility();
+        });
+      });
+
+    hexMeasureDistance = new Setting(contentEl)
+      .setName("Distance per hex")
+      .addText((t) => {
+        t.inputEl.type = "number";
+        t.setValue(String(this.working.measureHexDistance ?? 1));
+        t.onChange((v) => {
+          const n = Number(String(v).replace(",", "."));
+          if (Number.isFinite(n) && n > 0) {
+            this.working.measureHexDistance = n;
+          }
+        });
+      });
+
+    hexMeasureUnit = new Setting(contentEl)
+      .setName("Hex distance unit")
+      .addDropdown((d) => {
+        d.addOption("m", "Meters");
+        d.addOption("km", "Kilometers");
+        d.addOption("mi", "Miles");
+        d.addOption("ft", "Feet");
+
+        for (const unit of this.customUnits) {
+          const label = unit.abbreviation
+            ? `${unit.name} (${unit.abbreviation})`
+            : unit.name;
+          d.addOption(`custom:${unit.id}`, label);
+        }
+
+        const current =
+          this.working.measureHexUnit === "custom"
+            ? `custom:${this.working.measureHexCustomUnitId ?? ""}`
+            : this.working.measureHexUnit ?? "mi";
+        d.setValue(current);
+
+        d.onChange((v) => {
+          if (v.startsWith("custom:")) {
+            this.working.measureHexUnit = "custom";
+            this.working.measureHexCustomUnitId =
+              v.slice("custom:".length) || undefined;
+            return;
+          }
+
+          this.working.measureHexUnit =
+            v === "m" || v === "km" || v === "mi" || v === "ft"
+              ? v
+              : "mi";
+          delete this.working.measureHexCustomUnitId;
+        });
+      });
+
+    updateHexMeasureVisibility();
 
     const colorRow = new Setting(contentEl)
       .setName("Grid color")

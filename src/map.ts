@@ -50,6 +50,10 @@ import { SwitchPinModal, type SwitchPinModalResult } from "./switchPinModal";
 import { TextBoxConfigModal } from "./textBoxConfigModal";
 import { SecondScreenLayersModal } from "./secondScreenLayersModal";
 import { DicePinModal } from "./dicePinModal";
+import {
+  MapMenuSession,
+  type MapMenuItem as ZMMenuItem,
+} from "./mapMenu";
 import type { ScaleUnitValue } from "./scaleCalibrateModal";
 
 /* ===== Collections (base-bound) ===== */
@@ -150,6 +154,7 @@ export interface ZoomMapConfig {
   markersPath: string;
   minZoom: number;
   maxZoom: number;
+  zoomLocked?: boolean;
   sourcePath: string;
   width?: string;
   height?: string;
@@ -716,7 +721,7 @@ export class MapInstance extends MarkdownRenderChild {
   private calloutMo: MutationObserver | null = null;
   private ready = false;
 
-  private openMenu: ZMMenu | null = null;
+  private menuSession: MapMenuSession;
   private suppressContextMenuOnce = false;
   private draggingViewButton: number | null = null;
 
@@ -1047,6 +1052,7 @@ export class MapInstance extends MarkdownRenderChild {
 	imageRendering: this.cfg.imageRendering ?? "auto",
     minZoom: this.cfg.minZoom,
     maxZoom: this.cfg.maxZoom,
+	zoomLocked: this.cfg.zoomLocked === true,
     wrap: !!this.cfg.wrap,
     responsive: !!this.cfg.responsive,
 
@@ -1606,6 +1612,7 @@ export class MapInstance extends MarkdownRenderChild {
         "markerLayers",
         "minZoom",
         "maxZoom",
+		"zoomLocked",
         "wrap",
         "responsive",
         "width",
@@ -2392,6 +2399,7 @@ export class MapInstance extends MarkdownRenderChild {
     this.plugin = plugin;
     this.el = el;
     this.cfg = cfg;
+	this.menuSession = new MapMenuSession(this.getOwnerDocument());
 
     // Select storage backend
     if (this.cfg.storageMode === "note") {
@@ -2487,6 +2495,82 @@ export class MapInstance extends MarkdownRenderChild {
       !!this.plugin.settings.showZoomButtonsHud &&
       !this.cfg.responsive;
     this.zoomControlsEl.classList.toggle("zm-hidden", !show);
+	
+    const locked = this.isZoomLocked();
+    if (this.zoomInBtn) {
+      this.zoomInBtn.disabled = locked;
+      this.zoomInBtn.setAttr(
+        "title",
+        locked ? "Zoom is locked" : "Zoom in",
+      );
+    }
+    if (this.zoomOutBtn) {
+      this.zoomOutBtn.disabled = locked;
+      this.zoomOutBtn.setAttr(
+        "title",
+        locked ? "Zoom is locked" : "Zoom out",
+      );
+    }
+  }
+  
+  private isZoomLocked(): boolean {
+    return this.cfg.zoomLocked === true;
+  }
+  
+  private async saveZoomLockedToYaml(locked: boolean): Promise<void> {
+    const af = this.app.vault.getAbstractFileByPath(this.cfg.sourcePath);
+    if (!(af instanceof TFile)) {
+      throw new Error("Source note not found.");
+    }
+
+    let foundBlock = false;
+
+    await this.app.vault.process(af, (text) => {
+      const lines = text.split("\n");
+      const blk = this.findZoommapBlockForThisMap(lines);
+      if (!blk) return text;
+      foundBlock = true;
+
+      const prefix = splitQuotePrefix(lines[blk.start] ?? "").prefix;
+      const current = this.parseZoommapYamlFromBlock(lines, blk) ?? {};
+
+      if (locked) {
+        current.zoomLocked = true;
+      } else {
+        delete current.zoomLocked;
+      }
+
+      const yaml = stringifyYaml(current)
+        .trimEnd()
+        .split("\n")
+        .map((line) => `${prefix}${line}`);
+
+      return [
+        ...lines.slice(0, blk.start + 1),
+        ...yaml,
+        ...lines.slice(blk.end),
+      ].join("\n");
+    });
+
+    if (!foundBlock) {
+      throw new Error("Could not locate the active zoommap block.");
+    }
+  }
+
+  private async setZoomLocked(locked: boolean): Promise<void> {
+    const previous = this.cfg.zoomLocked === true;
+
+    this.cfg.zoomLocked = locked;
+    this.updateZoomControlsVisibility();
+
+    try {
+      await this.saveZoomLockedToYaml(locked);
+
+    } catch (error) {
+      this.cfg.zoomLocked = previous;
+      this.updateZoomControlsVisibility();
+      throw error;
+    }
   }
 
   private refreshMarkdownViewKeepingScroll(view: MarkdownView): void {
@@ -2693,7 +2777,7 @@ export class MapInstance extends MarkdownRenderChild {
     this.tooltipEl?.remove();
     this.ro?.disconnect();
     this.calloutMo?.disconnect();
-    this.closeMenu();
+    this.menuSession.destroy();
     this.disposeBitmaps();
 	
     // Close per-note SVG raster cache bitmaps (only exist when base svg + canvas)
@@ -2877,7 +2961,8 @@ export class MapInstance extends MarkdownRenderChild {
     this.zoomInBtn.setAttr("title", "Zoom in");
 
     this.registerDomEvent(this.zoomOutBtn, "click", (e: MouseEvent) => {
-      e.preventDefault();
+      if (this.isZoomLocked()) return;
+	  e.preventDefault();
       e.stopPropagation();
       const r = this.viewportEl.getBoundingClientRect();
       this.zoomAt(r.width / 2, r.height / 2, 1 / 1.2);
@@ -2890,6 +2975,9 @@ export class MapInstance extends MarkdownRenderChild {
       if (t?.closest(".popover")) return;
       if (this.cfg.responsive) return;
       if (t?.closest(".zm-zoom-controls")) return;
+
+      if (this.isZoomLocked()) return;
+
       e.preventDefault();
       e.stopPropagation();
       this.onWheel(e);
@@ -2897,6 +2985,7 @@ export class MapInstance extends MarkdownRenderChild {
 
     this.registerDomEvent(this.zoomInBtn, "click", (e: MouseEvent) => {
       if (this.cfg.responsive) return;
+	  if (this.isZoomLocked()) return;
       e.preventDefault();
       e.stopPropagation();
       const r = this.viewportEl.getBoundingClientRect();
@@ -3618,6 +3707,248 @@ export class MapInstance extends MarkdownRenderChild {
     return (this.data?.grids ?? []).find((g) => g.id === id) ?? null;
   }
   
+  private getActiveHexMeasureGrid(): GridOverlay | null {
+    const gridId = this.data?.measurement?.gridId;
+    if (!gridId) return null;
+
+    const grid = this.getGridById(gridId);
+    if (!grid) return null;
+    if (grid.shape !== "hex") return null;
+    if (grid.measureHexDistanceEnabled !== true) return null;
+    if (grid.boundBase && grid.boundBase !== this.getActiveBasePath()) {
+      return null;
+    }
+
+    return grid;
+  }
+
+  private gridHexCellAtPoint(
+    grid: GridOverlay,
+    point: Point,
+  ): { col: number; row: number; x: number; y: number } {
+    const hexWidth = Math.max(8, Number(grid.spacing) || 64);
+    const radius = hexWidth / 2;
+    const columnStep = 1.5 * radius;
+    const rowStep = Math.sqrt(3) * radius;
+    const anchorX = Number.isFinite(grid.offsetX) ? grid.offsetX : 0;
+    const anchorY = Number.isFinite(grid.offsetY) ? grid.offsetY : 0;
+
+    const px = point.x * this.imgW;
+    const py = point.y * this.imgH;
+    const estimatedColumn = Math.round((px - anchorX) / columnStep);
+
+    let best:
+      | { col: number; row: number; x: number; y: number; d2: number }
+      | null = null;
+
+    const parity = (n: number): number => ((n % 2) + 2) % 2;
+
+    for (let col = estimatedColumn - 2; col <= estimatedColumn + 2; col += 1) {
+      const baseY = anchorY + (parity(col) ? rowStep / 2 : 0);
+      const estimatedRow = Math.round((py - baseY) / rowStep);
+
+      for (let row = estimatedRow - 2; row <= estimatedRow + 2; row += 1) {
+        const x = anchorX + col * columnStep;
+        const y = baseY + row * rowStep;
+        const d2 = (px - x) ** 2 + (py - y) ** 2;
+
+        if (!best || d2 < best.d2) {
+          best = { col, row, x, y, d2 };
+        }
+      }
+    }
+
+    return best ?? { col: 0, row: 0, x: anchorX, y: anchorY };
+  }
+
+  private gridHexCellToPoint(
+    cell: { x: number; y: number },
+  ): Point {
+    return {
+      x: clamp(cell.x / this.imgW, 0, 1),
+      y: clamp(cell.y / this.imgH, 0, 1),
+    };
+  }
+
+  private gridHexDistance(
+    a: { col: number; row: number },
+    b: { col: number; row: number },
+  ): number {
+    const parity = (n: number): number => ((n % 2) + 2) % 2;
+
+    const toCube = (cell: { col: number; row: number }) => {
+      const q = cell.col;
+      const r = cell.row - (cell.col - parity(cell.col)) / 2;
+      const x = q;
+      const z = r;
+      const y = -x - z;
+      return { x, y, z };
+    };
+
+    const ca = toCube(a);
+    const cb = toCube(b);
+    return Math.max(
+      Math.abs(ca.x - cb.x),
+      Math.abs(ca.y - cb.y),
+      Math.abs(ca.z - cb.z),
+    );
+  }
+  
+  private gridHexToCube(
+    cell: { col: number; row: number },
+  ): { x: number; y: number; z: number } {
+    const parity = (n: number): number => ((n % 2) + 2) % 2;
+    const x = cell.col;
+    const z = cell.row - (cell.col - parity(cell.col)) / 2;
+    return { x, y: -x - z, z };
+  }
+
+  private gridHexFromCube(
+    cube: { x: number; y: number; z: number },
+  ): { col: number; row: number } {
+    const parity = (n: number): number => ((n % 2) + 2) % 2;
+    const col = cube.x;
+    const row = cube.z + (col - parity(col)) / 2;
+    return { col, row };
+  }
+
+  private roundHexCube(
+    cube: { x: number; y: number; z: number },
+  ): { x: number; y: number; z: number } {
+    let x = Math.round(cube.x);
+    let y = Math.round(cube.y);
+    let z = Math.round(cube.z);
+
+    const dx = Math.abs(x - cube.x);
+    const dy = Math.abs(y - cube.y);
+    const dz = Math.abs(z - cube.z);
+
+    if (dx > dy && dx > dz) {
+      x = -y - z;
+    } else if (dy > dz) {
+      y = -x - z;
+    } else {
+      z = -x - y;
+    }
+
+    return { x, y, z };
+  }
+
+  private gridHexCellCenter(
+    grid: GridOverlay,
+    cell: { col: number; row: number },
+  ): Point {
+    const hexWidth = Math.max(8, Number(grid.spacing) || 64);
+    const radius = hexWidth / 2;
+    const columnStep = 1.5 * radius;
+    const rowStep = Math.sqrt(3) * radius;
+    const parity = (n: number): number => ((n % 2) + 2) % 2;
+
+    const x =
+      (Number.isFinite(grid.offsetX) ? grid.offsetX : 0) +
+      cell.col * columnStep;
+    const y =
+      (Number.isFinite(grid.offsetY) ? grid.offsetY : 0) +
+      (parity(cell.col) ? rowStep / 2 : 0) +
+      cell.row * rowStep;
+
+    return this.gridHexCellToPoint({ x, y });
+  }
+
+  private gridHexRoute(
+    grid: GridOverlay,
+    from: { col: number; row: number },
+    to: { col: number; row: number },
+  ): Point[] {
+    const a = this.gridHexToCube(from);
+    const b = this.gridHexToCube(to);
+    const distance = this.gridHexDistance(from, to);
+
+    if (distance <= 0) {
+	  return [this.gridHexCellCenter(grid, from)];
+    }
+
+    const route: Point[] = [];
+
+    for (let step = 0; step <= distance; step += 1) {
+      const t = step / distance;
+      const cube = this.roundHexCube({
+        x: a.x + (b.x - a.x) * t,
+        y: a.y + (b.y - a.y) * t,
+        z: a.z + (b.z - a.z) * t,
+      });
+
+      const cell = this.gridHexFromCube(cube);
+      const point = this.gridHexCellCenter(grid, cell);
+      const previous = route[route.length - 1];
+      if (
+        !previous ||
+        Math.abs(previous.x - point.x) > 1e-9 ||
+        Math.abs(previous.y - point.y) > 1e-9
+      ) {
+        route.push(point);
+      }
+    }
+
+    return route;
+  }
+
+  private buildHexMeasureRoute(includePreview: boolean): Point[] | null {
+    const grid = this.getActiveHexMeasureGrid();
+    if (!grid) return null;
+
+    const points = [...this.measurePts];
+    if (includePreview && this.measurePreview) {
+      points.push(this.measurePreview);
+    }
+
+    if (points.length < 2) return null;
+
+    const route: Point[] = [];
+
+    for (let i = 1; i < points.length; i += 1) {
+      const start = this.gridHexCellAtPoint(grid, points[i - 1]);
+      const end = this.gridHexCellAtPoint(grid, points[i]);
+      const segment = this.gridHexRoute(grid, start, end);
+
+      if (route.length > 0 && segment.length > 0) {
+        segment.shift();
+      }
+
+      route.push(...segment);
+    }
+
+    return route;
+  }
+
+  private snapMeasurePointToGrid(point: Point): Point {
+    const grid = this.getActiveHexMeasureGrid();
+    if (!grid) return point;
+    return this.gridHexCellToPoint(this.gridHexCellAtPoint(grid, point));
+  }
+
+  private computeHexMeasureSegments(
+    includePreview: boolean,
+  ): { grid: GridOverlay; hexes: number[] } | null {
+    const grid = this.getActiveHexMeasureGrid();
+    if (!grid) return null;
+
+    const points = [...this.measurePts];
+    if (includePreview && this.measurePreview) {
+      points.push(this.measurePreview);
+    }
+    if (points.length < 2) return null;
+
+    const hexes: number[] = [];
+    for (let i = 1; i < points.length; i += 1) {
+      const a = this.gridHexCellAtPoint(grid, points[i - 1]);
+      const b = this.gridHexCellAtPoint(grid, points[i]);
+      hexes.push(this.gridHexDistance(a, b));
+    }
+
+    return { grid, hexes };
+  }
+  
   private isGridAlignIncreaseKey(e: KeyboardEvent): boolean {
     return (
       e.key === "+" ||
@@ -3815,7 +4146,11 @@ export class MapInstance extends MarkdownRenderChild {
       playerScreen: "both",
     };
 
-    new GridEditorModal(this.app, draft, (res) => {
+    new GridEditorModal(
+      this.app,
+      draft,
+      this.plugin.getActiveCustomUnits(),
+      (res) => {
       if (!this.data) return;
       if (res.action !== "save") return;
       this.data.grids ??= [];
@@ -3823,11 +4158,16 @@ export class MapInstance extends MarkdownRenderChild {
       void this.saveDataSoon();
       this.renderGrids();
       new Notice("Grid added.", 1200);
-    }).open();
+      },
+    ).open();
   }
 
   private openGridEditor(grid: GridOverlay): void {
-    new GridEditorModal(this.app, grid, (res) => {
+    new GridEditorModal(
+      this.app,
+      grid,
+      this.plugin.getActiveCustomUnits(),
+      (res) => {
       if (!this.data) return;
       if (res.action !== "save") return;
 
@@ -3837,7 +4177,8 @@ export class MapInstance extends MarkdownRenderChild {
       this.data.grids![idx] = res.grid;
       void this.saveDataSoon();
       this.renderGrids();
-    }).open();
+      },
+    ).open();
   }
 
   private startGridAlignMode(gridId: string): void {
@@ -5573,8 +5914,14 @@ export class MapInstance extends MarkdownRenderChild {
 	this.updateTextHitboxInteractivity();
     this.measureSvg.setAttribute("height", String(this.imgH));
 
-    const pts: Point[] = [...this.measurePts];
-    if (this.measuring && this.measurePreview) pts.push(this.measurePreview);
+    const rawPts: Point[] = [...this.measurePts];
+    if (this.measuring && this.measurePreview) {
+      rawPts.push(this.measurePreview);
+    }
+
+    const pts = this.buildHexMeasureRoute(
+      this.measuring && !!this.measurePreview,
+    ) ?? rawPts;
 
     const toAbs = (p: Point) => ({ x: p.x * this.imgW, y: p.y * this.imgH });
 
@@ -5829,6 +6176,10 @@ export class MapInstance extends MarkdownRenderChild {
 
   private updateMeasureHud(): void {
     if (!this.measureHud) return;
+	
+    const hexMeasure = this.computeHexMeasureSegments(
+      this.measuring && !!this.measurePreview,
+    );
 
     const px = this.computeDistancePixels();
     const meters = this.computeDistanceMeters();
@@ -5836,7 +6187,11 @@ export class MapInstance extends MarkdownRenderChild {
 
     if (this.measuring || this.measurePts.length >= 2) {
       let distTxt = "No scale";
-      if (unit === "custom") {
+
+      if (hexMeasure) {
+        const hexes = hexMeasure.hexes.reduce((sum, value) => sum + value, 0);
+        distTxt = this.formatHexMeasureDistance(hexMeasure.grid, hexes);
+      } else if (unit === "custom") {
         distTxt = px != null ? this.formatCustomDistanceFromPixels(px) : "No distance";
       } else {
         distTxt = meters != null ? this.formatDistance(meters) : "No scale";
@@ -5864,6 +6219,14 @@ export class MapInstance extends MarkdownRenderChild {
 
   private computeDistanceMeters(): number | null {
     if (!this.data) return null;
+	
+    const hexMeasure = this.computeHexMeasureSegments(
+      this.measuring && !!this.measurePreview,
+    );
+    if (hexMeasure) {
+      const hexes = hexMeasure.hexes.reduce((sum, value) => sum + value, 0);
+      return this.hexMeasureDistanceToMeters(hexMeasure.grid, hexes);
+    }
 
     if (this.measurePts.length < 2 && !(this.measuring && this.measurePts.length >= 1 && this.measurePreview)) return null;
 
@@ -6188,9 +6551,8 @@ export class MapInstance extends MarkdownRenderChild {
   private onResize(): void {
     if (!this.ready || !this.data) return;
 
-    const oldRect = this.viewportEl.getBoundingClientRect();
-    const oldVw = oldRect.width || this.vw || 0;
-    const oldVh = oldRect.height || this.vh || 0;
+    const oldVw = this.vw || 0;
+    const oldVh = this.vh || 0;
 
     if (oldVw >= 2 && oldVh >= 2) {
       this.captureViewIfVisible();
@@ -6267,6 +6629,7 @@ export class MapInstance extends MarkdownRenderChild {
 
   private onWheel(e: WheelEvent): void {
     if (!this.ready) return;
+	if (this.isZoomLocked()) return;
     const factor = this.plugin.settings.wheelZoomFactor ?? 1.1;
     const step = Math.pow(factor, e.deltaY < 0 ? 1 : -1);
     const vpRect = this.viewportEl.getBoundingClientRect();
@@ -6467,10 +6830,10 @@ export class MapInstance extends MarkdownRenderChild {
       const vy = e.clientY - vpRect.top;
       const wx = (vx - this.tx) / this.scale;
       const wy = (vy - this.ty) / this.scale;
-      this.measurePreview = {
+      this.measurePreview = this.snapMeasurePointToGrid({
         x: clamp(wx / this.imgW, 0, 1),
         y: clamp(wy / this.imgH, 0, 1),
-      };
+      });
       this.renderMeasure();
     }
 
@@ -6601,14 +6964,20 @@ this.viewDragDist = 0;
     const curDist = this.dist(pts[0], pts[1]);
     if (this.pinchStartDist <= 0) return;
 
-    const targetScale = clamp(this.pinchStartScale * (curDist / this.pinchStartDist), this.cfg.minZoom, this.cfg.maxZoom);
+    if (!this.isZoomLocked()) {
+      const targetScale = clamp(
+        this.pinchStartScale * (curDist / this.pinchStartDist),
+        this.cfg.minZoom,
+        this.cfg.maxZoom,
+      );
 
-    const vpRect = this.viewportEl.getBoundingClientRect();
-    const cx = clamp(center.x - vpRect.left, 0, this.vw);
-    const cy = clamp(center.y - vpRect.top, 0, this.vh);
+      const vpRect = this.viewportEl.getBoundingClientRect();
+      const cx = clamp(center.x - vpRect.left, 0, this.vw);
+      const cy = clamp(center.y - vpRect.top, 0, this.vh);
 
-    const factor = targetScale / this.scale;
-    if (Math.abs(factor - 1) > 1e-3) this.zoomAt(cx, cy, factor);
+      const factor = targetScale / this.scale;
+      if (Math.abs(factor - 1) > 1e-3) this.zoomAt(cx, cy, factor);
+    }
 
     if (this.pinchPrevCenter) {
       const dx = center.x - this.pinchPrevCenter.x;
@@ -6830,6 +7199,7 @@ this.viewDragDist = 0;
 
   private onDblClickViewport(e: MouseEvent): void {
     if (!this.ready) return;
+	if (this.isZoomLocked()) return;
 	
     if (this.textMode === "draw-box") {
       return;
@@ -6967,10 +7337,10 @@ this.viewDragDist = 0;
       const vy = e.clientY - vpRect.top;
       const wx = (vx - this.tx) / this.scale;
       const wy = (vy - this.ty) / this.scale;
-      const p = {
+     const p = this.snapMeasurePointToGrid({
         x: clamp(wx / this.imgW, 0, 1),
         y: clamp(wy / this.imgH, 0, 1),
-      };
+      });
       this.measurePts.push(p);
       this.renderMeasure();
       return;
@@ -7496,6 +7866,56 @@ this.viewDragDist = 0;
     const meas = this.data?.measurement;
     const currentUnit = ((meas?.displayUnit as unknown as string) ?? "km");
     const currentCustomId = meas?.customUnitId;
+	
+	const hexMeasurementGrids = (this.data?.grids ?? [])
+	  .filter((grid) =>
+		grid.shape === "hex" &&
+		grid.measureHexDistanceEnabled === true &&
+		(!grid.boundBase || grid.boundBase === this.getActiveBasePath()),
+	  );
+	  
+    const selectGridMeasurement = (
+      gridId: string | undefined,
+      rowEl: HTMLDivElement,
+    ): void => {
+      this.ensureMeasurement();
+      if (!this.data?.measurement) return;
+
+      if (gridId) {
+        this.data.measurement.gridId = gridId;
+      } else {
+        delete this.data.measurement.gridId;
+      }
+
+      void this.saveDataSoon();
+      this.renderMeasure();
+
+      for (const sibling of Array.from(rowEl.parentElement?.children ?? [])) {
+        const check = sibling.querySelector<HTMLElement>(
+          ":scope > .zm-menu__right > .zm-menu__check",
+        );
+        if (check) check.textContent = sibling === rowEl ? "✓" : "";
+      }
+    };
+
+	const gridMeasureItems: ZMMenuItem[] = [
+	  {
+		label: "Off (pixel distance)",
+		checked: !this.data?.measurement?.gridId,
+		action: (rowEl) => {
+		  selectGridMeasurement(undefined, rowEl);
+		},
+	  },
+	  ...hexMeasurementGrids.map((grid) => ({
+		label: `${grid.name}: ${grid.measureHexDistance ?? 1} ${
+		  grid.measureHexUnit ?? "mi"
+		} / hex`,
+		checked: this.data?.measurement?.gridId === grid.id,
+		action: (rowEl: HTMLDivElement) => {
+		  selectGridMeasurement(grid.id, rowEl);
+		},
+	  })),
+	];
 
     const unitItems: ZMMenuItem[] = [
       {
@@ -7733,6 +8153,7 @@ this.viewDragDist = 0;
       { label: "Unit", children: unitItems },
       { label: "Travel time", children: travelTimeItems },
       { type: "separator" },
+	  { label: "Hex grid measurement", children: gridMeasureItems },
       {
         label: this.calibrating ? "Stop calibration" : "Calibrate scale…",
         action: () => {
@@ -7756,30 +8177,7 @@ this.viewDragDist = 0;
 
   private openMeasureOnlyContextMenu(clientX: number, clientY: number): void {
     this.closeMenu();
-    this.openMenu = new ZMMenu(this.el.ownerDocument);
-    this.openMenu.open(clientX, clientY, this.buildMeasureMenuItems());
-
-    const doc = this.getOwnerDocument();
-    const outside = (event: Event) => {
-      if (!this.openMenu) return;
-      const t = event.target;
-      if (t instanceof HTMLElement && this.openMenu.contains(t)) return;
-      this.closeMenu();
-    };
-    const keyClose = (event: KeyboardEvent) => {
-      if (event.key === "Escape") this.closeMenu();
-    };
-    const rightClickClose = () => this.closeMenu();
-
-    doc.addEventListener("pointerdown", outside, { capture: true });
-    doc.addEventListener("contextmenu", rightClickClose, { capture: true });
-    doc.addEventListener("keydown", keyClose, { capture: true });
-
-    this.register(() => {
-      doc.removeEventListener("pointerdown", outside, true);
-      doc.removeEventListener("contextmenu", rightClickClose, true);
-      doc.removeEventListener("keydown", keyClose, true);
-    });
+    this.openMenuAt(clientX, clientY, this.buildMeasureMenuItems());
   }
 
 private onContextMenuViewport(e: MouseEvent): void {
@@ -9086,8 +9484,55 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     if (!this.cfg.responsive) {
       items.push(
         { type: "separator" },
-        { label: "Zoom +", action: () => this.zoomAt(vx, vy, 1.2) },
-        { label: "Zoom −", action: () => this.zoomAt(vx, vy, 1 / 1.2) },
+        {
+          label: "Zoom +",
+          action: () => {
+            if (this.isZoomLocked()) {
+              new Notice("Zoom is locked.", 1200);
+              return;
+            }
+            this.zoomAt(vx, vy, 1.2);
+          },
+        },
+        {
+          label: "Lock zoom (allow mouse-wheel scroll)",
+          checked: this.isZoomLocked(),
+            action: (rowEl) => {
+              const next = !this.isZoomLocked();
+
+              void this.setZoomLocked(next)
+                .then(() => {
+                  const check = rowEl.querySelector<HTMLElement>(
+                    ".zm-menu__check",
+                  );
+                  if (check) check.textContent = next ? "✓" : "";
+
+                  new Notice(
+                    next
+                      ? "Zoom locked for this map block. Mouse wheel scrolls the note."
+                      : "Zoom unlocked for this map block.",
+                    1800,
+                  );
+                })
+                .catch((error) => {
+                  console.error("Zoom Map: failed to update zoom lock YAML", error);
+                  new Notice(
+                    "Could not save the zoom lock in the zoommap YAML.",
+                    3500,
+                  );
+                });
+          },
+        },
+        {
+          label: "Zoom −",
+          action: () => {
+            if (this.isZoomLocked()) {
+              new Notice("Zoom is locked.", 1200);
+              return;
+            }
+            this.zoomAt(vx, vy, 1 / 1.2);
+          },
+        },
         { label: "Fit to window", action: () => this.fitToView() },
         { label: "Reset view", action: () => this.resetToDefaultView() },
       );
@@ -9130,33 +9575,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       });
     }
 
-    this.openMenu = new ZMMenu(this.el.ownerDocument);
-    this.openMenu.open(e.clientX, e.clientY, items);
-
-    const doc = this.el.ownerDocument;
-
-    const outside = (ev: Event) => {
-      if (!this.openMenu) return;
-      const t = ev.target;
-      if (t instanceof Node && this.openMenu.contains(t)) return;
-      this.closeMenu();
-    };
-
-    const keyClose = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape") this.closeMenu();
-    };
-
-    const rightClickClose = () => this.closeMenu();
-
-    doc.addEventListener("pointerdown", outside, { capture: true });
-    doc.addEventListener("contextmenu", rightClickClose, { capture: true });
-    doc.addEventListener("keydown", keyClose, { capture: true });
-
-    this.register(() => {
-      doc.removeEventListener("pointerdown", outside, true);
-      doc.removeEventListener("contextmenu", rightClickClose, true);
-      doc.removeEventListener("keydown", keyClose, true);
-    });
+    this.openMenuAt(e.clientX, e.clientY, items);
   }
   
   private forwardContextMenuPastTextHitbox(ev: MouseEvent): void {
@@ -9211,12 +9630,17 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 
     this.onContextMenuViewport(ev);
   }
+  
+  private openMenuAt(
+    clientX: number,
+    clientY: number,
+    items: ZMMenuItem[],
+  ): void {
+    this.menuSession.open(clientX, clientY, items);
+  }
 
   private closeMenu(): void {
-    if (this.openMenu) {
-      this.openMenu.destroy();
-      this.openMenu = null;
-    }
+    this.menuSession.close();
   }
   
   private isActiveBaseSvg(): boolean {
@@ -9728,8 +10152,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
   ): void {
     this.closeMenu();
 
-    this.openMenu = new ZMMenu(this.el.ownerDocument);
-    this.openMenu.open(clientX, clientY, [
+    this.openMenuAt(clientX, clientY, [
       {
         label: "Paste",
         action: () => {
@@ -9780,6 +10203,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       link: defaultLink ?? "",
       iconKey,
       tooltip: "",
+	  scaleLikeSticker: this.plugin.settings.defaultScaleLikeSticker ? true : undefined,
     };
 
     const openEditor = !!this.plugin.settings.pinPlaceOpensEditor;
@@ -9990,6 +10414,50 @@ if (this.plugin.settings.enableTextLayers && this.data) {
 
   private formatPingDistanceLabel(value: number, unit: PingDistanceUnit, customUnitId?: string): string {
     return `${value} ${this.pingUnitLabel(unit, customUnitId)}`;
+  }
+  
+  private hexMeasureDistanceToMeters(
+    grid: GridOverlay,
+    hexes: number,
+  ): number | null {
+    const perHex = Number(grid.measureHexDistance);
+    if (!Number.isFinite(perHex) || perHex <= 0) return null;
+
+    const value = hexes * perHex;
+    switch (grid.measureHexUnit ?? "mi") {
+      case "m":
+        return value;
+      case "km":
+        return value * 1000;
+      case "mi":
+        return value * 1609.344;
+      case "ft":
+        return value * 0.3048;
+      case "custom": {
+        const id = grid.measureHexCustomUnitId;
+        const def = id ? this.findCustomUnitDef(id) : undefined;
+        if (!def || !Number.isFinite(def.metersPerUnit) || def.metersPerUnit <= 0) {
+          return null;
+        }
+        return value * def.metersPerUnit;
+      }
+      default:
+        return null;
+    }
+  }
+
+  private formatHexMeasureDistance(
+    grid: GridOverlay,
+    hexes: number,
+  ): string {
+    const perHex = Number(grid.measureHexDistance) || 1;
+    const distance = Math.round(hexes * perHex * 100) / 100;
+    const unit =
+      grid.measureHexUnit === "custom"
+        ? this.pingUnitLabel("custom", grid.measureHexCustomUnitId)
+        : grid.measureHexUnit ?? "mi";
+    const hexLabel = hexes === 1 ? "hex" : "hexes";
+    return `${hexes} ${hexLabel} · ${distance} ${unit}`;
   }
 
   private getEffectivePxPerCustomUnit(customUnitId: string): number | undefined {
@@ -11889,30 +12357,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     },
   ];
 
-    this.openMenu = new ZMMenu(this.el.ownerDocument);
-    this.openMenu.open(ev.clientX, ev.clientY, items);
-
-	const doc = this.getOwnerDocument();
-    const outside = (event: Event) => {
-      if (!this.openMenu) return;
-      const t = event.target;
-      if (t instanceof HTMLElement && this.openMenu.contains(t)) return;
-      this.closeMenu();
-    };
-    const keyClose = (event: KeyboardEvent) => {
-      if (event.key === "Escape") this.closeMenu();
-    };
-    const rightClickClose = () => this.closeMenu();
-
-        doc.addEventListener("pointerdown", outside, { capture: true });
-		doc.addEventListener("contextmenu", rightClickClose, { capture: true });
-		doc.addEventListener("keydown", keyClose, { capture: true });
-
-	this.register(() => {
-		  doc.removeEventListener("pointerdown", outside, true);
-		  doc.removeEventListener("contextmenu", rightClickClose, true);
-		  doc.removeEventListener("keydown", keyClose, true);
-	});
+    this.openMenuAt(ev.clientX, ev.clientY, items);
   }
   
   private getOrCreateDefaultDrawLayer(): DrawLayer {
@@ -12540,11 +12985,11 @@ if (this.plugin.settings.enableTextLayers && this.data) {
       }
 	  
       // Always-visible tooltip label (caption)
+	  const markerLabel = this.getAlwaysVisibleMarkerLabel(m);
       if (
         m.type !== "sticker" &&
         !!m.tooltipLabelAlways &&
-        typeof m.tooltip === "string" &&
-        m.tooltip.trim().length > 0
+        markerLabel.length > 0
       ) {
         const effectiveKey = (() => {
           if (m.type === "swap") {
@@ -12583,7 +13028,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
         }
 
         const label = parent.createDiv({ cls: "zm-marker-label" });
-        label.textContent = m.tooltip.trim();
+        label.textContent = markerLabel;
 
         // Position relative to the anchor (0,0), but shifted to icon center
         label.style.left = `${xOff}px`;
@@ -12816,8 +13261,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
             },
           ], m);
 
-          this.openMenu = new ZMMenu(this.el.ownerDocument);
-          this.openMenu.open(ev.clientX, ev.clientY, items);
+		  this.openMenuAt(ev.clientX, ev.clientY, items);
           return;
         }
 		
@@ -12910,8 +13354,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
             },
           ], m);
 
-          this.openMenu = new ZMMenu(this.el.ownerDocument);
-          this.openMenu.open(ev.clientX, ev.clientY, items);
+		  this.openMenuAt(ev.clientX, ev.clientY, items);
           return;
         }
 		
@@ -12942,8 +13385,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
             },
           ], m);
 
-          this.openMenu = new ZMMenu(this.el.ownerDocument);
-          this.openMenu.open(ev.clientX, ev.clientY, items);
+		  this.openMenuAt(ev.clientX, ev.clientY, items);
           return;
         }
 
@@ -13030,34 +13472,7 @@ if (this.plugin.settings.enableTextLayers && this.data) {
             },
           ], m);
 
-          this.openMenu = new ZMMenu(this.el.ownerDocument);
-          this.openMenu.open(ev.clientX, ev.clientY, items);
-
-		  const doc = this.getOwnerDocument();
-          const outside = (event: Event) => {
-            if (!this.openMenu) return;
-            const t = event.target;
-            if (t instanceof HTMLElement && this.openMenu.contains(t)) return;
-            this.closeMenu();
-          };
-          const keyClose = (event: KeyboardEvent) => {
-            if (event.key === "Escape") this.closeMenu();
-          };
-          const rightClickClose = () => this.closeMenu();
-
-          doc.addEventListener("pointerdown", outside, {
-            capture: true,
-          });
-          doc.addEventListener("contextmenu", rightClickClose, {
-            capture: true,
-          });
-          doc.addEventListener("keydown", keyClose, { capture: true });
-
-          this.register(() => {
-            doc.removeEventListener("pointerdown", outside, true);
-            doc.removeEventListener("contextmenu", rightClickClose, true);
-            doc.removeEventListener("keydown", keyClose, true);
-          });
+		  this.openMenuAt(ev.clientX, ev.clientY, items);
 
           return;
         }
@@ -13112,31 +13527,8 @@ if (this.plugin.settings.enableTextLayers && this.data) {
           });
         }
 
-        this.openMenu = new ZMMenu(this.el.ownerDocument);
-        this.openMenu.open(ev.clientX, ev.clientY, items);
+		this.openMenuAt(ev.clientX, ev.clientY, items);
 
-        const doc = this.getOwnerDocument();
-        const outside = (event: Event) => {
-          if (!this.openMenu) return;
-          const t = event.target;
-          if (t instanceof HTMLElement && this.openMenu.contains(t))
-            return;
-          this.closeMenu();
-        };
-        const keyClose = (event: KeyboardEvent) => {
-          if (event.key === "Escape") this.closeMenu();
-        };
-        const rightClickClose = () => this.closeMenu();
-
-    doc.addEventListener("pointerdown", outside, { capture: true });
-	doc.addEventListener("contextmenu", rightClickClose, { capture: true });
-	doc.addEventListener("keydown", keyClose, { capture: true });
-
-		this.register(() => {
-	  doc.removeEventListener("pointerdown", outside, true);
-	  doc.removeEventListener("contextmenu", rightClickClose, true);
-	  doc.removeEventListener("keydown", keyClose, true);
-		});
       });
       }
     }
@@ -13252,6 +13644,35 @@ if (this.plugin.settings.enableTextLayers && this.data) {
     if (f) return f.basename;
     const raw = (link ?? "").split("#")[0] ?? "";
     return basename(raw);
+  }
+  
+  private getAlwaysVisibleMarkerLabel(m: Marker): string {
+    const tooltip = (m.tooltip ?? "").trim();
+    if (tooltip) return tooltip;
+
+    const rawLink = (this.getSwapEffectiveLink(m) ?? "").trim();
+    if (!rawLink) return "";
+
+    const unwrapped =
+      rawLink.startsWith("[[") && rawLink.endsWith("]]")
+        ? rawLink.slice(2, -2).trim()
+        : rawLink;
+
+    const pipeIndex = unwrapped.indexOf("|");
+    const targetWithAnchor =
+      pipeIndex >= 0 ? unwrapped.slice(0, pipeIndex).trim() : unwrapped;
+    const alias =
+      pipeIndex >= 0 ? unwrapped.slice(pipeIndex + 1).trim() : "";
+
+    if (alias) return alias;
+
+    const target = targetWithAnchor.split("#", 1)[0]?.trim() ?? "";
+    if (!target) return "";
+
+    const file = this.resolveTFile(target, this.cfg.sourcePath);
+    if (file) return file.basename;
+
+    return basename(target);
   }
 
   private showInternalTooltip(ev: MouseEvent, m: Marker, opts?: { title?: string }): void {
@@ -14481,173 +14902,5 @@ class ConfirmModal extends Modal {
 
   onClose(): void {
     this.contentEl.empty();
-  }
-}
-
-/* ------------ Context Menu ------------- */
-interface ZMMenuItem {
-  type?: "item" | "separator";
-  label?: string;
-  // Menu item handler; receives the clicked row and the menu instance.
-  action?: (rowEl: HTMLDivElement, menu?: ZMMenu) => void | Promise<void>;
-  iconUrl?: string;
-  iconRotationDeg?: number;
-  checked?: boolean;
-  mark?: "check" | "x" | "minus";
-  markColor?: string;
-  children?: ZMMenuItem[];
-}
-
-class ZMMenu {
-  private doc: Document;
-  private root: HTMLDivElement;
-  private submenus: HTMLDivElement[] = [];
-  private items: ZMMenuItem[] = [];
-
-  constructor(doc: Document) {
-    this.doc = doc;
-    this.root = this.doc.body.createDiv({ cls: "zm-menu" });
-    this.root.addEventListener("contextmenu", (e) => e.stopPropagation());
-  }
-
-  open(clientX: number, clientY: number, items: ZMMenuItem[]): void {
-    this.items = items;
-    this.buildList(this.root, this.items);
-    this.position(this.root, clientX, clientY, "right");
-  }
-
-  destroy(): void {
-    this.submenus.forEach((el) => el.remove());
-    this.submenus = [];
-    this.root.remove();
-  }
-
-  contains(el: Node): boolean {
-    return this.root.contains(el) || this.submenus.some((s) => s.contains(el));
-  }
-
-  private buildList(container: HTMLDivElement, items: ZMMenuItem[]): void {
-    container.empty();
-    for (const it of items) {
-      if (it.type === "separator") {
-        container.createDiv({ cls: "zm-menu__sep" });
-        continue;
-      }
-      if (!it.label) continue;
-
-      const row = container.createDiv({ cls: "zm-menu__item" });
-
-      const label = row.createDiv({ cls: "zm-menu__label" });
-      if (it.iconUrl) {
-        const imgLeft = label.createEl("img", { cls: "zm-menu__icon" });
-        imgLeft.src = it.iconUrl;
-
-        const deg =
-          typeof it.iconRotationDeg === "number" && Number.isFinite(it.iconRotationDeg)
-            ? it.iconRotationDeg
-            : 0;
-        if (deg) imgLeft.style.transform = `rotate(${deg}deg)`;
-        else imgLeft.style.removeProperty("transform");
-
-        label.appendChild(this.doc.createTextNode(" "));
-      }
-      label.appendText(it.label);
-
-      const right = row.createDiv({ cls: "zm-menu__right" });
-
-      if (it.children?.length) {
-        const arrow = right.createDiv({ cls: "zm-menu__arrow" });
-        arrow.setText("▶");
-        let submenuEl: HTMLDivElement | null = null;
-
-        const openSub = () => {
-          if (submenuEl) return;
-          submenuEl = this.doc.body.createDiv({ cls: "zm-submenu" });
-          this.submenus.push(submenuEl);
-          this.buildList(submenuEl, it.children!);
-
-          const rect = row.getBoundingClientRect();
-          const win = this.doc.defaultView ?? window;
-          const pref = rect.right + 260 < win.innerWidth ? "right" : "left";
-          const x = pref === "right" ? rect.right : rect.left;
-          const y = rect.top;
-          this.position(submenuEl, x, y, pref);
-        };
-
-        const closeSub = () => {
-          if (!submenuEl) return;
-          submenuEl.remove();
-          this.submenus = this.submenus.filter((s) => s !== submenuEl);
-          submenuEl = null;
-        };
-
-        row.addEventListener("mouseenter", openSub);
-        row.addEventListener("mouseleave", (e) => {
-          const to = e.relatedTarget;
-          if (submenuEl && !(to instanceof Node && submenuEl.contains(to))) closeSub();
-        });
-      } else {
-        const chk = right.createDiv({ cls: "zm-menu__check" });
-        if (it.mark) {
-          chk.setText(this.symbolForMark(it.mark));
-          if (it.markColor) chk.style.color = it.markColor;
-        } else if (typeof it.checked === "boolean") {
-          chk.setText(it.checked ? "✓" : "");
-        }
-
-        if (!it.action) {
-          row.classList.add("zm-menu__item--info");
-        }
-
-        row.addEventListener("click", () => {
-          if (!it.action) return;
-          try {
-            void Promise.resolve(it.action(row, this)).catch((err) =>
-              console.error("Menu item action failed:", err),
-            );
-          } catch (err) {
-            console.error("Menu item action failed:", err);
-          }
-        });
-      }
-    }
-  }
-
-  private symbolForMark(mark: "check" | "x" | "minus"): string {
-    switch (mark) {
-      case "x":
-        return "×";
-      case "minus":
-        return "–";
-      default:
-        return "✓";
-    }
-  }
-
-  private position(
-    el: HTMLDivElement,
-    clientX: number,
-    clientY: number,
-    prefer: "right" | "left",
-  ): void {
-    const pad = 6;
-    const rect = el.getBoundingClientRect();
-    let x = clientX;
-    let y = clientY;
-
-    const win = this.doc.defaultView ?? window;
-    const vw = win.innerWidth;
-    const vh = win.innerHeight;
-
-    if (prefer === "right") {
-      if (clientX + rect.width + pad > vw) x = Math.max(pad, vw - rect.width - pad);
-    } else {
-      x = clientX - rect.width;
-      if (x < pad) x = pad;
-    }
-    if (clientY + rect.height + pad > vh) y = Math.max(pad, vh - rect.height - pad);
-
-    el.style.left = `${x}px`;
-    el.style.top = `${y}px`;
   }
 }

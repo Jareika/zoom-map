@@ -15,6 +15,7 @@ export interface ViewEditorConfig {
   imageRendering?: ImageRenderingMode;
   minZoom: number;
   maxZoom: number;
+  zoomLocked: boolean;
   wrap: boolean;
   responsive: boolean;
   width: string;
@@ -67,6 +68,7 @@ export class ViewEditorModal extends Modal {
     this.cfg.renderMode ||= "dom";
     this.cfg.resizeHandle ||= "right";
 	this.cfg.imageRendering ||= "auto";
+	this.cfg.zoomLocked ??= false;
 
     if (typeof this.cfg.viewportFrame !== "string") this.cfg.viewportFrame = "";
     this.cfg.viewportFrameInsets ??= {
@@ -410,6 +412,17 @@ export class ViewEditorModal extends Modal {
       input.value = this.factorToPercentString(this.cfg.maxZoom);
       input.oninput = () => {
         this.cfg.maxZoom = this.percentInputToFactor(input.value, 8);
+      };
+    }
+
+    {
+      const field = this.createCompactField(viewGrid, "Lock zoom", {
+        hint: "Disables wheel, double-click, pinch and HUD-button zoom for this embedded map only.",
+      });
+      const input = field.createEl("input", { type: "checkbox" });
+      input.checked = this.cfg.zoomLocked === true;
+      input.onchange = () => {
+        this.cfg.zoomLocked = input.checked;
       };
     }
 
